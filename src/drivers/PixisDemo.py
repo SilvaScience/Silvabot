@@ -15,35 +15,37 @@ from collections import defaultdict
 import time
 
 
-class SpectrometerDemo(QtCore.QThread):
+class PixisDemo(QtCore.QThread):
 
-    name = 'Spectrometer'
+    name = 'Pixis'
     
     def __init__(self):
-        super(SpectrometerDemo, self).__init__()
+        super(PixisDemo, self).__init__()
 
         # load and initialize  spectrometerWorker
-        self.spectrometer = SpectrometerWorker()
-        self.spectrometer.sendSpectrum.connect(self.update_spectrum) # connect where signals of worker go to.
-        self.spectrometer.start()
-        self.wavelength = self.spectrometer.wavelengths # get property from Worker
-        self.spec_length = self.spectrometer.spec_length # get property from Worker
-        self.int_time = self.spectrometer.int_time # get property from Worker
+        #self.spectrometer = SpectrometerWorker()
+        #self.spectrometer.sendSpectrum.connect(self.update_spectrum) # connect where signals of worker go to.
+        #self.spectrometer.start()
+        self.wavelength =  np.linspace(200,1000,1024) # get property from Worker
+        self.spec_length = (252,1024) # get property from Worker
+        #self.int_time = self.spectrometer.int_time # get property from Worker
+        self.image = np.zeros(self.spec_length)
 
         # preallocate arrays
-        self.spectrum = np.ndarray([])
-        self.binned_spec = np.zeros(self.spec_length)
+        #self.spectrum = np.ndarray([])
+        #self.binned_spec = np.zeros(self.spec_length)
+        self.image = np.zeros((252, 1024))
 
         # Parameters. Defines parameters that are required for by the interface
         self.avg_scan = 1
-        self.binning = 1
+        #self.binning = 1
         self.int_time = 500
         self.binned_spec = np.zeros(self.spec_length)
         self.new_spectrum = False
 
         # setting up variables, open array
-        self.spectrum = np.array([])
-        self.wavelength = np.array([])
+        #self.spectrum = np.array([])
+        #self.wavelength = np.array([])
 
         # set parameter dict
         self.parameter_dict = defaultdict()
@@ -54,10 +56,10 @@ class SpectrometerDemo(QtCore.QThread):
         self.parameter_display_dict['int_time']['unit'] = ' ms'
         self.parameter_display_dict['int_time']['max'] = 10000
         self.parameter_display_dict['int_time']['read'] = False
-        self.parameter_display_dict['binning']['val'] = 1
-        self.parameter_display_dict['binning']['unit'] = ' px'
-        self.parameter_display_dict['binning']['max'] = 1000
-        self.parameter_display_dict['binning']['read'] = False
+        #self.parameter_display_dict['binning']['val'] = 1
+        #self.parameter_display_dict['binning']['unit'] = ' px'
+        #self.parameter_display_dict['binning']['max'] = 1000
+        #self.parameter_display_dict['binning']['read'] = False
         self.parameter_display_dict['avg_scan']['val'] = 1
         self.parameter_display_dict['avg_scan']['unit'] = ' scan(s)'
         self.parameter_display_dict['avg_scan']['max'] = 1000
@@ -74,12 +76,12 @@ class SpectrometerDemo(QtCore.QThread):
         In devices with workers, a pause of continuous acquisition might be required. """
         if parameter == 'int_time':
             self.parameter_dict['int_time'] = value
-            self.spectrometer.set_int_time(value)
+            #self.spectrometer.set_int_time(value)
             self.int_time = value
             self.new_spectrum = False
-        elif parameter == 'binning':
-            self.parameter_dict['binning'] = value
-            self.binning = int(value)
+        #elif parameter == 'binning':
+        #    self.parameter_dict['binning'] = value
+        #    self.binning = int(value)
         elif parameter == 'avg_scan':
             self.parameter_dict['avg_scan'] = value
             self.avg_scan = int(value)
@@ -95,26 +97,31 @@ class SpectrometerDemo(QtCore.QThread):
     def get_wavelength(self):
         """This simply returns the wavelength. In Colbert this needs to be adapted if the calibration
          changes. This function will be accessible from MeasurementClasses. """
-        return np.linspace(177.2218, 884.00732139, 2048)
+        return np.linspace(177.2218, 884.00732139, 1024)
 
     def get_intensities(self):
         """ Gets the intensity. The example include the possibility of averaging several spectra and to
         perform a binning. Such functionalities might also be given by the camera.
         This function will be accessible from MeasurementClasses."""
-        if self.avg_scan == 1:
-            while not self.new_spectrum:
-                time.sleep(0.05)
-            spectrum = self.spectrum
-            self.new_spectrum = False
-        else:
-            spectrum = np.zeros(len(self.spectrum))
-            for i in range(self.avg_scan):
-                time.sleep(self.int_time / 1000 + 0.05)
-                while not self.new_spectrum:
-                    time.sleep(0.05)
-                spectrum = spectrum + self.spectrum
-                self.new_spectrum = False
-        return self.do_binning(spectrum)
+        #spectrum = np.random.rand(252, 1024)
+        spectrum = self.random_spectrum()
+        for i in range(3):
+            spectrum = np.concatenate([spectrum, self.random_spectrum()],axis =0)
+        spectrum = spectrum * np.random.rand(252, 1024)
+        time.sleep(0.5)
+        return spectrum
+
+    def random_spectrum(self):
+        # Generating 2D grids 'x' and 'y' using meshgrid with 10 evenly spaced points from -1 to 1
+        x, y = np.meshgrid(np.linspace(-1, 1, 1024), np.linspace(-1, 1, 63))
+        # Calculating the Euclidean distance 'd' from the origin using the generated grids 'x' and 'y'
+        d = np.sqrt(x * x + y * y)
+        # Defining parameters sigma and mu for a Gaussian-like distribution
+        sigma, mu = 0.8, 0.0
+        # Calculating the Gaussian-like distribution 'g' based on the distance 'd', sigma, and mu
+        g = np.exp(-((d - mu) ** 2 / (2.0 * sigma ** 2)))
+        # Printing a message indicating a 2D Gaussian-like array will be displayed
+        return g
 
     def do_binning(self, spectrum):
         """ Manual binning of the spectra. Some cameras might allow to readout pixel together to increase

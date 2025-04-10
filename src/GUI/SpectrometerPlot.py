@@ -15,6 +15,17 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         self.clear_button = QtWidgets.QPushButton('Clear')
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(self.clear_button)
+
+        #construct math ROIs
+        widget = QtWidgets.QWidget()
+        self.roi_controls = []
+        self.roi_values = {}
+        widget.setLayout(self.construct_ROI_input())
+        #vbox.addChildLayout(self.construct_ROI_input())
+        vbox.addWidget(widget)
+        #widget.setLayout(self.construct_ROI_input)
+
+
         vbox.addWidget(self.graphWidget)
         widget = QtWidgets.QWidget()
         widget.setLayout(vbox)
@@ -67,6 +78,51 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         # connect events
         self.clear_button.clicked.connect(self.clear_plot)
 
+    def construct_ROI_input(self):
+        layout = QtWidgets.QVBoxLayout()
+        grid_layout = QtWidgets.QGridLayout()
+
+        for i in range(4):
+            group = QtWidgets.QGroupBox(f"ROI{i+1}")
+            hbox = QtWidgets.QHBoxLayout()
+
+            min_spin = QtWidgets.QSpinBox()
+            min_spin.setRange(0, 1000)
+            min_spin.setValue(i * 63 + 26)
+
+            max_spin = QtWidgets.QSpinBox()
+            max_spin.setRange(0, 1000)
+            max_spin.setValue(i * 63 + 36)
+
+            hbox.addWidget(QtWidgets.QLabel("Min:"))
+            hbox.addWidget(min_spin)
+            hbox.addWidget(QtWidgets.QLabel("Max:"))
+            hbox.addWidget(max_spin)
+            group.setLayout(hbox)
+
+            row = 0
+            col = i
+            grid_layout.addWidget(group, row, col)
+
+            self.roi_controls.append((min_spin, max_spin))
+
+        layout.addLayout(grid_layout)
+
+        hbox_widget =QtWidgets.QWidget()
+        hbox = QtWidgets.QHBoxLayout()
+        self.input_line = QtWidgets.QLineEdit()
+        self.input_line.setPlaceholderText("Enter math expression using ROI1 to ROI4")
+        hbox.addWidget(self.input_line)
+        hbox.addWidget(QtWidgets.QLabel("Sum mode:"))
+        self.checkbox_image = QtWidgets.QCheckBox()
+        hbox.addWidget(self.checkbox_image)
+        hbox.addWidget(QtWidgets.QLabel("show Limits:"))
+        self.checkbox_limits = QtWidgets.QCheckBox()
+        hbox.addWidget(self.checkbox_limits)
+        hbox_widget.setLayout(hbox)
+        layout.addWidget(hbox_widget)
+        return layout
+
     @QtCore.pyqtSlot()
     def clear_plot(self):
         self.graphWidget.clear()
@@ -79,8 +135,25 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
     def set_data(self, wls, spec):
         #color = list(np.random.choice(range(256), size=3))
-        self.graphWidget.plot(wls, spec, pen=QtGui.QColor.fromRgbF(plt.cm.prism(self.plotcounter)[0],plt.cm.prism(self.plotcounter)[1],
+        if spec.ndim == 1:
+            self.graphWidget.plot(wls, spec, pen=QtGui.QColor.fromRgbF(plt.cm.prism(self.plotcounter)[0],plt.cm.prism(self.plotcounter)[1],
                                                                    plt.cm.prism(self.plotcounter)[2],plt.cm.prism(self.plotcounter)[3]))
+        else:
+            if not self.checkbox_image.isChecked():
+                self.graphWidget.clear()
+                self.graphWidget.addItem(pg.ImageItem(np.transpose(spec)))
+                if self.checkbox_limits.isChecked():
+                    print('checked')
+                    for i in range(4):
+                        y1 = self.roi_controls[i][0].value()
+                        y2 = self.roi_controls[i][1].value()
+                        self.graphWidget.addLine(x=None, y=y1)
+                        self.graphWidget.addLine(x=None, y=y2)
+            else:
+                colors = [QtGui.QColor("red"), QtGui.QColor("green"), QtGui.QColor("blue"), QtGui.QColor("cyan")]
+                for i in range(4):
+                    y = np.average(spec[self.roi_controls[i][0].value():self.roi_controls[i][1].value(),:],axis=0)
+                    self.graphWidget.plot(wls, y, pen=colors[i])
         self.plotcounter = self.plotcounter + 1
         if self.plotcounter > 100:
             self.clear_plot()

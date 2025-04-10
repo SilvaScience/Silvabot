@@ -20,6 +20,7 @@ from drivers.SpectrometerDemo_advanced import SpectrometerDemo
 from drivers.SLMDemo import SLMDemo
 from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
+from drivers.PixisDemo import PixisDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
     ViewMeasurement, KineticMeasurement
@@ -33,7 +34,7 @@ class MainInterface(QtWidgets.QMainWindow):
         uic.loadUi(Path(project_folder,r'GUI/main_GUI.ui'), self)
 
         # fancy name
-        self.setWindowTitle('COLBERTo')
+        self.setWindowTitle('Silvabot')
 
         # set devices dict
         self.devices = defaultdict(dict)
@@ -48,25 +49,26 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['cryostat'] = self.cryostat # store in global device dict.
 
         # initialize Spectrometer
-        self.spectrometer = SpectrometerDemo()
+        self.spectrometer = PixisDemo()
+        #self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
         print('Spectrometer connection failed, use DEMO')
 
         # initialize SLMDemo
-        self.SLM = SLMDemo()
-        self.devices['SLM'] = self.SLM
-        print('SLMDemo connected')
+        #self.SLM = SLMDemo()
+        #self.devices['SLM'] = self.SLM
+        #print('SLMDemo connected')
 
         # initialize StresingDemo
-        self.Stresing = StresingDemo()
-        self.devices['Stresing'] = self.Stresing
-        print('Stresing connected')
+        #self.Stresing = StresingDemo()
+        #self.devices['Stresing'] = self.Stresing
+        #print('Stresing connected')
 
         # initialize MonochromDemo
-        self.Monochrom = MonochromDemo() 
-        self.devices['Monochrom'] = self.Monochrom 
-        print('Monochrom DEMO connected')
+        #self.Monochrom = MonochromDemo()
+        #self.devices['Monochrom'] = self.Monochrom
+        #print('Monochrom DEMO connected')
 
         # find items to complement in GUI
         self.parameter_tree = self.findChild(QtWidgets.QTreeWidget, 'parameters_treeWidget')
@@ -109,7 +111,8 @@ class MainInterface(QtWidgets.QMainWindow):
         self.parameter_tab.setLayout(vbox)
 
         vbox = QtWidgets.QVBoxLayout()
-        vbox.addWidget(self.SLM)
+        if hasattr(self, 'SLM'):
+            vbox.addWidget(self.SLM)
         self.SLM_tab.setLayout(vbox)
 
         """ This initializes the parameter tree. It is constructed based on the device dict, 
