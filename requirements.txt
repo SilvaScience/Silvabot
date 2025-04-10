@@ -1,9 +1,9 @@
-pyqtgraph
-numpy
-PyQt5
-matplotlib
+pyqtgraph~=0.13.7
+numpy~=2.2.4
+PyQt5~=5.15.11
+matplotlib~=3.10.1
 pip
 pillow
-requests
-pandas
-h5py
+requests~=2.32.3
+pandas~=2.2.3
+h5py~=3.13.0
