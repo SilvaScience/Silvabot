@@ -21,6 +21,8 @@ from drivers.SLMDemo import SLMDemo
 from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
 from drivers.PixisDemo import PixisDemo
+from drivers.Cryocore import Cryocore
+from drivers.ThorlabsPM100D import ThorlabsPM100D
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
     ViewMeasurement, KineticMeasurement
@@ -44,9 +46,13 @@ class MainInterface(QtWidgets.QMainWindow):
         Illustrates use of parameters"""
         # always try to include communication on important events.
         # This is extremely useful for debugging and troubleshooting.
-        print('WARNING you are using a DEMO version of the cryostat')
-        self.cryostat = CryoDemo() # launch cryostat interface
-        self.devices['cryostat'] = self.cryostat # store in global device dict.
+        try:
+            self.cryostat = Cryocore() # launch cryostat interface
+            print('Connected to Montana CryoCore')
+        except:
+            self.cryostat = CryoDemo()
+            print('WARNING you are using a DEMO version of the cryostat')
+        self.devices['cryostat'] = self.cryostat
 
         # initialize Spectrometer
         self.spectrometer = PixisDemo()
@@ -54,6 +60,11 @@ class MainInterface(QtWidgets.QMainWindow):
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
         print('Spectrometer connection failed, use DEMO')
+
+        # initialize Powermeter
+        self.powermeter = ThorlabsPM100D()
+        self.devices['powermeter'] = self.powermeter
+        print('Thorlabs powermeter connected')
 
         # initialize SLMDemo
         #self.SLM = SLMDemo()
