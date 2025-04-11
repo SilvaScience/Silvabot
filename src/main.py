@@ -14,7 +14,7 @@ import numpy as np
 from PyQt5 import QtCore, QtWidgets, uic
 from functools import partial
 from GUI.ParameterPlot import ParameterPlot
-from GUI.SpectrometerPlot import SpectrometerPlot
+from GUI.SpectrometerPlot_1D import SpectrometerPlot
 from drivers.CryoDemo import CryoDemo
 from drivers.SpectrometerDemo_advanced import SpectrometerDemo
 from drivers.SLMDemo import SLMDemo
@@ -23,7 +23,8 @@ from drivers.MonochromDemo import MonochromDemo
 from drivers.PixisDemo import PixisDemo
 from drivers.Cryocore import Cryocore
 from drivers.ThorlabsPM100D import ThorlabsPM100D
-from DataHandling.DataHandling import DataHandling
+from drivers.ThorlabsCCS200 import ThorlabsCCS200
+from DataHandling.DataHandling_1D import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
     ViewMeasurement, KineticMeasurement
 
@@ -55,8 +56,9 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['cryostat'] = self.cryostat
 
         # initialize Spectrometer
-        self.spectrometer = PixisDemo()
+        #self.spectrometer = PixisDemo()
         #self.spectrometer = SpectrometerDemo()
+        self.spectrometer = ThorlabsCCS200()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
         print('Spectrometer connection failed, use DEMO')

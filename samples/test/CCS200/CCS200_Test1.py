@@ -33,6 +33,7 @@ lib.tlccs_init(b"USB0::0x1313::0x8089::M00582935::RAW", 1, 1, byref(ccs_handle))
 
 #set integration time in  seconds, ranging from 1e-5 to 6e1
 integration_time=c_double(10.0e-3)
+integration_time=c_double(0.2)
 lib.tlccs_setIntegrationTime(ccs_handle, integration_time)
 
 
@@ -48,7 +49,17 @@ print(wls)
 
 #retrieve data
 data_array=(c_double*3648)()
-lib.tlccs_getScanData(ccs_handle, byref(data_array))
+t1=time.time()
+print(time.time()-t1)
+for i in range(5):
+    lib.tlccs_startScan(ccs_handle)
+    print(f'{time.time()-t1:.3f} scan started ')
+    status = c_int(0)
+    while (status.value & 0x0010) == 0:
+        lib.tlccs_getDeviceStatus(ccs_handle, byref(status))
+    print(f'{time.time()-t1:.3f} status not zero')
+    lib.tlccs_getScanData(ccs_handle, byref(data_array))
+    print(time.time()-t1)
 
 #plot data
 plt.plot(wavelengths, data_array)
