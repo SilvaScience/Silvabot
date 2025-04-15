@@ -28,9 +28,13 @@ class AcquireMeasurement(QtCore.QThread):
     def run(self):
         if not self.terminate:  # check whether stopping measurement is called
             self.sendProgress.emit(50)
+            if hasattr(self.spectrometer, 'shutter'):
+                self.spectrometer.start_acquisition()
             self.wls = np.array(self.spectrometer.get_wavelength())
             self.take_spectrum()
             print(time.strftime('%H:%M:%S') + ' Finished')
+            if hasattr(self.spectrometer, 'shutter'):
+                self.spectrometer.stop_acquisition()
             self.sendProgress.emit(100)
 
     def take_spectrum(self):
@@ -57,6 +61,8 @@ class ViewMeasurement(QtCore.QThread):
         self.terminate = False
 
     def run(self):
+        if hasattr(self.spectrometer, 'shutter'):
+            self.spectrometer.start_acquisition()
         while not self.terminate:  # check whether stopping measurement is called
             t = time.time()
             self.sendProgress.emit(50)
@@ -68,7 +74,8 @@ class ViewMeasurement(QtCore.QThread):
             # limit too fast acquistion for computation
             if time.time() - t < 0.02:
                 time.sleep(0.02)
-
+        if hasattr(self.spectrometer, 'shutter'):
+            self.spectrometer.stop_acquisition()
         # Finish measurement when loop is terminated
         print(time.strftime('%H:%M:%S') + ' Finished')
         self.sendProgress.emit(100)
@@ -93,6 +100,8 @@ class RunMeasurement(QtCore.QThread):
         print('emit start time ')
 
     def run(self):
+        if hasattr(self.spectrometer, 'shutter'):
+            self.spectrometer.start_acquisition()
         while not self.terminate:  # loop runs until requested stop
             t1 = time.time()
             self.wls = np.array(self.spectrometer.get_wavelength())
@@ -106,6 +115,8 @@ class RunMeasurement(QtCore.QThread):
             # limit too fast acquistion for computation
             if time.time() - t1 < 0.02:
                 time.sleep(0.02)
+        if hasattr(self.spectrometer, 'shutter'):
+            self.spectrometer.stop_acquisition()
         print(time.strftime('%H:%M:%S') + ' Finished')
         self.sendProgress.emit(100)
         return
@@ -135,6 +146,8 @@ class BackgroundMeasurement(QtCore.QThread):
         self.terminate = False
 
     def run(self):
+        if hasattr(self.spectrometer, 'shutter'):
+            self.spectrometer.start_acquisition()
         if not self.terminate:  # check whether stopping measurement is called
             self.summedspec = np.array(self.spectrometer.get_intensities())
             for i in range(self.scans - 1):
@@ -143,6 +156,8 @@ class BackgroundMeasurement(QtCore.QThread):
                 self.spec = np.array(self.spectrometer.get_intensities())
                 self.summedspec = self.summedspec + self.spec
             self.spec = self.summedspec / self.scans
+            if hasattr(self.spectrometer, 'shutter'):
+                self.spectrometer.stop_acquisition()
             self.sendSpectrum.emit(self.wls, self.spec)
             self.sendSave.emit(self.filename, self.comments)
             self.sendProgress.emit(100)
@@ -161,7 +176,7 @@ class KineticMeasurement(QtCore.QThread):
 
     def __init__(self, devices, parameter, kinetic_interval):
         super(KineticMeasurement, self).__init__()
-        self.Spectrometer = devices['spectrometer']
+        self.spectrometer = devices['spectrometer']
         #self.orpheus = devices['thorlabs_shutter']
         self.kinetic_interval = kinetic_interval
         self.wls = []
@@ -179,9 +194,11 @@ class KineticMeasurement(QtCore.QThread):
 
     def run(self):
         print(time.strftime('%H:%M:%S') + 'Run Kinetic Measurement')
+        if hasattr(self.spectrometer, 'shutter'):
+            self.spectrometer.start_acquisition()
         if not self.terminate:
             # get wls and start time
-            self.wls = np.array(self.Spectrometer.get_wavelength())
+            self.wls = np.array(self.spectrometer.get_wavelength())
             self.t0 = time.time()
 
             # get commands from kinetic_interval
@@ -203,7 +220,7 @@ class KineticMeasurement(QtCore.QThread):
                         # open, acquire, close and wait
                         elif k[0] == 'p':
                             # set spectrometer in probe trigger mode
-                            self.Spectrometer.probe_trigger = True
+                            self.spectrometer.probe_trigger = True
                             self.t_curr_step = float(k[1:])
                             # wait
                             wait_time = self.t0 + float(k[1:]) - time.time()
@@ -219,7 +236,7 @@ class KineticMeasurement(QtCore.QThread):
                         for j in k:
                             if not self.terminate:
                                 self.t_curr_step = j
-                                self.spec = np.array(self.Spectrometer.get_intensities())
+                                self.spec = np.array(self.spectrometer.get_intensities())
                                 self.sendSpectrum.emit(self.wls, self.spec)
                                 self.sendProgress.emit(j / self.max_time * 100)
                                 t3 = time.time()
@@ -232,9 +249,10 @@ class KineticMeasurement(QtCore.QThread):
 
                     else:
                         print('Unknown instance in kinetic interval')
-
+        if hasattr(self.spectrometer, 'shutter'):
+            self.spectrometer.stop_acquisition()
         self.sendProgress.emit(100)
-        self.Spectrometer.probe_trigger = False
+        self.spectrometer.probe_trigger = False
         print(time.strftime('%H:%M:%S') + ' Finished')
         return
 
@@ -245,7 +263,7 @@ class KineticMeasurement(QtCore.QThread):
         self.sendParameter.emit('fast_shutter', 100)
         # acquire
         if not self.terminate:
-            self.spec = np.array(self.Spectrometer.get_intensities())
+            self.spec = np.array(self.spectrometer.get_intensities())
             # close shutter
             self.sendParameter.emit('fast_shutter', 0)
             self.sendSpectrum.emit(self.wls, self.spec)
