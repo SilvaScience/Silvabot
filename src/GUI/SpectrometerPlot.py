@@ -75,6 +75,8 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         self.maxvalue_label.setParentItem(self.graphWidget.getPlotItem())
         self.maxvalue_label.anchor(itemPos=(1,0), parentPos=(1,0), offset=(-50,35))
 
+        # empty array
+        self.y ={}
         # connect events
         self.clear_button.clicked.connect(self.clear_plot)
 
@@ -112,7 +114,17 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         hbox = QtWidgets.QHBoxLayout()
         self.input_line = QtWidgets.QLineEdit()
         self.input_line.setPlaceholderText("Enter math expression using ROI1 to ROI4")
+        self.input_line.setText('np.ones(len(self.y[0])) - self.y[0]/self.y[3] - self.y[1]/self.y[3]')
         hbox.addWidget(self.input_line)
+        self.input_line_range = QtWidgets.QLineEdit()
+        self.input_line_range.setText("[0,1,2,3,4]")
+        hbox.addWidget(self.input_line_range)
+        hbox.addWidget(QtWidgets.QLabel("Binning:"))
+        self.checkbox_bin = QtWidgets.QCheckBox()
+        self.spinbox_bin = QtWidgets.QSpinBox()
+        self.spinbox_bin.setValue(1)
+        hbox.addWidget(self.checkbox_bin)
+        hbox.addWidget(self.spinbox_bin)
         hbox.addWidget(QtWidgets.QLabel("Sum mode:"))
         self.checkbox_image = QtWidgets.QCheckBox()
         hbox.addWidget(self.checkbox_image)
@@ -134,7 +146,15 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
     def set_data(self, wls, spec):
-        #color = list(np.random.choice(range(256), size=3))
+        for i in range (4):
+            self.y[i] = np.average(spec[self.roi_controls[i][0].value():self.roi_controls[i][1].value(),:],axis=0)
+            # 1 - R - T ; R = reflec/ref ; T = Trans/ref
+        try:
+            self.y[4] = eval(self.input_line.text())
+        except KeyError:
+            print('Incorrect expression, key out of range')
+        except SyntaxError:
+            print('Incorrect expression, syntax error')
         if spec.ndim == 1:
             self.graphWidget.plot(wls, spec, pen=QtGui.QColor.fromRgbF(plt.cm.prism(self.plotcounter)[0],plt.cm.prism(self.plotcounter)[1],
                                                                    plt.cm.prism(self.plotcounter)[2],plt.cm.prism(self.plotcounter)[3]))
@@ -150,15 +170,34 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
                         self.graphWidget.addLine(x=None, y=y1)
                         self.graphWidget.addLine(x=None, y=y2)
             else:
-                colors = [QtGui.QColor("red"), QtGui.QColor("green"), QtGui.QColor("blue"), QtGui.QColor("cyan")]
-                for i in range(4):
-                    y = np.average(spec[self.roi_controls[i][0].value():self.roi_controls[i][1].value(),:],axis=0)
-                    self.graphWidget.plot(wls, y, pen=colors[i])
+                colors = [QtGui.QColor("red"), QtGui.QColor("green"), QtGui.QColor("blue"), QtGui.QColor("cyan"),QtGui.QColor("white")]
+                plot_range = eval(self.input_line_range.text())
+                for i in plot_range:
+                    if self.checkbox_bin.isChecked():
+                        self.graphWidget.plot(wls, self.do_binning(self.y[i]), pen=colors[i])
+                    else:
+                        self.graphWidget.plot(wls, self.y[i], pen=colors[i])
         self.plotcounter = self.plotcounter + 1
         if self.plotcounter > 100:
             self.clear_plot()
             print(time.strftime('%H:%M:%S') + ' Too many spectra in live plot, clear display for performance')
             self.plotcounter = 0
+
+    def do_binning(self, spectrum):
+        """ Manual binning of the spectra. Some cameras might allow to readout pixel together to increase
+        signal-to-noise at the cost of lower resolution. """
+        #print(spectrum)
+        spec_length = len(spectrum)
+        binned_spec = np.empty(len(spectrum))
+        binning = self.spinbox_bin.value()
+        for i in range(spec_length):
+            if i > spec_length - binning:
+                binned_spec[i] = np.sum(spectrum[spec_length - binning:spec_length])
+            elif i < binning:
+                binned_spec[i] = np.sum(spectrum[0:i])
+            else:
+                binned_spec[i] = np.sum(spectrum[i - binning + 1:i + binning])
+        return binned_spec/(2 * (binning - 1) + 1)
 
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
     def set_data_preview(self, wls, spec):
