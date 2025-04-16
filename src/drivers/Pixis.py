@@ -22,7 +22,7 @@ from PyQt5 import QtCore
 from collections import defaultdict
 from pylablib.devices import PrincetonInstruments
 import time
-
+import serial
 
 class Pixis(QtCore.QThread):
 
@@ -45,6 +45,16 @@ class Pixis(QtCore.QThread):
         self.binned_spec = np.zeros(self.spec_length)
         self.new_spectrum = False
 
+        # set up spectrograph
+        self.serial_busy = False
+        port = 'COM6'
+        self.ser = serial.Serial(port=port, baudrate=9600, bytesize=8, parity='N',
+                                 stopbits=1, xonxoff=0, rtscts=0, timeout=0.02)
+        # get startup values
+        self.grating = self.write_command('?GRATING')
+        self.gratings = self.write_command('?GRATINGS')
+        self.center_wl = self.write_command('?NM')
+
         # set parameter dict
         self.parameter_dict = defaultdict()
         """ Set up the parameter dict. 
@@ -63,6 +73,14 @@ class Pixis(QtCore.QThread):
         self.parameter_display_dict['sensor_T']['min'] = -100
         self.parameter_display_dict['sensor_T']['max'] = 100
         self.parameter_display_dict['sensor_T']['read'] = True
+        self.parameter_display_dict['center_wl']['val'] = self.center_wl
+        self.parameter_display_dict['center_wl']['unit'] = ' scan(s)'
+        self.parameter_display_dict['center_wl']['max'] = 2000
+        self.parameter_display_dict['center_wl']['read'] = False
+        self.parameter_display_dict['grating']['val'] = self.grating
+        self.parameter_display_dict['grating']['unit'] = ' scan(s)'
+        self.parameter_display_dict['grating']['max'] = 3
+        self.parameter_display_dict['grating']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
@@ -109,7 +127,40 @@ class Pixis(QtCore.QThread):
     def get_wavelength(self):
         """This simply returns the wavelength. In Colbert this needs to be adapted if the calibration
          changes. This function will be accessible from MeasurementClasses. """
-        return np.linspace(177.2218, 884.00732139, 1024)
+
+        #defwl_p_calib(px, n0, offset_adjust, wl_center, m_order, d_grating, x_pixel, f, delta, gamma, curvature=0):
+        px = np.linspace(1,1024,1024)
+        n0  = 1024
+        offset_adjust = 0
+        wl_center = self.center_wl
+        m_order = 0
+        d_grating = 26E3
+        delta = 0
+        gamma = 0
+        curvature = 0
+        x_pixel = 0
+        f = (1/150.)*1e6
+
+        #(px, n0, offset_adjust, wl_center, m_order, d_grating, x_pixel, f, delta, gamma, curvature=0)
+
+            # print('wl_p_calib:', px, n0, offset_adjust, wl_center, m_order, d_grating, x_pixel, f, delta, gamma, curvature)
+            # consts
+            # d_grating = 1./150. #mm
+            # x_pixel   = 16e-3 # mm
+            # m_order   = 1 # diffraction order, unitless
+        n = px - (n0 + offset_adjust * wl_center)
+
+            # print('psi top', m_order* wl_center)
+            # print('psi bottom', (2*d_grating*np.cos(gamma/2)) )
+
+        psi = np.arcsin(m_order * wl_center / (2 * d_grating * np.cos(gamma / 2)))
+        eta = np.arctan(n * x_pixel * np.cos(delta) / (f + n * x_pixel * np.sin(delta)))
+
+        return ((d_grating / m_order) * (np.sin(psi - 0.5 * gamma)
+                       + np.sin(psi + 0.5 * gamma + eta))) + curvature * n ** 2
+
+
+        #return np.linspace(177.2218, 884.00732139, 1024)
 
     def start_acquisition(self):
         """ Sets camera to continuous acquisition mode. """
@@ -142,6 +193,29 @@ class Pixis(QtCore.QThread):
 
     def update_temperature(self,temperature):
         self.parameter_dict['sensor_T'] = temperature
+
+    def write_command(self, cmd):
+        """ Command to write to serial handles timeout by blocking serial commands
+        Args:
+            ser: serial object
+            cmd: write command as defined in PI API
+
+        Returns: read string
+        """
+        cmd_bytes = cmd.encode('ASCII')
+        self.ser.write(cmd_bytes + b"\r")
+        out = bytearray()
+        char = b""
+        missed_char_count = 0
+        while char != b"k":
+            char = self.ser.read()
+            if char == b"":  # handles a timeout here
+                missed_char_count += 1
+                self.serial_busy = True
+                time.sleep(0.1)
+            out += char
+        self.serial_busy = False
+        return out.decode().strip()
 
 
 class CameraWorker(QtCore.QThread):
