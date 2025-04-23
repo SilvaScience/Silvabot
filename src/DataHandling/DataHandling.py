@@ -129,7 +129,7 @@ class DataHandling(QtCore.QThread):
         If the file is created, some attributes such as yaxis and parameter keys are added."""
         t1 = time.time()
         self.bufferSaveSignal.emit(self.spec, self.wls, self.parameter_queue, self.parameter_measured)
-        print(time.time()-t1)
+        #print(time.time()-t1)
         # clear arrays in memory
         try:
             self.spec = np.empty([self.speclength, 0])
@@ -237,7 +237,7 @@ class BufferWorker(QtCore.QObject):
                 hf["spectra"][-spec.shape[0]:] = spec
                 hf["Parameter"].resize((hf["Parameter"].shape[1] + parameter_measured.shape[1]), axis=1)
                 hf["Parameter"][:, -parameter_measured.shape[1]:] = parameter_measured
-        print('worker time' + str(time.time()-t1))
+        #print('worker time' + str(time.time()-t1))
 
 
 """

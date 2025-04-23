@@ -77,6 +77,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
         # empty array
         self.y ={}
+        self.wls = []
         # connect events
         self.clear_button.clicked.connect(self.clear_plot)
 
@@ -85,7 +86,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         grid_layout = QtWidgets.QGridLayout()
 
         for i in range(4):
-            group = QtWidgets.QGroupBox(f"ROI{i+1}")
+            group = QtWidgets.QGroupBox(f"ROI{i}")
             hbox = QtWidgets.QHBoxLayout()
 
             min_spin = QtWidgets.QSpinBox()
@@ -113,8 +114,8 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         hbox_widget =QtWidgets.QWidget()
         hbox = QtWidgets.QHBoxLayout()
         self.input_line = QtWidgets.QLineEdit()
-        self.input_line.setPlaceholderText("Enter math expression using ROI1 to ROI4")
-        self.input_line.setText('np.ones(len(self.y[0])) - self.y[0]/self.y[3] - self.y[1]/self.y[3]')
+        self.input_line.setPlaceholderText("Enter math expression using ROI0 to ROI3")
+        self.input_line.setText('y[0]-y[1]') #'np.ones(len(self.y[0])) - self.y[0]/self.y[3] - self.y[1]/self.y[3]'
         hbox.addWidget(self.input_line)
         self.input_line_range = QtWidgets.QLineEdit()
         self.input_line_range.setText("[0,1,2,3,4]")
@@ -146,11 +147,18 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
     def set_data(self, wls, spec):
+        self.wls = wls
         wls_span = np.max(wls) - np.min(wls)
         for i in range (4):
-            self.y[i] = np.average(spec[self.roi_controls[i][0].value():self.roi_controls[i][1].value(),:],axis=0)
+            lim1 = self.roi_controls[i][0].value()
+            lim2 = self.roi_controls[i][1].value()
+            if lim2 > lim1:
+                self.y[i] = np.average(spec[lim1:lim2,:],axis=0)
+            else:
+                self.y[i] = spec[self.roi_controls[i][0].value()]
             # 1 - R - T ; R = reflec/ref ; T = Trans/ref
         try:
+            y = self.y
             self.y[4] = eval(self.input_line.text())
         except KeyError:
             print('Incorrect expression, key out of range')
@@ -169,7 +177,6 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
                 self.graphWidget.clear()
                 self.graphWidget.addItem(img)
                 if self.checkbox_limits.isChecked():
-                    print('checked')
                     for i in range(4):
                         y1 = self.roi_controls[i][0].value()
                         y2 = self.roi_controls[i][1].value()
@@ -177,6 +184,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
                         self.graphWidget.addLine(x=None, y=y2)
             else:
                 colors = [QtGui.QColor("red"), QtGui.QColor("green"), QtGui.QColor("blue"), QtGui.QColor("cyan"),QtGui.QColor("white")]
+
                 plot_range = eval(self.input_line_range.text())
                 for i in plot_range:
                     if self.checkbox_bin.isChecked():
@@ -219,7 +227,12 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             mousePoint = self.graphWidget.getPlotItem().vb.mapSceneToView(pos)
             self.crosshair_v.setPos(mousePoint.x())
             self.crosshair_h.setPos(mousePoint.y())
-        self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts")
+        calibration_mode = False
+        if calibration_mode:
+            pixel = np.argmin(abs(self.wls - mousePoint.x()))
+            self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts {pixel:.0f} pixel")
+        else:
+            self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts")
 
     @QtCore.pyqtSlot(np.ndarray)
     def update_datareader(self,max):

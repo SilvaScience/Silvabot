@@ -48,12 +48,12 @@ class MainInterface(QtWidgets.QMainWindow):
         Illustrates use of parameters"""
         # always try to include communication on important events.
         # This is extremely useful for debugging and troubleshooting.
-        #try:
-        #    self.cryostat = Cryocore() # launch cryostat interface
-        #    print('Connected to Montana CryoCore')
-        #except:
-        self.cryostat = CryoDemo()
-        print('WARNING you are using a DEMO version of the cryostat')
+        try:
+            self.cryostat = Cryocore() # launch cryostat interface
+            print('Connected to Montana CryoCore')
+        except:
+            self.cryostat = CryoDemo()
+            print('WARNING you are using a DEMO version of the cryostat')
         self.devices['cryostat'] = self.cryostat
 
         # initialize Spectrometer
@@ -66,7 +66,6 @@ class MainInterface(QtWidgets.QMainWindow):
         #self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
-        print('Spectrometer connection failed, use DEMO')
 
         # initialize Powermeter
         try:

@@ -34,6 +34,7 @@ class Pixis(QtCore.QThread):
 
         #self.camera.start()
         self.wavelength =  np.linspace(200,1000,1024) # get property from Worker
+        self.px0 = np.linspace(1,1024,1024)
         self.spec_length = (252,1024) # get property from Worker
         self.image = np.zeros(self.spec_length)
 
@@ -165,21 +166,49 @@ class Pixis(QtCore.QThread):
         Returns:
             wavelengths: 1D numpy array of wavelengths (nm)
         """
-        pixel_size_mm = 26 / 1E3  # specs of PIXIS
-        focal_length_mm = 150  # specs of SP2150
-        num_pixels = 1024  # specs of PIXIS
+        calibrated = True
+        if calibrated:
+            pixel_size_mm = 26 / 1E3  # specs of PIXIS
+            focal_length_mm = 150  # specs of SP2150
+            num_pixels = 1024  # specs of PIXIS
 
-        # Calculate linear dispersion (nm/mm)
-        dispersion = 1e6 / (focal_length_mm * grating_lines_per_mm)
+            #
 
-        # Center pixel
-        center_pixel = num_pixels // 2
+            wl_center = center_wavelength_nm
+            m_order = 1
+            px = self.px0
 
-        # Pixel index array
-        pixel_indices = np.arange(num_pixels)
+            # calibration from notebook
+            f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(21068125.956074648), np.float64(1.5427364409856743), np.float64(1.4536474836692934),
+             np.float64(506.2142857142857), 0, 6666.666666666667, 26000.0, np.float64(0.0002964980288524915)]
 
-        # Wavelength at each pixel
-        wavelengths = center_wavelength_nm + (pixel_indices - center_pixel) * dispersion * pixel_size_mm
+
+
+            n = px - (n0 + offset_adjust * wl_center)
+
+            # print('psi top', m_order* wl_center)
+            # print('psi bottom', (2*d_grating*np.cos(gamma/2)) )
+
+            psi = np.arcsin(m_order * wl_center / (2 * d_grating * np.cos(gamma / 2)))
+            eta = np.arctan(n * x_pixel * np.cos(delta) / (f + n * x_pixel * np.sin(delta)))
+
+            wavelengths = ((d_grating / m_order) * (np.sin(psi - 0.5 * gamma) + np.sin(psi + 0.5 * gamma + eta))) + curvature * n ** 2
+        else:
+            pixel_size_mm = 26 / 1E3  # specs of PIXIS
+            focal_length_mm = 150  # specs of SP2150
+            num_pixels = 1024  # specs of PIXIS
+
+            # Calculate linear dispersion (nm/mm)
+            dispersion = 1e6 / (focal_length_mm * grating_lines_per_mm)
+
+            # Center pixel
+            center_pixel = num_pixels // 2
+
+            # Pixel index array
+            pixel_indices = np.arange(num_pixels)
+
+            # Wavelength at each pixel
+            wavelengths = center_wavelength_nm + (pixel_indices - center_pixel) * dispersion * pixel_size_mm
 
         return wavelengths
 
