@@ -218,6 +218,7 @@ class Pixis(QtCore.QThread):
         return out.decode().strip()
 
 
+
 class CameraWorker(QtCore.QThread):
     """ This is a DemoWorker for the spectrometer.
     It continously acquires spectra and emits them to the Interface.
