@@ -20,8 +20,8 @@ exp = cam.get_attribute_value("Exposure Time")
 print(exp)
 exp = cam.get_attribute_value("Sensor Temperature Reading")
 print(exp)
-exp = cam.get_attribute_value("Center Wavelength Reading")
-print(exp)
+#exp = cam.get_attribute_value("Center Wavelength Reading")
+#print(exp)
 int_time = 10
 cam.set_attribute_value("Exposure Time", int_time)
 t1 = time.time() 
@@ -42,8 +42,8 @@ for i in range(5):
     
     #print(image)
 cam.stop_acquisition()
-plt.pyplot.pcolor(image)
-plt.pyplot.colorbar()
+#plt.pyplot.pcolor(image)
+#plt.pyplot.colorbar()
 #cam.setup_acquisition(mode='snap')
 cam.close()
 

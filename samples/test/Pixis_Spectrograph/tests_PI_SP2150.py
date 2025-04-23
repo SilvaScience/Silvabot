@@ -8,12 +8,12 @@ Created on Tue Apr 15 14:57:19 2025
 import pyvisa as pv
 import time
 import serial
-
+import re
 
  
-rm = pv.ResourceManager()
-res = rm.list_resources()impo
-print(res)
+#rm = pv.ResourceManager()
+#res = rm.list_resources()impo
+#print(res)
 
 def write_command(ser,cmd):
     cmd_bytes = (cmd).encode('ASCII')
@@ -30,8 +30,8 @@ def write_command(ser,cmd):
         out += char
     return out
 
-ports = serial.tools.list_ports.comports()
-print(ports)
+#ports = serial.tools.list_ports.comports()
+#print(ports)
 port = 'COM6'
 ser = serial.Serial(port=port, baudrate = 9600, bytesize=8, parity='N',
                                     stopbits=1, xonxoff=0, rtscts=0, timeout=0.02)
@@ -74,6 +74,8 @@ cmd = "?GRATINGS"
 ans = write_command(ser, cmd)
 print(ans)
 print(ans.decode().strip())
+test = ans.decode().strip()
+
 
 #cmd_bytes = (cmd).encode('ASCII')
 #ser.write(cmd_bytes+b"\r")

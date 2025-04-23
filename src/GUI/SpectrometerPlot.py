@@ -146,6 +146,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
     def set_data(self, wls, spec):
+        wls_span = np.max(wls) - np.min(wls)
         for i in range (4):
             self.y[i] = np.average(spec[self.roi_controls[i][0].value():self.roi_controls[i][1].value(),:],axis=0)
             # 1 - R - T ; R = reflec/ref ; T = Trans/ref
@@ -160,8 +161,13 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
                                                                    plt.cm.prism(self.plotcounter)[2],plt.cm.prism(self.plotcounter)[3]))
         else:
             if not self.checkbox_image.isChecked():
+                img =pg.ImageItem(np.transpose(spec))
+                tr = QtGui.QTransform()  # prepare ImageItem transformation:
+                tr.translate(np.min(wls), 0)  # move 3x3 image to locate center at axis origin
+                tr.scale(wls_span / 1024, 1)
+                img.setTransform(tr)
                 self.graphWidget.clear()
-                self.graphWidget.addItem(pg.ImageItem(np.transpose(spec)))
+                self.graphWidget.addItem(img)
                 if self.checkbox_limits.isChecked():
                     print('checked')
                     for i in range(4):
