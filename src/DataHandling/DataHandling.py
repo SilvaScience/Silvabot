@@ -243,7 +243,7 @@ class BufferWorker(QtCore.QObject):
                     hf["Parameter"].resize((hf["Parameter"].shape[1] + parameter_measured.shape[1]), axis=1)
                     hf["Parameter"][:, -parameter_measured.shape[1]:] = parameter_measured
             except TypeError:
-                print('Saving failed. Did you already save?')
+                print('Saving failed. Did you already save ?')
         #print('worker time' + str(time.time()-t1))
 
 
