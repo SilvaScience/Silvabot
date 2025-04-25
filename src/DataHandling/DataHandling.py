@@ -228,7 +228,7 @@ class BufferWorker(QtCore.QObject):
                 print(np.shape(spec))
                 # float16 is used for camera pixels, as max values is 65504.
                 hf.create_dataset("spectra", data=spec, compression="gzip", chunks=True, maxshape=(None,np.shape(spec)[1],np.shape(spec)[2]),dtype='float16')
-                hf["spectra"].attrs["yaxis"] = wls
+                hf["spectra"].attrs["xaxis"] = wls
                 hf["spectra"].attrs["parameter_keys"] = list(parameter_queue.keys())
                 hf.create_dataset("Parameter", data=parameter_measured, compression="gzip", chunks=True, maxshape=(np.shape(parameter_measured)[0],None))
             print('First buffer saved')

@@ -179,8 +179,7 @@ class Pixis(QtCore.QThread):
             px = self.px0
 
             # calibration from notebook
-            f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(21068125.956074648), np.float64(1.5427364409856743), np.float64(1.4536474836692934),
-             np.float64(506.2142857142857), 0, 6666.666666666667, 26000.0, np.float64(0.0002964980288524915)]
+            f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(330605663.74965495), np.float64(-0.20488367116307532), np.float64(2.021864300924973), np.float64(508.0), 0, 6666.666666666667, 26000.0, np.float64(3.1224154313329654e-06)]
 
 
 
