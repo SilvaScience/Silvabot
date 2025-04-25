@@ -53,7 +53,6 @@ class DataHandling(QtCore.QThread):
         self.correct_background = False
         self.send_x_idx = 'time'
         self.send_y_idx = 'absolute_time'
-
         # initialize parameter array
         self.parameter_matrix_full = False
         self.data_in_flash = 0
@@ -156,12 +155,13 @@ class DataHandling(QtCore.QThread):
     def save_data(self, filename, comments):
         """saves data. Each time data is saved, parameters are saved aswell. """
         self.save_buffer()
+        time.sleep(0.5) # allow for BufferWorker to create temp file
         with h5py.File(self.temp_filename, 'a') as hf:
             hf.attrs["comments"] = comments
         ty_res = time.localtime(time.time())
         timestamp = time.strftime("%H_%M_%S", ty_res)
         shutil.copyfile(self.temp_filename, filename + '_' + timestamp + '.h5')
-        self.save_parameter(filename)
+        #self.save_parameter(filename)
         print('Data saved')
 
         # For now adding a worker for saving appears not be needed, if at some point DataHandling gets too busy, we
@@ -219,6 +219,10 @@ class BufferWorker(QtCore.QObject):
         # check for first buffer saving to initialize data array
         t1 = time.time()
         if self.firstbuffer:
+            try:
+                os.remove(self.temp_filename) # clear temp file
+            except FileNotFoundError:
+                pass # no file to delete
             #spectrum_w_param = np.vstack([self.parameter_measured, self.spec])
             with h5py.File(self.temp_filename, 'w') as hf:
                 print(np.shape(spec))
@@ -231,12 +235,15 @@ class BufferWorker(QtCore.QObject):
             self.firstbuffer = False
         else:
             #spectrum_w_param = np.vstack([self.parameter_measured, self.spec])
-            with h5py.File(self.temp_filename, 'a') as hf:
-                hf["spectra"].resize((hf["spectra"].shape[0] + spec.shape[0]), axis=0)
-                #hf["spectra"][:,-self.spec.shape[1]:] = self.spec
-                hf["spectra"][-spec.shape[0]:] = spec
-                hf["Parameter"].resize((hf["Parameter"].shape[1] + parameter_measured.shape[1]), axis=1)
-                hf["Parameter"][:, -parameter_measured.shape[1]:] = parameter_measured
+            try:
+                with h5py.File(self.temp_filename, 'a') as hf:
+                    hf["spectra"].resize((hf["spectra"].shape[0] + spec.shape[0]), axis=0)
+                    #hf["spectra"][:,-self.spec.shape[1]:] = self.spec
+                    hf["spectra"][-spec.shape[0]:] = spec
+                    hf["Parameter"].resize((hf["Parameter"].shape[1] + parameter_measured.shape[1]), axis=1)
+                    hf["Parameter"][:, -parameter_measured.shape[1]:] = parameter_measured
+            except TypeError:
+                print('Saving failed. Did you already save?')
         #print('worker time' + str(time.time()-t1))
 
 
