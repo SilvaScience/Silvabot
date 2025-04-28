@@ -46,8 +46,8 @@ class DataHandling(QtCore.QThread):
             self.background = np.empty([self.speclength, 1])
             self.wls = np.empty([self.speclength, 1])
         except TypeError:
-            self.spec = np.empty([1,self.speclength[0],self.speclength[1]])
-            self.background = np.empty([1,self.speclength[0],self.speclength[1]])
+            self.spec = np.empty([0,self.speclength[0],self.speclength[1]])
+            self.background = np.empty([0,self.speclength[0],self.speclength[1]])
             self.wls = np.empty([self.speclength[1], 1])
         self.maximum = np.zeros([3])
         self.correct_background = False
@@ -133,7 +133,7 @@ class DataHandling(QtCore.QThread):
         try:
             self.spec = np.empty([self.speclength, 0])
         except TypeError:
-            self.spec = np.empty([1,self.speclength[0],self.speclength[1]])
+            self.spec = np.empty([0,self.speclength[0],self.speclength[1]])
         self.parameter_measured = np.zeros([len(self.parameter) + 2, 0])
 
 
@@ -146,8 +146,8 @@ class DataHandling(QtCore.QThread):
         ty_res = time.localtime(time.time())
         timestamp = time.strftime("%H_%M_%S", ty_res)
         with h5py.File( filename + '_' + timestamp + '_parameters.h5', 'w') as hf:
-            hf.create_dataset("Parameter", data=save_array, compression="gzip", chunks=True)
-            hf['Parameter'].attrs["parameter_keys"] = list(self.parameter_queue.keys())
+            hf.create_dataset("parameter", data=save_array, compression="gzip", chunks=True)
+            hf['parameter'].attrs["parameter_keys"] = list(self.parameter_queue.keys())
         np.savetxt(filename, save_array)
         print('Parameter saved as: ' + filename)
 
@@ -160,9 +160,10 @@ class DataHandling(QtCore.QThread):
             hf.attrs["comments"] = comments
         ty_res = time.localtime(time.time())
         timestamp = time.strftime("%H_%M_%S", ty_res)
-        shutil.copyfile(self.temp_filename, filename + '_' + timestamp + '.h5')
+        savename = filename + '_' + timestamp + '.h5'
+        shutil.copyfile(self.temp_filename, savename)
         #self.save_parameter(filename)
-        print('Data saved')
+        print('Data saved as: ' + savename )
 
         # For now adding a worker for saving appears not be needed, if at some point DataHandling gets too busy, we
         # might want to outsource it to an independent worker.
@@ -225,12 +226,11 @@ class BufferWorker(QtCore.QObject):
                 pass # no file to delete
             #spectrum_w_param = np.vstack([self.parameter_measured, self.spec])
             with h5py.File(self.temp_filename, 'w') as hf:
-                print(np.shape(spec))
                 # float16 is used for camera pixels, as max values is 65504.
                 hf.create_dataset("spectra", data=spec, compression="gzip", chunks=True, maxshape=(None,np.shape(spec)[1],np.shape(spec)[2]),dtype='float16')
                 hf["spectra"].attrs["xaxis"] = wls
-                hf["spectra"].attrs["parameter_keys"] = list(parameter_queue.keys())
-                hf.create_dataset("Parameter", data=parameter_measured, compression="gzip", chunks=True, maxshape=(np.shape(parameter_measured)[0],None))
+                hf.create_dataset("parameter", data=parameter_measured, compression="gzip", chunks=True, maxshape=(np.shape(parameter_measured)[0],None))
+                hf["parameter"].attrs["parameter_keys"] = list(parameter_queue.keys())
             print('First buffer saved')
             self.firstbuffer = False
         else:
@@ -240,8 +240,8 @@ class BufferWorker(QtCore.QObject):
                     hf["spectra"].resize((hf["spectra"].shape[0] + spec.shape[0]), axis=0)
                     #hf["spectra"][:,-self.spec.shape[1]:] = self.spec
                     hf["spectra"][-spec.shape[0]:] = spec
-                    hf["Parameter"].resize((hf["Parameter"].shape[1] + parameter_measured.shape[1]), axis=1)
-                    hf["Parameter"][:, -parameter_measured.shape[1]:] = parameter_measured
+                    hf["parameter"].resize((hf["parameter"].shape[1] + parameter_measured.shape[1]), axis=1)
+                    hf["parameter"][:, -parameter_measured.shape[1]:] = parameter_measured
             except TypeError:
                 print('Saving failed. Did you already save?')
         #print('worker time' + str(time.time()-t1))

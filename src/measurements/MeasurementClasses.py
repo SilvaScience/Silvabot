@@ -327,6 +327,8 @@ class TSeriesMeasurement(QtCore.QThread):
                         T_current = self.cryostat.parameter_dict['current_T']
                         print(time.strftime('%H:%M:%S') + ' Waiting for Temperature')
                         time.sleep(5)
+                    else:
+                        break
                 print(time.strftime('%H:%M:%S') + ' Temperature setpoint reached: ' + str(temperature) + ' K')
                 print(time.strftime('%H:%M:%S') + ' Let stabilize')
                 time.sleep(self.T_stab_time)
