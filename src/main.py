@@ -427,7 +427,6 @@ class MainInterface(QtWidgets.QMainWindow):
                                                   self.Tseries_int_time_lineEdit.text())
             self.measurement.sendProgress.connect(self.set_progress)
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.sendTemperature.connect(self.DataHandling.concatenate_temperature)
             self.measurement.sendParameter.connect(self.change_parameter)
             self.measurement.start()
 

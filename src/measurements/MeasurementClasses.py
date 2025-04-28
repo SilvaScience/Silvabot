@@ -280,7 +280,6 @@ class KineticMeasurement(QtCore.QThread):
 class TSeriesMeasurement(QtCore.QThread):
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     sendProgress = QtCore.pyqtSignal(float)
-    sendTemperature = QtCore.pyqtSignal(float)
     sendParameter = QtCore.pyqtSignal(str, float)
 
     def __init__(self, devices, parameter, T_series, T_stab_time, two_sources, ref_power, int_time_WL, int_time_orpheus,
@@ -315,7 +314,7 @@ class TSeriesMeasurement(QtCore.QThread):
         print(time.strftime('%H:%M:%S') + ' Run T Series Measurement')
         if not self.terminate:
             self.sendProgress.emit(1)
-            self.wls = np.array(self.Spectrometer.getWavelength())
+            self.wls = np.array(self.Spectrometer.get_wavelength())
             n = 0
             for temperature in self.T_series:
                 n = n + 1
@@ -335,10 +334,12 @@ class TSeriesMeasurement(QtCore.QThread):
                 # measure
                 if not self.terminate:
                     if not self.two_sources:
+                        self.Spectrometer.start_acquisition()
                         for m in range(self.spectra_avg):
-                            self.spec = np.array(self.Spectrometer.getIntensities())
+                            self.spec = np.array(self.Spectrometer.get_intensities())
                             self.sendSpectrum.emit(self.wls, self.spec)
                             print(time.strftime('%H:%M:%S') + ' Spectrum acquired')
+                        self.Spectrometer.stop_acquisition()
 
                         progress = n / len(self.T_series) * 100
                         self.sendProgress.emit(progress)
@@ -350,7 +351,7 @@ class TSeriesMeasurement(QtCore.QThread):
                             time.sleep(2)
                             for m in range(self.spectra_avg):
                                 self.Spectrometer.start_acquisition()
-                                self.spec = np.array(self.Spectrometer.getIntensities())
+                                self.spec = np.array(self.Spectrometer.get_intensities())
                                 self.sendSpectrum.emit(self.wls, self.spec)
                                 self.Spectrometer.stop_acquisition()
                                 print(time.strftime('%H:%M:%S') + ' PL Spectrum acquired')
@@ -370,7 +371,7 @@ class TSeriesMeasurement(QtCore.QThread):
                                     if not self.int_time_orpheus == self.int_times[k]:
                                         print(time.strftime('%H:%M:%S') + ' Int time changed, trigger spectrometer and '
                                                                           'wait to stabilize changes')
-                                        self.Spectrometer.getIntensities()
+                                        self.Spectrometer.get_intensities()
                                         time.sleep(2)
                                     self.int_time_orpheus = self.int_times[k]
                                     waittime = 1 + self.int_times[k] / 1000
@@ -380,7 +381,7 @@ class TSeriesMeasurement(QtCore.QThread):
                                     #self.sendParameter.emit('shutter1', 100)  # open Orpheus shutter
                                     #time.sleep(2)
                                     for m in range(self.spectra_avg):
-                                        self.spec = np.array(self.Spectrometer.getIntensities())
+                                        self.spec = np.array(self.Spectrometer.get_intensities())
                                         self.sendSpectrum.emit(self.wls, self.spec)
                                         print(time.strftime('%H:%M:%S') + ' PL Spectrum acquired')
                                     #self.sendParameter.emit('shutter1', 0)  # close Orpheus shutter
@@ -396,7 +397,7 @@ class TSeriesMeasurement(QtCore.QThread):
                         time.sleep(2)
 
                         for m in range(self.spectra_avg):
-                            self.spec = np.array(self.Spectrometer.getIntensities())
+                            self.spec = np.array(self.Spectrometer.get_intensities())
                             self.sendSpectrum.emit(self.wls, self.spec)
                             print(time.strftime('%H:%M:%S') + ' WL Spectrum acquired')
                         self.Spectrometer.stop_acquisition()
