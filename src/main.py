@@ -323,6 +323,23 @@ class MainInterface(QtWidgets.QMainWindow):
         except:
             print('Lecture of kinetic interval failed')
 
+    def change_Tseries(self):
+        # generate temperature array for T dep measurement
+        try:
+            self.Tseries =[]
+            txt = self.Tseries_lineEdit.text()
+            i = 0
+            digits = {}
+            for s in re.split(':| ', txt):
+                if s.replace(".", "", 1).isdigit():
+                    digits[i] = s
+                    i = i+1.
+            for j in range(int(i/3)):
+                self.Tseries = np.append(self.Tseries, np.linspace(float(digits[3*j]), float(digits[3*j+2]), int(digits[3*j+1])))
+            print('T series : ' + str(self.Tseries))
+        except:
+            print('Lecture of T series failed')
+
     ##### Measurements #####
 
     def acquire_measurement(self):
