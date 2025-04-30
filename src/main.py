@@ -196,10 +196,10 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # set variables
         self.measurement_busy = False
-        self.save_folder_path = r'C:/Data/test'
+        self.save_folder_path = r'C:/TEMP'
         #a default data folder is always required and it would be good to keep it seperated from the code.
         #can everyone simply create a C:/Data/test' path on their device? # Not sure how to handle different OS here.
-        self.filename = r'C:/Data/test'
+        self.filename = r'C:/TEMP/test'
         self.power_calib_array = []
 
         # set connect events

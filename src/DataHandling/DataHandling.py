@@ -57,7 +57,7 @@ class DataHandling(QtCore.QThread):
         self.parameter_matrix_full = False
         self.data_in_flash = 0
         self.firstbuffer = True
-        self.temp_filename = r"C:\Data\temp.h5"
+        self.temp_filename = r"C:\TEMP\temp.h5"
         self.filename = 'test'
 
         # initialize Calibration dict
