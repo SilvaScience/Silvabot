@@ -223,6 +223,14 @@ class BufferWorker(QtCore.QObject):
         print('BufferWorker started')
         self.terminate = False
 
+        # check if folder for buffer exists
+        temp_folder = os.path.dirname(temp_filename)
+        if not os.path.isdir(temp_folder):
+            print(f'No {temp_folder} folder, create folder')
+            os.makedirs(temp_folder)
+        else:
+            pass
+
     @QtCore.pyqtSlot(object, object, object, object)
     def save_buffer(self,spec,wls,parameter_queue,parameter_measured):
         # check for first buffer saving to initialize data array
