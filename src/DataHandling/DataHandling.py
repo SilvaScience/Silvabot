@@ -15,8 +15,7 @@ import os.path
 from collections import deque
 import shutil
 """TO DOs: 
-- check if more specific functions for dataset creation are needed. 
-- think of a more clever way to store hardware parameters. Do we want it on command, a life-long storage, etc... 
+- consider implementing data storage for several data acquiring devices (e.g. 2 spectrometer simultaneously) 
 """
 
 
@@ -42,6 +41,8 @@ class DataHandling(QtCore.QThread):
             self.parameter_queue[param] = deque(maxlen=100000)
         self.param_from_deque = np.zeros([len(self.parameter) + 2, 1])
         self.parameter_measured = np.zeros([len(self.parameter) + 2, 0])
+
+        # preallocate data arrays depending on data dimension (1D or 2D).
         if self.data_dim  == 1:
             self.spec = np.empty([self.speclength, 0])
             self.background = np.empty([self.speclength, 1])
@@ -50,10 +51,13 @@ class DataHandling(QtCore.QThread):
             self.spec = np.empty([0,self.speclength[0],self.speclength[1]])
             self.background = np.empty([0,self.speclength[0],self.speclength[1]])
             self.wls = np.empty([self.speclength[1], 1])
+
+        # set initial values
         self.maximum = np.zeros([3])
         self.correct_background = False
         self.send_x_idx = 'time'
         self.send_y_idx = 'absolute_time'
+
         # initialize parameter array
         self.parameter_matrix_full = False
         self.data_in_flash = 0
@@ -86,7 +90,7 @@ class DataHandling(QtCore.QThread):
     def clear_data(self):
         """Each time a new measurement is started, DataHandling is reset."""
         self.starttime = time.time()
-        if self.data_dim == 1:
+        if self.data_dim == 1: # clear data arrays depending on dimension
             self.spec = np.empty([self.speclength, 0])
         else:
             self.spec = np.empty([1,self.speclength[0],self.speclength[1]])
@@ -169,14 +173,7 @@ class DataHandling(QtCore.QThread):
         timestamp = time.strftime("%H_%M_%S", ty_res)
         savename = filename + '_' + timestamp + '.h5'
         shutil.copyfile(self.temp_filename, savename)
-        #self.save_parameter(filename)
         print('Data saved as: ' + savename )
-
-        # For now adding a worker for saving appears not be needed, if at some point DataHandling gets too busy, we
-        # might want to outsource it to an independent worker.
-        #self.save_worker_thread = SaveWorker(filename, comments, self.parameter, self.spectrumlength, self.temp_filename)
-        #self.save_worker_thread.start()
-
 
     #@QtCore.pyqtSlot
     def add_calibration(self,calibration):
@@ -211,9 +208,12 @@ class DataHandling(QtCore.QThread):
             return False
 
     def load_data(self):
+        # not used currently, to be implemented to continue aborted measurements/ after software crash
         pass
 
 class BufferWorker(QtCore.QObject):
+    """ Buffer worker saves data to a temp file.
+    It is started every time a given amount of data has been acquired and receives signals with the corresponding data"""
 
     def __init__(self,temp_filename, data_dim):
         super(BufferWorker, self).__init__()
@@ -232,7 +232,6 @@ class BufferWorker(QtCore.QObject):
                 os.remove(self.temp_filename) # clear temp file
             except FileNotFoundError:
                 pass # no file to delete
-            #spectrum_w_param = np.vstack([self.parameter_measured, self.spec])
             with h5py.File(self.temp_filename, 'w') as hf:
                 if self.data_dim == 1:
                     hf.create_dataset("spectra", data=spec, compression="gzip", chunks=True,
@@ -246,7 +245,6 @@ class BufferWorker(QtCore.QObject):
             print('First buffer saved')
             self.firstbuffer = False
         else:
-            #spectrum_w_param = np.vstack([self.parameter_measured, self.spec])
             try:
                 with h5py.File(self.temp_filename, 'a') as hf:
                     if self.data_dim == 1:
@@ -259,35 +257,3 @@ class BufferWorker(QtCore.QObject):
                     hf["parameter"][:, -parameter_measured.shape[1]:] = parameter_measured
             except TypeError:
                 print('Saving failed. Did you already save?')
-        #print('worker time' + str(time.time()-t1))
-
-
-"""
-    def run(self):
-        # get time for timestamp
-        ty_res = time.localtime(time.time())
-        timestamp = time.strftime("%H_%M_%S", ty_res)
-        from_file = self.temp_filename
-
-        # save comments
-        comments_file = self.filename + '_metadata_' + timestamp + '.dat'
-        with open(comments_file, 'w') as file:
-            file.write(self.comments)
-            file.write('\n \n \n###### Measurement parameters ###### \n')
-            for param in self.parameter.keys():
-                file.write(param + ': ' + str(self.parameter[param]) + '\n')
-
-        # transpose data from temp file to final file. Saving in rows is faster than in columns
-        # convert CSV with rows to columns using batches (required for large files)
-        NCOLS = self.spectrumlength[0]  # The exact number of columns
-        batch_size = 50
-        to_file = self.filename + '_' + timestamp + '.csv'
-        for batch in range(NCOLS // batch_size + bool(NCOLS % batch_size)):
-            lcol = batch * batch_size
-            rcol = min(NCOLS, lcol + batch_size)
-            data = pd.read_csv(from_file, usecols=range(lcol, rcol), header=None)
-            with open(to_file, 'a') as _f:
-                data.T.to_csv(_f, header=None, index=None, line_terminator='\n')
-        print('Data saved as: ' + to_file)
-        return
-"""
