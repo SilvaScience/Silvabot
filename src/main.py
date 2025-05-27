@@ -49,7 +49,7 @@ class MainInterface(QtWidgets.QMainWindow):
         # always try to include communication on important events.
         # This is extremely useful for debugging and troubleshooting.
         try:
-            self.cryostat = Cryocore() # launch cryostat interface
+            self.cryostat = CryoDemo() # launch cryostat interface
             print('Connected to Montana CryoCore')
         except:
             self.cryostat = CryoDemo()

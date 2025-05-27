@@ -24,6 +24,7 @@ class DataHandling(QtCore.QThread):
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     sendMaximum = QtCore.pyqtSignal(np.ndarray) # not used for now, to be implemented for direct measurement control
     sendParameterarray = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendBeams = QtCore.pyqtSignal(object)
     bufferSaveSignal = QtCore.pyqtSignal(object, object, object, object)
 
     def __init__(self, parameter, speclength):
@@ -67,6 +68,10 @@ class DataHandling(QtCore.QThread):
 
         # initialize Calibration dict
         self.calibration = {}
+        
+        # initialize beams dict
+                                      
+        self.beams={}
 
         # initialize BufferWorker
         self.thread = QtCore.QThread()
@@ -180,6 +185,22 @@ class DataHandling(QtCore.QThread):
         # to be used from calibration scripts. Each calibration should consist of a tuple of name and content
         calibration_name, calibration_value = calibration
         self.calibration[calibration_name] = calibration_value
+    
+    def set_beam(self, name_and_beam):
+        '''
+            Adds or updates the beam at the provided index
+            input:
+                - tuple: (name,Beam) First argument of tuple is beam name and second is Beam object to set
+        '''
+        beam_name,beam=name_and_beam
+        self.beams[beam_name]=beam
+
+    def get_beams(self):
+        '''
+            Triggers emission of beams to connected slots when called
+        '''
+        self.sendBeams.emit(self.beams)
+        return self.beams
 
     def add_attribute(self,attribute):
         # to be used from measurement each attribute should consist of a tuple of name and content
