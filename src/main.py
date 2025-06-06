@@ -446,7 +446,7 @@ class UpdateWorker(QtCore.QThread):
         self.read_only = read_only
         self.stop = False
         self.updated_param = {}
-        self.update_interval = 0.5
+        self.update_interval = 0.1
 
     def run(self):
         while not self.stop:
