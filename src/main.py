@@ -22,6 +22,7 @@ from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
 from drivers.PixisDemo import PixisDemo
 from drivers.Pixis import Pixis
+from drivers.Bigfoot import Bigfoot
 from drivers.Cryocore import Cryocore
 from drivers.ThorlabsPM100D import ThorlabsPM100D
 from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
@@ -57,12 +58,12 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['cryostat'] = self.cryostat
 
         # initialize Spectrometer
-        try:
-            self.spectrometer = Pixis()
-            print('Pixis camera connected')
-        except:
-            self.spectrometer = PixisDemo()
-            print('Pixis connection failed, use DEMO')
+        #try:
+        #self.spectrometer = Pixis()
+        #print('Pixis camera connected')
+        #except:
+        self.spectrometer = PixisDemo()
+        print('Pixis connection failed, use DEMO')
         #self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
@@ -76,6 +77,10 @@ class MainInterface(QtWidgets.QMainWindow):
             print('WARNING you are using a DEMO version of the powermeter')
         self.devices['powermeter'] = self.powermeter
 
+        # initialize Bigfoot
+        self.bigfoot = Bigfoot()
+        self.devices['bigfoot'] = self.bigfoot
+        print('Bigfoot connected')
         # initialize SLMDemo
         #self.SLM = SLMDemo()
         #self.devices['SLM'] = self.SLM
