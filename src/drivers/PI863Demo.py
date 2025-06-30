@@ -63,9 +63,6 @@ class PI863Demo():
         for key in self.parameter_display_dict.keys():
             self.parameter_dict[key] = self.parameter_display_dict[key]['val']
 
-        # defining waitTime
-        self.waitTime = 0.1
-
         # start updating position and speed
         self.UpdateWorker_Speed = UpdateWorker_Speed()
         self.UpdateWorker_Speed.new_Speed.connect(self.update_speed)

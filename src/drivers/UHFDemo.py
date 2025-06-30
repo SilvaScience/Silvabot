@@ -12,29 +12,18 @@ class UHFDemo():
         # setting up the parameter dict
         self.parameter_dict = defaultdict()
 
-        self.total_duration = []
-        self.sampling_rate = []
-        self.burst_duration = []        
+###################### These parameters need to be changed
+        self.total_duration = 5
+        self.sampling_rate = 10000
+        self.burst_duration = 0.2        
         self.parameter_display_dict = defaultdict(dict)
 
-        self.parameter_dict['total_duration'] = 0
         self.parameter_dict['sampling_rate'] = 0
-        self.parameter_dict['burst_duration'] = 0
 
-        self.parameter_display_dict['total_duration']['val'] = 0
-        self.parameter_display_dict['total_duration']['unit'] = ' s'
-        self.parameter_display_dict['total_duration']['max'] = 100
-        self.parameter_display_dict['total_duration']['read'] = False
-
-        self.parameter_display_dict['sampling_rate']['val'] = 0
+        self.parameter_display_dict['sampling_rate']['val'] = 10000
         self.parameter_display_dict['sampling_rate']['unit'] = ' samples/s'
         self.parameter_display_dict['sampling_rate']['max'] = 100000
         self.parameter_display_dict['sampling_rate']['read'] = False
-
-        self.parameter_display_dict['burst_duration']['val'] = 0
-        self.parameter_display_dict['burst_duration']['unit'] = ' s'
-        self.parameter_display_dict['burst_duration']['max'] = 100
-        self.parameter_display_dict['burst_duration']['read'] = False
 
         # set up parameter dict that only contains value
         self.parameter_dict = {}
@@ -48,7 +37,3 @@ class UHFDemo():
 
     def update_sampling_rate(self, sampling_rate):
         print(f'Sampling rate set to {sampling_rate} samples/s')
-
-    def read_data(self):
-        print(f'Starting data acquisition')
-        print(f'Data acquisition completed')

@@ -416,3 +416,30 @@ class TSeriesMeasurement(QtCore.QThread):
     def stop(self):
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+
+class THzAcquire(QtCore.QThread):
+    # set used signal types, destination is set in main script
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendProgress = QtCore.pyqtSignal(float)
+
+    def __init__(self, devices):
+        super(THzAcquire, self).__init__()
+        self.lock_in = devices['lock_in']
+        self.t = []  # preallocate time array
+        self.int = []  # preallocate intensity array
+        self.terminate = False
+        self.acquire_measurement = True
+
+# The moving of the tstage needs to be incorporated here.
+    def run(self):
+        if not self.terminate:  # check whether stopping measurement is called
+            self.sendProgress.emit(50)
+            self.t, self.int = self.lock_in.DAQ_acquire()
+            self.sendSpectrum.emit(self.t, self.int)
+            print(time.strftime('%H:%M:%S') + ' Finished')
+            self.sendProgress.emit(100)
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
