@@ -21,13 +21,17 @@ from drivers.SLMDemo import SLMDemo
 from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
 from drivers.PixisDemo import PixisDemo
-from drivers.Pixis import Pixis
+#from drivers.Pixis import Pixis
 from drivers.Cryocore import Cryocore
 from drivers.ThorlabsPM100D import ThorlabsPM100D
 from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
     ViewMeasurement, KineticMeasurement, TSeriesMeasurement
+
+from drivers.PI863Demo import PI863Demo
+from drivers.UHFDemo import UHFDemo
+from drivers.UHF import UHF
 
 
 class MainInterface(QtWidgets.QMainWindow):
@@ -44,37 +48,51 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices = defaultdict(dict)
 
         # initialize cryostat
-        """ This is a demo devices that has read and write parameters. 
-        Illustrates use of parameters"""
         # always try to include communication on important events.
         # This is extremely useful for debugging and troubleshooting.
-        try:
-            self.cryostat = CryoDemo() # launch cryostat interface
-            print('Connected to Montana CryoCore')
-        except:
-            self.cryostat = CryoDemo()
-            print('WARNING you are using a DEMO version of the cryostat')
-        self.devices['cryostat'] = self.cryostat
+        # try:
+        #     self.cryostat = CryoDemo() # launch cryostat interface
+        #     print('Connected to Montana CryoCore')
+        # except:
+        #     self.cryostat = CryoDemo()
+        #     print('WARNING you are using a DEMO version of the cryostat')
+        # self.devices['cryostat'] = self.cryostat
 
         # initialize Spectrometer
-        try:
-            self.spectrometer = Pixis()
-            print('Pixis camera connected')
-        except:
-            self.spectrometer = PixisDemo()
-            print('Pixis connection failed, use DEMO')
-        #self.spectrometer = SpectrometerDemo()
+        # try:
+        #     self.spectrometer = Pixis()
+        #     print('Pixis camera connected')
+        # except:
+        #     self.spectrometer = PixisDemo()
+        #     print('Pixis connection failed, use DEMO')
+        self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
 
         # initialize Powermeter
+        # try:
+        #     self.powermeter = ThorlabsPM100D()
+        #     print('Thorlabs powermeter connected')
+        # except:
+        #     self.powermeter = ThorlabsPM100DDemo()
+        #     print('WARNING you are using a DEMO version of the powermeter')
+        # self.devices['powermeter'] = self.powermeter
+
+        # initialize translation stage
         try:
-            self.powermeter = ThorlabsPM100D()
-            print('Thorlabs powermeter connected')
+            pass
         except:
-            self.powermeter = ThorlabsPM100DDemo()
-            print('WARNING you are using a DEMO version of the powermeter')
-        self.devices['powermeter'] = self.powermeter
+            self.tstage = PI863Demo()
+            print('WARNING you are using a DEMO version of the translation stage')
+
+        # initialize lock-in
+        try:
+            self.lock_in = UHF()
+        except:
+            self.lock_in = UHFDemo()
+            print('WARNING you are using a DEMO version of the lock in')
+        self.devices['lock_in'] = self.lock_in
+
 
         # initialize SLMDemo
         #self.SLM = SLMDemo()
