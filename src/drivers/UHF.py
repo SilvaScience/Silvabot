@@ -18,13 +18,13 @@ class UHF():
 
 ###################### These parameters need to be changed
         self.total_duration = 5
-        self.sampling_rate = 10000
+        self.sampling_rate = 1000
         self.burst_duration = 0.2        
         self.parameter_display_dict = defaultdict(dict)
 
         self.parameter_dict['sampling_rate'] = 0
 
-        self.parameter_display_dict['sampling_rate']['val'] = 10000
+        self.parameter_display_dict['sampling_rate']['val'] = 1000
         self.parameter_display_dict['sampling_rate']['unit'] = ' samples/s'
         self.parameter_display_dict['sampling_rate']['max'] = 100000
         self.parameter_display_dict['sampling_rate']['read'] = False
@@ -51,13 +51,11 @@ class UHF():
 
         # Configure external reference
         self.device.demods[0].enable(1)
-        self.device.demods[0].adcselect(1)
+        self.device.demods[3].adcselect(1)
         self.device.extrefs[0].enable(True)                                                    
 
         # Get the internal clock frequency of the device
         self.clockbase = self.device.clockbase()
-
-        self.ts0 = np.nan
 
         print('Configuration of the Lock-In completed')
 
@@ -82,7 +80,18 @@ class UHF():
                         self.ts0 = sig_burst.header['createdtimestamp'][0] / self.clockbase
 
                     t0_burst = sig_burst.header['createdtimestamp'][0] / self.clockbase
-                    t = (sig_burst.time + t0_burst) - self.ts0
+                    
+                    burst_time = sig_burst.time
+                    
+                    # Correcting for shifted sig_burst.time values
+                    if burst_time[1] > 1:
+                        temp_burst_time = np.zeros_like(burst_time)
+                        for i in range(len(burst_time)-1):
+                            temp_burst_time[i+1] = burst_time[i+1] - burst_time[1]
+                        temp_diff = temp_burst_time[-1] - temp_burst_time[-2]
+                        burst_time = np.linspace(burst_time[0], burst_time[0] + (len(burst_time)-1)*temp_diff, len(burst_time))
+                    
+                    t = burst_time + t0_burst - self.ts0
 
                     value = sig_burst.value[0, :]
 
@@ -91,6 +100,8 @@ class UHF():
                     self.results[node]["value"].append(value)
 
     def DAQ_acquire(self):
+        self.ts0 = np.nan
+
         self.num_cols = int(np.ceil(self.sampling_rate * self.burst_duration))
         self.num_bursts = int(np.ceil(self.total_duration / self.burst_duration))
 
@@ -102,10 +113,6 @@ class UHF():
         daq_module.duration(self.burst_duration)
         daq_module.grid.cols(self.num_cols)
 
-        daq_module.save.fileformat(1)
-        daq_module.save.filename('zi_toolkit_acq_example')
-        daq_module.save.saveonread(1)
-
         self.timeout = 1.5 * self.total_duration
 
         self.sample_nodes = [self.device.demods[0].sample.x, self.device.demods[0].sample.y]
@@ -114,18 +121,16 @@ class UHF():
 
         self.results = {node: {"time": [], "value": []} for node in self.sample_nodes}
 
-        self.start_time = time.time()
+        start_time = time.time()
         daq_module.execute()
 
-        while time.time() - self.start_time < self.timeout:
+        while time.time() - start_time < self.timeout:
             self.read_and_collect_data(daq_module)
             if daq_module.raw_module.finished():
                 self.read_and_collect_data(daq_module)
                 break
 
             time.sleep(self.burst_duration)
-
-        daq_module.save.save.wait_for_state_change(0, timeout=10)
 
         # Convert bursts into single arrays
         node_x = self.device.demods[0].sample.x
@@ -134,8 +139,6 @@ class UHF():
         t_full = np.concatenate(self.results[node_x]["time"])
         x_full = np.concatenate(self.results[node_x]["value"])
         y_full = np.concatenate(self.results[node_y]["value"])
-        print(len(t_full))
-        print(len(x_full))
-        print(len(y_full))
-        return t_full, x_full, y_full
+        intensity = np.sqrt(x_full**2 + y_full**2)
+        return t_full, intensity
 
