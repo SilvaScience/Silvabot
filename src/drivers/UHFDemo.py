@@ -1,6 +1,7 @@
 from PyQt5 import QtCore
 from collections import defaultdict
 import time
+import numpy as np
 
 class UHFDemo():
 
@@ -37,3 +38,12 @@ class UHFDemo():
 
     def update_sampling_rate(self, sampling_rate):
         print(f'Sampling rate set to {sampling_rate} samples/s')
+
+    def read_and_collect_data(self, daq_module):
+        pass
+
+    def DAQ_acquire(self):
+        t_full = np.linspace(0,1000,10000)
+        x_full = np.linspace(0,1000,10000)
+        y_full = np.linspace(0,1000,10000)
+        return t_full, x_full #, y_full

@@ -80,6 +80,16 @@ class DataHandling(QtCore.QThread):
         self.thread.start()
         self.bufferSaveSignal.connect(self.BufferWorker.save_buffer)
 
+    def update_array_size(self, input_array):
+        if input_array.ndim  == 1:
+            self.spec = np.empty([len(input_array), 0])
+            self.background = np.empty([len(input_array), 1])
+            self.wls = np.empty([len(input_array), 1])
+        else:
+            self.spec = np.empty([0,len(input_array[0]),len(input_array[1])])
+            self.background = np.empty([0,len(input_array[0]),len(input_array[1])])
+            self.wls = np.empty([len(input_array[1]), 1])
+
     # main update device parameter function
     def update_parameter(self, parameter):
         """ This is an important part of hardware parameter control. We use "deque" as efficient First-In-First-Out
@@ -111,6 +121,7 @@ class DataHandling(QtCore.QThread):
         more than 100 spectra are acquired, they are buffersaved in a .h5 file, to prevent memory overload and allow
         acquisiton of infinite spectra. """
         # add data to data array, not used for now
+        self.update_array_size(spec)
         curr_time = time.time() - self.starttime
         self.wls = wls
         if self.data_dim == 1:

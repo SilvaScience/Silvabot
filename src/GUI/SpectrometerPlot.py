@@ -147,23 +147,26 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
     def set_data(self, wls, spec):
-        self.wls = wls
-        wls_span = np.max(wls) - np.min(wls)
-        for i in range (4):
-            lim1 = self.roi_controls[i][0].value()
-            lim2 = self.roi_controls[i][1].value()
-            if lim2 > lim1:
-                self.y[i] = np.average(spec[lim1:lim2,:],axis=0)
-            else:
-                self.y[i] = spec[self.roi_controls[i][0].value()]
-            # 1 - R - T ; R = reflec/ref ; T = Trans/ref
-        try:
-            y = self.y
-            self.y[4] = eval(self.input_line.text())
-        except KeyError:
-            print('Incorrect expression, key out of range')
-        except SyntaxError:
-            print('Incorrect expression, syntax error')
+        if spec.ndim == 2:
+            self.wls = wls
+            wls_span = np.max(wls) - np.min(wls)
+            for i in range (4):
+                lim1 = self.roi_controls[i][0].value()
+                lim2 = self.roi_controls[i][1].value()
+                if lim2 > lim1:
+                    print(np.shape(wls))
+                    print(np.shape(spec))
+                    self.y[i] = np.average(spec[lim1:lim2,:],axis=0)
+                else:
+                    self.y[i] = spec[self.roi_controls[i][0].value()]
+                # 1 - R - T ; R = reflec/ref ; T = Trans/ref
+            try:
+                y = self.y
+                self.y[4] = eval(self.input_line.text())
+            except KeyError:
+                print('Incorrect expression, key out of range')
+            except SyntaxError:
+                print('Incorrect expression, syntax error')
         if spec.ndim == 1:
             self.graphWidget.plot(wls, spec, pen=QtGui.QColor.fromRgbF(plt.cm.prism(self.plotcounter)[0],plt.cm.prism(self.plotcounter)[1],
                                                                    plt.cm.prism(self.plotcounter)[2],plt.cm.prism(self.plotcounter)[3]))
@@ -237,7 +240,3 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot(np.ndarray)
     def update_datareader(self,max):
         self.maxvalue_label.setText(f"Data  : {max[2]:.1f} nm {max[1]:.1f} cts")
-
-
-
-
