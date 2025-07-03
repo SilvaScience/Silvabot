@@ -20,6 +20,7 @@ from drivers.SpectrometerDemo_advanced import SpectrometerDemo
 from drivers.SLMDemo import SLMDemo
 from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
+from drivers.Heliotis import Heliotis
 from drivers.PixisDemo import PixisDemo
 from drivers.Pixis import Pixis
 from drivers.Bigfoot import Bigfoot
@@ -62,7 +63,7 @@ class MainInterface(QtWidgets.QMainWindow):
         #self.spectrometer = Pixis()
         #print('Pixis camera connected')
         #except:
-        self.spectrometer = PixisDemo()
+        self.spectrometer = Heliotis()
         print('Pixis connection failed, use DEMO')
         #self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
@@ -451,7 +452,7 @@ class UpdateWorker(QtCore.QThread):
         self.read_only = read_only
         self.stop = False
         self.updated_param = {}
-        self.update_interval = 0.1
+        self.update_interval = 0.5
 
     def run(self):
         while not self.stop:

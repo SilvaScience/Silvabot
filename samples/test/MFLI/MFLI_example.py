@@ -35,10 +35,11 @@ https://docs.zhinst.com/labone_programming_manual/
 import numpy as np
 import zhinst.utils
 import matplotlib.pyplot as plt
+import cli_utils
 
 
 def run_example_demod(
-    device_id: str,
+    device_id: str,   #added : = 'dev7797'
     server_host: str = "localhost",
     server_port: int = 8004,
     plot: bool = True,
@@ -321,6 +322,7 @@ def run_example(
             f"Warning: The data type: '{data_type}'  is not recognized, please choose between ['demodulator_data' or 'pid_data']"
         )
 
+#print(dir(cli_utils))
 
 if __name__ == "__main__":
     import sys
@@ -329,6 +331,5 @@ if __name__ == "__main__":
     cli_util_path = Path(__file__).resolve().parent.parent.parent.parent / ".venv/Lib/site-packages/cli_utils"#"../../utils/python"
     print(cli_util_path)
     sys.path.insert(0, str(cli_util_path))
-    cli_utils = __import__("cli_utils")
-    cli_utils.run_commandline(run_example, __doc__)
+    run_example(device_id="dev7797")   #modified, BV -> was cli_utils = __import__("cli_utils")   //   cli_utils.run_commandline(run_example, __doc__)
     sys.path.remove(str(cli_util_path))

@@ -4,7 +4,7 @@ import urllib.request
 import zhinst
 import zhinst.utils
 import time
-url = "http://127.0.0.1:8006/netlink?id=c0p1t8p1cfm0p0&ziSessionId=0"
+url = "http://127.0.0.1:8006/netlink?id=c0p1t6p1cfm0p1&ziSessionId=0"
 
 webpage = urllib.request.urlopen(url)
 
@@ -14,6 +14,16 @@ data = []
 
 for row in datareader:
     data.append(row)
+
+#####
+#import csv
+#import urllib
+#url = "http://127.0.0.1:8006/netlink?id=c0p5t6p1cfplotmath&ziSessionId=0"
+#webpage = urllib.urlopen(url)
+#datareader = csv.reader(webpage)
+#data = []
+#for row in datareader:
+#    data.append(row)
 
 #print(data)
 
