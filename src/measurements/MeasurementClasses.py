@@ -155,7 +155,7 @@ class BackgroundMeasurement(QtCore.QThread):
                 self.wls = np.array(self.spectrometer.get_wavelength())
                 self.spec = np.array(self.spectrometer.get_intensities())
                 self.summedspec = self.summedspec + self.spec
-            self.spec = self.summedspec / self.scans
+            self.spec = self.summedspec / self.scans                                   ##############
             if hasattr(self.spectrometer, 'shutter'):
                 self.spectrometer.stop_acquisition()
             self.sendSpectrum.emit(self.wls, self.spec)

@@ -25,8 +25,11 @@ from PyQt5 import QtCore
 from collections import defaultdict
 from pylablib.devices import PrincetonInstruments
 import time
+from scipy.optimize import curve_fit
 import serial
+from joblib import Parallel, delayed
 import re
+import h5py
 
 class Heliotis(QtCore.QThread):
 
@@ -302,7 +305,7 @@ class Heliotis(QtCore.QThread):
         # Signal generator peak-to-peak amplitude in % of full range
         sgnAmplitude = 10.0
         # Signal generator frequency in Hz
-        sgnFrequency = 10000.0
+        sgnFrequency = 9975.0
 
         # Configuration
 
@@ -369,19 +372,74 @@ class CameraWorker(QtCore.QThread):
         """" Continuous tasks of the Worker are defined here.
         If loops check for requested changes in settings prior each acquisition. """
         print('Heliotis worker started')
+        initial_time = time.time()
         while not self.terminate: #infinite loop
             if self.acquiring:
                 rawI,rawQ = self.acquire()
-                avg_I = np.average(rawI[-2:],axis=0)
-                avg_Q = np.average(rawQ[-2:], axis=0)
-                offset_I = np.average(rawI, axis=0)
-                offset_Q = np.average(rawQ, axis=0)
-                #avg_image = np.sqrt(np.square(avg_I-offset_I) + np.square(avg_Q - offset_Q))
-                avg_I = np.average(rawI,axis=0)
-                avg_Q = np.average(rawQ, axis=0)
-                avg_image = np.sqrt(np.square(avg_I) + np.square(avg_Q))
 
-                self.sendSpectrum.emit(avg_image)
+                ########
+                #Curve fit on average I/Q value of each frame to find the best frequency and phase
+                def sine_function(x, A, omega, phase, offset):
+                    return A * np.sin(omega * x + phase) + offset
+
+                avg_I = np.mean(rawI, axis=(1, 2))
+                avg_Q = np.mean(rawQ, axis=(1, 2))
+                IdivQ = avg_I / avg_Q
+                frame_nbr = np.arange(rawI.shape[0])
+
+                initial_guess = [0.01, 0.2, -0.2, 0.985]   #usually needs an initial guess relatively close (because small values)
+                popt, pcov = curve_fit(sine_function, frame_nbr, IdivQ, p0=initial_guess, maxfev=2000)
+                A_general, omega_general, phase_general, offset_general = popt
+
+                ########
+                #Minimize difference between 'matrix product X * [A // offset]' and 'y' to find optimal A and offset of each pixel
+                s = np.sin(omega_general * frame_nbr + phase_general)  #shape (frames,)
+                X = np.vstack([s, np.ones_like(s)]).T  #shape (frames, 2)
+                Y = rawI/rawQ  #shape (frames, Ny, Nx)
+
+                A_opt = np.zeros_like(rawI[0, :, :], dtype=float)
+                offset_opt = np.zeros_like(rawI[0, :, :], dtype=float)
+
+                def fit_pixel(i, j):
+                    y = Y[:, i, j]
+                    try:
+                        coeffs, residuals, rank, singular_values = np.linalg.lstsq(X, y, rcond=None)
+                        return i, j, coeffs[0], coeffs[1], residuals, rank, singular_values  #A, offset  **** COULD EVENTUALLY ONLY KEEP 'A'
+                    except:
+                        return i, j, np.nan, np.nan
+                        print('Error fiiting pixel', i, j)
+
+                t0 = time.time()
+                results = Parallel(n_jobs=-1, prefer="processes")(delayed(fit_pixel)(i, j) for i in range(rawI.shape[1]) for j in range(rawI.shape[2]))  #execute fix_pixel on all the CPUs to go faster (parallelization)
+                for i, j, A, offset, residuals, rank, singular_values in results:
+                    A_opt[i, j] = np.abs(A)
+                    offset_opt[i, j] = offset
+                print("Duration:", time.time() - t0)
+
+                ########
+                #Troubleshooting
+                t1 = time.time()
+                if t1-initial_time < 70:
+                    print('residuals, rank, singular_values of np.linalg.lstsq', residuals, rank, singular_values)
+                    print('Standard deviation of A, omega, phase, offset :', np.sqrt(np.diag(pcov)))
+
+                if np.max(A_opt) < 0.04:
+                    print('############################## PROBLEM #####################################')
+                    print('residuals, rank, singular_values of np.linalg.lstsq', residuals, rank, singular_values)
+                    print('Standard deviation of A, omega, phase, offset :', np.sqrt(np.diag(pcov)))
+
+                ########
+                #Download the data
+                ty_res = time.localtime(time.time())
+                timestamp = time.strftime("%H_%M_%S", ty_res)
+                folder = r"C:\DATA\BIGFOOT\2025-07-07"
+                filename = os.path.join(folder,"data" + timestamp + '.h5')
+                with h5py.File(filename, 'w') as f:
+                    f.create_dataset('Amplitude', data=A_opt)
+                    #f.create_dataset('Offset', data=offset_opt)
+
+                ########
+                self.sendSpectrum.emit(A_opt)
             time.sleep(0.7)
         print('Worker closes')
         return

@@ -79,9 +79,9 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['powermeter'] = self.powermeter
 
         # initialize Bigfoot
-        self.bigfoot = Bigfoot()
-        self.devices['bigfoot'] = self.bigfoot
-        print('Bigfoot connected')
+        #self.bigfoot = Bigfoot()
+        #self.devices['bigfoot'] = self.bigfoot
+        #print('Bigfoot connected')
         # initialize SLMDemo
         #self.SLM = SLMDemo()
         #self.devices['SLM'] = self.SLM
