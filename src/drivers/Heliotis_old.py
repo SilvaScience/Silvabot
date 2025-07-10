@@ -420,45 +420,17 @@ class CameraWorker(QtCore.QThread):
                 else:
                     omega_general = 60
 
-                    # Smooth square wave approximation using tanh(sin(...))
-                    def smooth_square_wave(t, A, phase, C, freq=60, k=5):
-                        return A * np.tanh(k * np.sin(2 * np.pi * freq * t + phase)) + C
+                    def square_plus_sine(t, A_sq, phase, C_sq, A_sin, f_sin, phase_sin, k=10, f_sq=60):
+                        sq = A_sq * np.tanh(k * np.sin(2 * np.pi * f_sq * t + phase)) + C_sq
+                        sin = A_sin * np.sin(2 * np.pi * f_sin * t + phase_sin)
+                        return sq + sin
 
-                    # Best fit amplitude and offset using least squares (given phase)
-                    def fit_amplitude_offset(y, model):
-                        A = np.dot(y, model) / np.dot(model, model)
-                        residual = y - A * model
-                        C = np.mean(residual)
-                        return A, C
+                    A_general_guess = (np.max(IdivQ)-np.min(IdivQ))/2
+                    initial_guess = [A_general_guess, 0, 0.992, 0.001, 180, 0]
+                    popt, _ = curve_fit(square_plus_sine, time_axis, IdivQ, p0=initial_guess)
 
-                    # Main robust square wave fitter
-                    def fit_smooth_square_wave(t, y, freq=60, phase_steps=5000, k=5):
-                        best_error = np.inf
-                        best_params = None
-                        best_fit = None
+                    A_general, phase_general, offset_general, A_sin, f_sin, phase_sin = popt
 
-                        phase_grid = np.linspace(0, 2 * np.pi, phase_steps)
-
-                        for phase in phase_grid:
-                            model = np.tanh(k * np.sin(2 * np.pi * freq * t + phase))
-                            A, C = fit_amplitude_offset(y, model)
-                            y_fit = A * model + C
-                            error = np.mean((y - y_fit) ** 2)
-
-                            if error < best_error:
-                                best_error = error
-                                best_params = (A, phase, C)
-                                best_fit = y_fit
-
-                        return best_params, best_fit
-
-                    params, y_fit = fit_smooth_square_wave(time_axis, IdivQ, freq=60)
-                    A_fit, phase_fit, C_fit = params
-                    print(f"Fitted Amplitude: {A_fit:.4f}")
-                    print(f"Fitted Phase: {phase_fit:.6f} rad")
-                    print(f"Fitted Offset: {C_fit:.4f}")
-
-                    A_general, phase_general, offset_general = params
 
                 ########
                 #Minimize difference between 'matrix product X * [A // offset]' and 'y' to find optimal A and offset of each pixel
@@ -521,7 +493,7 @@ class CameraWorker(QtCore.QThread):
                         plt.show()
                 else:
                     plt.plot(time_axis, IdivQ)
-                    plt.plot(time_axis, smooth_square_wave(time_axis, A_general, phase_general, offset_general))
+                    plt.plot(time_axis, square_plus_sine(time_axis, *popt))
                     plt.title('IdivQ')
                     plt.grid()
                     plt.xlabel('Time (s)')
