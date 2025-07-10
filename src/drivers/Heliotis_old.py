@@ -28,8 +28,10 @@ import time
 from scipy.optimize import curve_fit
 import serial
 from joblib import Parallel, delayed
+import matplotlib.pyplot as plt
 import re
 import h5py
+from scipy.optimize import minimize
 
 class Heliotis(QtCore.QThread):
 
@@ -73,7 +75,7 @@ class Heliotis(QtCore.QThread):
         print(self.grating)
 
         #initial heliotis settings
-        self.num_frames = 40
+        self.num_frames = 160
 
         # set parameter dict
         self.parameter_dict = defaultdict()
@@ -105,7 +107,7 @@ class Heliotis(QtCore.QThread):
         ctiFile = os.environ['DIAPHUS_GENTL64_FILE']
         print(ctiFile)
         h.add_file(ctiFile)
-
+        #"""  De-comment to run without camera
         # create camera object for interaction
         self.camera = self.selectDevice(h)
 
@@ -117,26 +119,13 @@ class Heliotis(QtCore.QThread):
         #self.worker = CameraWorker(self.camera)
         #self.worker.sendSpectrum.connect(self.update_spectrum) # connect where signals of worker go to.
         #self.worker.start()
-        #self.thread = QtCore.QThread()
-        #self.worker = CameraWorker(self.camera)
-        #self.worker.moveToThread(self.thread)
-        #self.worker.sendSpectrum.connect(self.update_spectrum)
-        #self.thread.started.connect(self.worker.run)
-        #self.thread.start()
-
+        self.thread = QtCore.QThread()
         self.worker = CameraWorker(self.camera)
-        self.worker.start()
-
-        # Start processor in its own thread
-        self.processor_thread = QtCore.QThread()
-        self.processor = DataProcessor()
-        self.processor.moveToThread(self.processor_thread)
-        self.processor.sendSpectrum.connect(self.update_spectrum)
-        self.processor_thread.start()
-
-        # Connect signals
-        self.worker.sendRawData.connect(self.processor.process)
-
+        self.worker.moveToThread(self.thread)
+        self.worker.sendSpectrum.connect(self.update_spectrum)
+        self.thread.started.connect(self.worker.run)
+        self.thread.start()
+        #"""
 
     def set_parameter(self, parameter, value):
         """REQUIRED. This function defines how changes in the parameter tree are handled.
@@ -304,13 +293,13 @@ class Heliotis(QtCore.QThread):
         # Lock-In Amplification (LIA)
 
         # Sensor sensitivity in %/100, 0.5 for C4-S40, 0.2 for C4-S40U, 0.05 for C4-S41U and 0.25 for C4M
-        sensitivity = 1
+        sensitivity = 0.1
         # Number of intergration periods
-        NPeriods = 10
+        NPeriods = 8
         # Background suppression on/off switch, 'AC' or 'DC'
-        coupling = 'AC'
+        coupling = 'DC'
         # Reference frequency in Hz
-        refFrequency = 10000.0
+        refFrequency = 30000.0
         # Source of reference signal, 'Internal' or 'External'
         refSource = 'Internal'
         # Expected frequency deviation of external reference input in %
@@ -352,21 +341,34 @@ class Heliotis(QtCore.QThread):
         self.camera.remote_device.node_map.LockInReferenceSourceType.value = refSource
 
         # For external reference signal only
-        self.camera.remote_device.node_map.LockInReferenceFrequencyScaler.value = "Off"
-        self.camera.remote_device.node_map.LockInReferenceSourceSignal.value = "FI2"
+        #self.camera.remote_device.node_map.LockInReferenceFrequencyScaler.value = "Off" #"DivideBy2"  # or "Off", "DivideBy2" etc
+        #self.camera.remote_device.node_map.LockInReferenceSourceSignal.value = "FI2"
 
         # Illumination
 
-        self.camera.remote_device.node_map.SignalGeneratorOffset.value = sgnOffset
-        self.camera.remote_device.node_map.SignalGeneratorAmplitude.value = sgnAmplitude
-        self.camera.remote_device.node_map.LightControllerSelector.value = "LightController0"
-        self.camera.remote_device.node_map.SignalGeneratorModulationMode.value = "On"
-        self.camera.remote_device.node_map.SignalGeneratorFrequency.value = sgnFrequency
-        self.camera.remote_device.node_map.LightControllerSource.value = "SignalGenerator"
+        #self.camera.remote_device.node_map.SignalGeneratorOffset.value = sgnOffset
+        #self.camera.remote_device.node_map.SignalGeneratorAmplitude.value = sgnAmplitude
+        #self.camera.remote_device.node_map.LightControllerSelector.value = "LightController0"
+        #self.camera.remote_device.node_map.SignalGeneratorModulationMode.value = "Off"
+        #self.camera.remote_device.node_map.SignalGeneratorFrequency.value = sgnFrequency
+        #self.camera.remote_device.node_map.LightControllerSource.value = "SignalGenerator"
+        self.camera.remote_device.node_map.LightControllerSource.value = 'Off'
+
+        # See ref. for troubleshooting
+        self.camera.remote_device.node_map.LineSelector.value = "RTIO3"
+        self.camera.remote_device.node_map.LineSource.value = "LockInReference"
+
+
 
 
 class CameraWorker(QtCore.QThread):
-    sendRawData = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    """ This is a DemoWorker for the spectrometer.
+    It continously acquires spectra and emits them to the Interface.
+    It interrupts data acquisition if an int_time change is requested. Its important because most
+    hardware can only handle one command at a time, acquiring or changeing settings.  """
+    # These are signals that allow to send data from a child thread to the parent hierarchy.
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray)
+    sendTemperature = QtCore.pyqtSignal(float)
 
     def __init__(self,camera):
         super(CameraWorker, self).__init__() # Elevates this thread to be independent.
@@ -379,13 +381,182 @@ class CameraWorker(QtCore.QThread):
         self.terminate = False
         self.acquiring = True
 
-
     def run(self):
+        """" Continuous tasks of the Worker are defined here.
+        If loops check for requested changes in settings prior each acquisition. """
         print('Heliotis worker started')
-        while not self.terminate:
+        initial_time = time.time()
+        frame_rate = self.camera.remote_device.node_map.FrameRate.value
+        print('framerate :', frame_rate)
+
+        while not self.terminate: #infinite loop
             if self.acquiring:
-                rawI, rawQ = self.acquire()
-                self.sendRawData.emit(rawI, rawQ)
+                t0 = time.time()
+                rawI,rawQ = self.acquire()
+                print("Acquistion Duration:", time.time() - t0)
+
+                ########
+                # x : 150 - 200  ([1])   focus on region of interest to find frequency and phase
+                # y : 140 - 180  ([2])
+                x_range = (290, 300)
+                y_range = (200, 300)
+                avg_I = np.mean(rawI[:, x_range[0]:x_range[1], y_range[0]:y_range[1]], axis=(1, 2))
+                avg_Q = np.mean(rawQ[:, x_range[0]:x_range[1], y_range[0]:y_range[1]], axis=(1, 2))
+                IdivQ = avg_I / avg_Q
+                frame_axis = np.arange(rawI.shape[0])
+                time_axis = frame_axis / frame_rate  # time in seconds
+
+                sin_fit = False
+                #Curve fit on average I/Q value of each frame to find the best frequency and phase
+                if sin_fit:
+                    def sine_function(x, A, omega, phase, offset):
+                        return A * np.sign(np.sin(omega * x + phase)) + offset
+
+                    initial_guess = [0.01, 377, -0.2, 0.994]   #usually needs an initial guess relatively close. omega is in rad/s
+                    lower_bounds = [0.006, 370, -2*np.pi, 0.990]
+                    upper_bounds = [0.014, 483, 2*np.pi, 0.998]
+                    popt, pcov = curve_fit(sine_function, time_axis, IdivQ, p0=initial_guess, bounds=(lower_bounds, upper_bounds), maxfev=2000)
+                    A_general, omega_general, phase_general, offset_general = popt
+                else:
+                    omega_general = 60
+
+                    # Smooth square wave approximation using tanh(sin(...))
+                    def smooth_square_wave(t, A, phase, C, freq=60, k=5):
+                        return A * np.tanh(k * np.sin(2 * np.pi * freq * t + phase)) + C
+
+                    # Best fit amplitude and offset using least squares (given phase)
+                    def fit_amplitude_offset(y, model):
+                        A = np.dot(y, model) / np.dot(model, model)
+                        residual = y - A * model
+                        C = np.mean(residual)
+                        return A, C
+
+                    # Main robust square wave fitter
+                    def fit_smooth_square_wave(t, y, freq=60, phase_steps=5000, k=5):
+                        best_error = np.inf
+                        best_params = None
+                        best_fit = None
+
+                        phase_grid = np.linspace(0, 2 * np.pi, phase_steps)
+
+                        for phase in phase_grid:
+                            model = np.tanh(k * np.sin(2 * np.pi * freq * t + phase))
+                            A, C = fit_amplitude_offset(y, model)
+                            y_fit = A * model + C
+                            error = np.mean((y - y_fit) ** 2)
+
+                            if error < best_error:
+                                best_error = error
+                                best_params = (A, phase, C)
+                                best_fit = y_fit
+
+                        return best_params, best_fit
+
+                    params, y_fit = fit_smooth_square_wave(time_axis, IdivQ, freq=60)
+                    A_fit, phase_fit, C_fit = params
+                    print(f"Fitted Amplitude: {A_fit:.4f}")
+                    print(f"Fitted Phase: {phase_fit:.6f} rad")
+                    print(f"Fitted Offset: {C_fit:.4f}")
+
+                    A_general, phase_general, offset_general = params
+
+                ########
+                #Minimize difference between 'matrix product X * [A // offset]' and 'y' to find optimal A and offset of each pixel
+                if sin_fit:
+                    s = np.sin(omega_general * time_axis + phase_general)  #+ np.sin(omegaB_general * time_axis + phase_general) #shape (frames,)
+                else:
+                    s = np.sign(np.sin(2 * np.pi * omega_general * time_axis + phase_general))
+                X = np.vstack([s, np.ones_like(s)]).T  #shape (frames, 2)
+                Y = rawI/rawQ  #shape (frames, Ny, Nx)
+
+                A_opt = np.zeros_like(rawI[0, :, :], dtype=float)
+                offset_opt = np.zeros_like(rawI[0, :, :], dtype=float)
+
+                def fit_pixel(i, j):
+                    y = Y[:, i, j]
+                    try:
+                        coeffs, residuals, rank, singular_values = np.linalg.lstsq(X, y, rcond=None)
+                        return i, j, coeffs[0], coeffs[1], residuals, rank, singular_values  #A, offset  **** COULD EVENTUALLY ONLY KEEP 'A'
+                    except:
+                        return i, j, np.nan, np.nan
+                        print('Error fiiting pixel', i, j)
+
+                t0 = time.time()
+                results = Parallel(n_jobs=-1, prefer="processes")(delayed(fit_pixel)(i, j) for i in range(rawI.shape[1]) for j in range(rawI.shape[2]))  #execute fix_pixel on all the CPUs to go faster (parallelization)
+                for i, j, A, offset, residuals, rank, singular_values in results:
+                    A_opt[i, j] = np.abs(A)
+                    offset_opt[i, j] = offset
+                print("Lin alg fit duration:", time.time() - t0)
+
+                ########
+                #Troubleshooting
+                t1 = time.time()
+                if sin_fit:
+                    print('Frequency [in Hz] from curve fit :', omega_general / (2 * np.pi))
+
+
+                    if t1-initial_time < 1300:
+                        plt.plot(time_axis, IdivQ)
+                        print('residuals, rank, singular_values of np.linalg.lstsq', residuals, rank, singular_values)
+                        print('Standard deviation of A, omega, phase, offset :', np.sqrt(np.diag(pcov)))
+                        print('A_general, omega_general, phase_general, offset_general', popt)
+                        plt.plot(time_axis, sine_function(time_axis,A_general, omega_general, phase_general, offset_general))
+                        plt.title('IdivQ')
+                        plt.grid()
+                        plt.xlabel('Time (s)')
+                        plt.ylabel('Amplitude')
+                        plt.show()
+
+                    if np.max(A_opt) < 0.005:
+                        print('############################## PROBLEM #####################################')
+                        print('residuals, rank, singular_values of np.linalg.lstsq', residuals, rank, singular_values)
+                        print('Standard deviation of A, omega, phase, offset :', np.sqrt(np.diag(pcov)))
+                        print('A_general, omega_general, phase_general, offset_general', popt)
+                        plt.plot(time_axis, IdivQ)
+                        plt.plot(time_axis, sine_function(time_axis, A_general, omega_general, phase_general, offset_general))
+                        plt.title('IdivQ')
+                        plt.grid()
+                        plt.xlabel('Time (s)')
+                        plt.ylabel('Amplitude')
+                        plt.show()
+                else:
+                    plt.plot(time_axis, IdivQ)
+                    plt.plot(time_axis, smooth_square_wave(time_axis, A_general, phase_general, offset_general))
+                    plt.title('IdivQ')
+                    plt.grid()
+                    plt.xlabel('Time (s)')
+                    plt.ylabel('Amplitude')
+                    plt.show()
+                    print(f'A_general: {A_general}, omega_general: {omega_general}, phase_general: {phase_general}, offset_general: {offset_general}')
+                    # Download the data
+                    ty_res = time.localtime(time.time())
+                    timestamp = time.strftime("%H_%M_%S", ty_res)
+                    folder = r"C:\DATA\BIGFOOT\2025-07-10"
+                    filename = os.path.join(folder, "IdivQ" + timestamp + '.h5')
+                    data = [time_axis, IdivQ]
+                    with h5py.File(filename, 'w') as f:
+                        f.create_dataset('IdivQ', data=data)
+                        # f.create_dataset('Offset', data=offset_opt)
+
+
+
+                ########
+                #Download the data
+                '''
+                ty_res = time.localtime(time.time())
+                timestamp = time.strftime("%H_%M_%S", ty_res)
+                folder = r"C:\DATA\BIGFOOT\2025-07-09"
+                filename = os.path.join(folder,"data" + timestamp + '.h5')
+                with h5py.File(filename, 'w') as f:
+                    f.create_dataset('Amplitude', data=A_opt)
+                    #f.create_dataset('Offset', data=offset_opt)
+                '''
+
+                ########
+                self.sendSpectrum.emit(A_opt)
+            time.sleep(0.7)
+        print('Worker closes')
+        return
 
     def acquire(self, timeout=30):
         """
@@ -419,62 +590,3 @@ class CameraWorker(QtCore.QThread):
         width = self.camera.remote_device.node_map.Width.value
 
         return 2, NFrames, height, width
-
-class DataProcessor(QtCore.QObject):
-    sendSpectrum = QtCore.pyqtSignal(np.ndarray)
-
-    @QtCore.pyqtSlot(np.ndarray, np.ndarray)
-    def process(self, rawI, rawQ):
-        print('Processing rawI and rawQ')
-        #import numpy as np, h5py, time, os
-        #from scipy.optimize import curve_fit
-        #from joblib import Parallel, delayed
-
-        frame_nbr = np.arange(rawI.shape[0])
-        avg_I = np.mean(rawI, axis=(1, 2))
-        avg_Q = np.mean(rawQ, axis=(1, 2))
-        IdivQ = avg_I / avg_Q
-
-        print('curve fit started')
-
-        popt, _ = curve_fit(self.sine_function, frame_nbr, IdivQ, p0=[0.01, 0.2, -0.2, 0.985], maxfev=2000)
-        omega_general, phase_general = popt[1], popt[2]
-        print('curve fit done')
-
-        # Minimize difference between 'matrix product X * [A // offset]' and 'y' to find optimal A and offset of each pixel
-        s = np.sin(omega_general * frame_nbr + phase_general)  # shape (frames,)
-        X = np.vstack([s, np.ones_like(s)]).T  # shape (frames, 2)
-        Y = rawI / rawQ  # shape (frames, Ny, Nx)
-
-        A_opt = np.zeros_like(rawI[0, :, :], dtype=float)
-        offset_opt = np.zeros_like(rawI[0, :, :], dtype=float)
-
-        def fit_pixel(i, j):
-            y = Y[:, i, j]
-            try:
-                coeffs, residuals, rank, singular_values = np.linalg.lstsq(X, y, rcond=None)
-                return i, j, coeffs[0], coeffs[
-                    1], residuals, rank, singular_values  # A, offset  **** COULD EVENTUALLY ONLY KEEP 'A'
-            except:
-                return i, j, np.nan, np.nan
-                print('Error fiiting pixel', i, j)
-
-        t0 = time.time()
-        results = Parallel(n_jobs=-1, prefer="processes")(
-            delayed(fit_pixel)(i, j) for i in range(rawI.shape[1]) for j in
-            range(rawI.shape[2]))  # execute fix_pixel on all the CPUs to go faster (parallelization)
-        for i, j, A, offset, residuals, rank, singular_values in results:
-            A_opt[i, j] = np.abs(A)
-            offset_opt[i, j] = offset
-        print("Duration:", time.time() - t0)
-
-        timestamp = time.strftime("%H_%M_%S", time.localtime())
-        save_folder = r"C:\DATA\BIGFOOT\2025-07-08"
-        filename = os.path.join(save_folder, f"data{timestamp}.h5")
-        with h5py.File(filename, 'w') as f:
-            f.create_dataset('Amplitude', data=A_opt)
-        print(f"[Processor] Saved: {filename}")
-        self.sendSpectrum.emit(A_opt)
-
-    def sine_function(self,x, A, omega, phase, offset):
-        return A * np.sin(omega * x + phase) + offset

@@ -20,7 +20,7 @@ from drivers.SpectrometerDemo_advanced import SpectrometerDemo
 from drivers.SLMDemo import SLMDemo
 from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
-from drivers.Heliotis import Heliotis
+from drivers.Heliotis_old import Heliotis
 from drivers.PixisDemo import PixisDemo
 from drivers.Pixis import Pixis
 from drivers.Bigfoot import Bigfoot

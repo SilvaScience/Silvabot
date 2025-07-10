@@ -30,6 +30,8 @@ import serial
 from joblib import Parallel, delayed
 import re
 import h5py
+from queue import Queue
+from threading import Thread
 
 class Heliotis(QtCore.QThread):
 
@@ -117,26 +119,12 @@ class Heliotis(QtCore.QThread):
         #self.worker = CameraWorker(self.camera)
         #self.worker.sendSpectrum.connect(self.update_spectrum) # connect where signals of worker go to.
         #self.worker.start()
-        #self.thread = QtCore.QThread()
-        #self.worker = CameraWorker(self.camera)
-        #self.worker.moveToThread(self.thread)
-        #self.worker.sendSpectrum.connect(self.update_spectrum)
-        #self.thread.started.connect(self.worker.run)
-        #self.thread.start()
-
+        self.thread = QtCore.QThread()
         self.worker = CameraWorker(self.camera)
-        self.worker.start()
-
-        # Start processor in its own thread
-        self.processor_thread = QtCore.QThread()
-        self.processor = DataProcessor()
-        self.processor.moveToThread(self.processor_thread)
-        self.processor.sendSpectrum.connect(self.update_spectrum)
-        self.processor_thread.start()
-
-        # Connect signals
-        self.worker.sendRawData.connect(self.processor.process)
-
+        self.worker.moveToThread(self.thread)
+        self.worker.sendSpectrum.connect(self.update_spectrum)
+        self.thread.started.connect(self.worker.run)
+        self.thread.start()
 
     def set_parameter(self, parameter, value):
         """REQUIRED. This function defines how changes in the parameter tree are handled.
@@ -366,26 +354,59 @@ class Heliotis(QtCore.QThread):
 
 
 class CameraWorker(QtCore.QThread):
-    sendRawData = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray)
+    sendTemperature = QtCore.pyqtSignal(float)
 
-    def __init__(self,camera):
-        super(CameraWorker, self).__init__() # Elevates this thread to be independent.
-
-        # definition of some parameters
+    def __init__(self, camera):
+        super(CameraWorker, self).__init__()
         self.camera = camera
-        self.spec_length = (252,1024)
+        self.spec_length = (252, 1024)
         self.change_int_time = False
-        self.spectrum = np.zeros(self.spec_length)
         self.terminate = False
         self.acquiring = True
 
+        # === New: Set up processing queue and thread ===
+        self.processing_queue = Queue(maxsize=3)  # limit to avoid overload
+
+        self.thread = QtCore.QThread()
+        self.processor = ProcessingWorker(self.processing_queue)
+        self.processor.moveToThread(self.thread)
+        self.thread.start()
+        self.processor.sendProcessedSpectrum.connect(self.update_spectrum)
+
+        """
+        self.thread = QtCore.QThread()
+        self.BufferWorker = BufferWorker(self.temp_filename,self.data_dim)
+        self.BufferWorker.moveToThread(self.thread)
+        self.thread.start()
+        self.bufferSaveSignal.connect(self.BufferWorker.save_buffer)
+        
+        self.thread = QtCore.QThread()
+        self.worker = CameraWorker(self.camera)
+        self.worker.moveToThread(self.thread)
+        self.worker.sendSpectrum.connect(self.update_spectrum)
+        """
 
     def run(self):
         print('Heliotis worker started')
         while not self.terminate:
             if self.acquiring:
+                t1 = time.time()
                 rawI, rawQ = self.acquire()
-                self.sendRawData.emit(rawI, rawQ)
+                print('Acquistion time:' + str(time.time() - t1))
+
+                # === Queue data for background processing ===
+                try:
+                    self.processing_queue.put_nowait((rawI, rawQ))
+                except:
+                    print("Processing queue full — skipping frame")
+
+                # Optionally emit some summary spectrum here
+                #self.sendSpectrum.emit(np.mean(rawI / rawQ, axis=0))  # simplified
+
+    def update_spectrum(self, spectrum):
+        self.sendSpectrum.emit(spectrum)
+        print(time.strftime('%H:%M:%S') + ' Spectrum send from Worker to Interface')
 
     def acquire(self, timeout=30):
         """
@@ -420,31 +441,49 @@ class CameraWorker(QtCore.QThread):
 
         return 2, NFrames, height, width
 
-class DataProcessor(QtCore.QObject):
-    sendSpectrum = QtCore.pyqtSignal(np.ndarray)
+class ProcessingWorker(QtCore.QThread):
 
-    @QtCore.pyqtSlot(np.ndarray, np.ndarray)
-    def process(self, rawI, rawQ):
-        print('Processing rawI and rawQ')
-        #import numpy as np, h5py, time, os
-        #from scipy.optimize import curve_fit
-        #from joblib import Parallel, delayed
+    sendProcessedSpectrum =QtCore.pyqtSignal(np.ndarray)
 
-        frame_nbr = np.arange(rawI.shape[0])
+    def __init__(self, processing_queue):
+        super().__init__()
+        self.queue = processing_queue
+        self.daemon = True
+        self.start()
+
+    def run(self):
+        while True:
+            rawI, rawQ = self.queue.get()
+            if rawI is None:  # Poison pill to shut down
+                print(time.strftime('%H:%M:%S') + ' Processor stopped')
+                break
+            print(time.strftime('%H:%M:%S') + ' Start processing frame')
+            t1 = time.time()
+            self.process_data(rawI, rawQ)
+            print('Finished processing frame. Duration:', time.time() - t1)
+
+    def process_data(self, rawI, rawQ):
+        # === Your existing processing code ===
+        def sine_function(x, A, omega, phase, offset):
+            return A * np.sin(omega * x + phase) + offset
+
         avg_I = np.mean(rawI, axis=(1, 2))
         avg_Q = np.mean(rawQ, axis=(1, 2))
         IdivQ = avg_I / avg_Q
+        frame_nbr = np.arange(rawI.shape[0])
 
-        print('curve fit started')
+        initial_guess = [0.01, 0.3, -0.2,
+                         0.975]  # usually needs an initial guess relatively close (because small values)
+        lower_bounds = [0.001, 0.1, -2 * np.pi, 0.97]
+        upper_bounds = [0.014, 0.4, 2 * np.pi, 0.98]
+        popt, pcov = curve_fit(sine_function, frame_nbr, IdivQ, p0=initial_guess, bounds=(lower_bounds, upper_bounds),
+                               maxfev=2000)
+        A_general, omega_general, phase_general, offset_general = popt
 
-        popt, _ = curve_fit(self.sine_function, frame_nbr, IdivQ, p0=[0.01, 0.2, -0.2, 0.985], maxfev=2000)
-        omega_general, phase_general = popt[1], popt[2]
-        print('curve fit done')
 
-        # Minimize difference between 'matrix product X * [A // offset]' and 'y' to find optimal A and offset of each pixel
-        s = np.sin(omega_general * frame_nbr + phase_general)  # shape (frames,)
-        X = np.vstack([s, np.ones_like(s)]).T  # shape (frames, 2)
-        Y = rawI / rawQ  # shape (frames, Ny, Nx)
+        s = np.sin(omega_general * frame_nbr + phase_general)
+        X = np.vstack([s, np.ones_like(s)]).T
+        Y = rawI / rawQ
 
         A_opt = np.zeros_like(rawI[0, :, :], dtype=float)
         offset_opt = np.zeros_like(rawI[0, :, :], dtype=float)
@@ -452,29 +491,18 @@ class DataProcessor(QtCore.QObject):
         def fit_pixel(i, j):
             y = Y[:, i, j]
             try:
-                coeffs, residuals, rank, singular_values = np.linalg.lstsq(X, y, rcond=None)
-                return i, j, coeffs[0], coeffs[
-                    1], residuals, rank, singular_values  # A, offset  **** COULD EVENTUALLY ONLY KEEP 'A'
+                coeffs, _, _, _ = np.linalg.lstsq(X, y, rcond=None)
+                return i, j, np.abs(coeffs[0]), coeffs[1]
             except:
                 return i, j, np.nan, np.nan
-                print('Error fiiting pixel', i, j)
 
-        t0 = time.time()
         results = Parallel(n_jobs=-1, prefer="processes")(
-            delayed(fit_pixel)(i, j) for i in range(rawI.shape[1]) for j in
-            range(rawI.shape[2]))  # execute fix_pixel on all the CPUs to go faster (parallelization)
-        for i, j, A, offset, residuals, rank, singular_values in results:
-            A_opt[i, j] = np.abs(A)
+            delayed(fit_pixel)(i, j)
+            for i in range(rawI.shape[1]) for j in range(rawI.shape[2])
+        )
+        for i, j, A, offset in results:
+            A_opt[i, j] = A
             offset_opt[i, j] = offset
-        print("Duration:", time.time() - t0)
 
-        timestamp = time.strftime("%H_%M_%S", time.localtime())
-        save_folder = r"C:\DATA\BIGFOOT\2025-07-08"
-        filename = os.path.join(save_folder, f"data{timestamp}.h5")
-        with h5py.File(filename, 'w') as f:
-            f.create_dataset('Amplitude', data=A_opt)
-        print(f"[Processor] Saved: {filename}")
-        self.sendSpectrum.emit(A_opt)
-
-    def sine_function(self,x, A, omega, phase, offset):
-        return A * np.sin(omega * x + phase) + offset
+        self.sendProcessedSpectrum.emit(A_opt)
+        print(time.strftime('%H:%M:%S') + ' Spectrum send from Processor to Worker')
