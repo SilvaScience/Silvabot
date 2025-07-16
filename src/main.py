@@ -28,8 +28,8 @@ from drivers.Cryocore import Cryocore
 from drivers.ThorlabsPM100D import ThorlabsPM100D
 from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
 from DataHandling.DataHandling import DataHandling
-from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
-    ViewMeasurement, KineticMeasurement, TSeriesMeasurement
+from measurements.MeasurementClasses import AcquireMeasurement, RunMeasurement, BackgroundMeasurement, \
+    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement
 
 
 class MainInterface(QtWidgets.QMainWindow):
@@ -115,6 +115,8 @@ class MainInterface(QtWidgets.QMainWindow):
         self.bg_file_indicator = self.findChild(QtWidgets.QLineEdit, 'bg_file_lineEdit')
         self.bg_scans_box = self.findChild(QtWidgets.QSpinBox, 'bg_scans_spinBox')
         self.bg_select_box = self.findChild(QtWidgets.QPushButton, 'select_bg_pushButton')
+        self.twoD_run_button = self.findChild(QtWidgets.QPushButton, 'twoD_run_pushButton')
+        self.twoD_tau_lineEdit = self.findChild(QtWidgets.QLineEdit, 'twoD_tau_selection')
         self.kinetic_lineEdit = self.findChild(QtWidgets.QLineEdit, 'kinetic_lineEdit')
         self.kinetic_run_button = self.findChild(QtWidgets.QPushButton, 'kinetic_run_pushButton')
         self.SLM_tab = self.findChild(QtWidgets.QWidget, 'SLM_tab')
@@ -219,6 +221,8 @@ class MainInterface(QtWidgets.QMainWindow):
         self.bg_button.clicked.connect(self.background_measurement)
         self.bg_select_box.clicked.connect(self.load_bg)
         self.bg_check_box.stateChanged.connect(self.update_check_bg)
+        self.twoD_run_button.clicked.connect(self.xxxxxxxxxxxxxxx)
+        self.twoD_tau_lineEdit.editingFinished.connect(self.xxxxxxxxx)
         self.ParameterPlot.send_idx_change.connect(self.DataHandling.change_send_idx)
         self.ParameterPlot.send_parameter_filename.connect(self.DataHandling.save_parameter)
         self.kinetic_lineEdit.editingFinished.connect(self.change_kinetic_interval)
@@ -303,6 +307,16 @@ class MainInterface(QtWidgets.QMainWindow):
 
     def update_check_bg(self):
         self.DataHandling.correct_background = self.bg_check_box.isChecked()
+
+    def twoD_tau_positions(self):
+        try:
+            tau_max = float(self.twoD_tau_lineEdit.text())
+            step = 0.15 #### can be changed if needed, or added with a button in the interface
+            tau_array = np.arange(0.0, tau_max + step, step) #the last tau scanned is between tau_max and tau_max + step
+            #self.twoD_tau_lineEdit.setText(str(tau_array[-1]))
+            print('tau_array: ', tau_array)
+        except ValueError:
+            print('The tau value entered cannot be converted to float')
 
     def change_kinetic_interval(self):
         # generate timing array for time resolved measurement
@@ -402,6 +416,18 @@ class MainInterface(QtWidgets.QMainWindow):
         else:
             print('Measurement not started, devices are busy')
 
+    def twoD_measurement(self):
+        # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
+        if not self.measurement_busy:
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+            self.measurement = TwoDMeasurement(self.devices, self.parameter)
+            self.measurement.sendProgress.connect(self.set_progress)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.sendSave.connect(self.DataHandling.save_data)
+            #no '''self.measurement.sendParameter.connect(self.change_parameter)'''  ?
+            self.measurement.start()
+
     def kinetic_measurement(self):
         # take time resolved measurements as defined in automation GUI section
         if not self.measurement_busy:
@@ -463,6 +489,8 @@ class UpdateWorker(QtCore.QThread):
                         self.updated_param[param] = self.devices[devices].parameter_dict[param]
                 self.new_parameter.emit(self.updated_param)
             time.sleep(self.update_interval)
+
+
 
 
 app = QtWidgets.QApplication(sys.argv)

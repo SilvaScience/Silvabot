@@ -194,7 +194,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
                 img =pg.ImageItem(np.transpose(spec))
                 tr = QtGui.QTransform()  # prepare ImageItem transformation:
                 tr.translate(np.min(wls), 0)  # move 3x3 image to locate center at axis origin
-                tr.scale(wls_span / 1024, 1)
+                tr.scale(wls_span / len(wls), 1)
                 img.setTransform(tr)
                 self.graphWidget.clear()
                 self.graphWidget.addItem(img)
@@ -249,7 +249,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             mousePoint = self.graphWidget.getPlotItem().vb.mapSceneToView(pos)
             self.crosshair_v.setPos(mousePoint.x())
             self.crosshair_h.setPos(mousePoint.y())
-        calibration_mode = False
+        calibration_mode = True
         if calibration_mode:
             pixel = np.argmin(abs(self.wls - mousePoint.x()))
             self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts {pixel:.0f} pixel")

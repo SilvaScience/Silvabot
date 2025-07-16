@@ -416,3 +416,100 @@ class TSeriesMeasurement(QtCore.QThread):
     def stop(self):
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+
+class TwoDMeasurement(QtCore.QThread):
+    sendImage = QtCore.pyqtSignal(np.ndarray)   # Final averaged image (e.g., A_opt)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendSave = QtCore.pyqtSignal(str, str)
+
+    def __init__(self, camera, scans, filename, comments):
+        super(TwoDMeasurement, self).__init__()
+        self.camera = camera
+        self.scans = scans
+        self.filename = filename[:filename.rfind('/') + 1] + 'CameraBackground'
+        self.comments = comments
+        self.terminate = False
+        self.output_shape = self.getOutputShape()
+        self.averaged_result = None
+
+    def run(self):
+        try:
+            sum_A = None
+
+            for i in range(self.scans):
+                if self.terminate:
+                    print("Acquisition terminated by user.")
+                    break
+
+                data = self.acquire()  # shape: (2, frames, height, width)
+                if data is None:
+                    print(f"Failed to acquire at iteration {i + 1}")
+                    continue
+
+                rawI = data[0]
+                rawQ = data[1]
+
+                # Compute A_opt like in your worker
+                frame_axis = np.arange(rawI.shape[0])
+                time_axis = frame_axis / self.camera.remote_device.node_map.FrameRate.value
+                s = np.sign(np.sin(2 * np.pi * 60 * time_axis))  # 60 Hz
+                X = np.vstack([s, np.ones_like(s)]).T
+                Y = rawI / rawQ
+
+                A_opt = np.zeros_like(rawI[0, :, :], dtype=float)
+
+                for i_pix in range(rawI.shape[1]):
+                    for j_pix in range(rawI.shape[2]):
+                        y = Y[:, i_pix, j_pix]
+                        try:
+                            coeffs, *_ = np.linalg.lstsq(X, y, rcond=None)
+                            A_opt[i_pix, j_pix] = np.abs(coeffs[0])
+                        except:
+                            A_opt[i_pix, j_pix] = np.nan
+
+                # Accumulate
+                if sum_A is None:
+                    sum_A = A_opt
+                else:
+                    sum_A += A_opt
+
+                self.sendProgress.emit((i + 1) / self.scans * 100)
+
+            if not self.terminate:
+                self.averaged_result = sum_A / self.scans
+                self.sendImage.emit(self.averaged_result)
+                self.sendSave.emit(self.filename, self.comments)
+                self.sendProgress.emit(100)
+                print(time.strftime('%H:%M:%S') + ' Camera background acquired')
+
+        except Exception as e:
+            print("Error in camera background measurement:", e)
+
+    def acquire(self, timeout=3000):
+        """Use the same acquisition logic as in CameraWorker."""
+        try:
+            self.camera.start()
+            self.camera.remote_device.node_map.TriggerSelector.value = 'FrameStart'
+            self.camera.remote_device.node_map.TriggerSoftware.execute()
+
+            with self.camera.fetch(timeout=timeout) as buffer:
+                data = np.array([img.data % 2 ** 15 // 4 for img in buffer.payload.components])
+                data = data.reshape(self.output_shape)
+            self.camera.stop()
+
+            return data
+        except Exception as e:
+            print("Camera acquisition failed:", e)
+            self.camera.stop()
+            return None
+
+    def getOutputShape(self):
+        NFrames = self.camera.remote_device.node_map.AcquisitionBurstFrameCount.value
+        height = self.camera.remote_device.node_map.Height.value
+        width = self.camera.remote_device.node_map.Width.value
+        return (2, NFrames, height, width)
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
