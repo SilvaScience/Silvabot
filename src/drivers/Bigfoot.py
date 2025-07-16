@@ -43,6 +43,14 @@ class Bigfoot(QtCore.QThread):
         self.parameter_display_dict['bf_idle']['unit'] = ' per'
         self.parameter_display_dict['bf_idle']['max'] = 100
         self.parameter_display_dict['bf_idle']['read'] = True
+        self.parameter_display_dict['tau']['val'] = 0
+        self.parameter_display_dict['tau']['unit'] = ' ps'
+        self.parameter_display_dict['tau']['max'] = 100
+        self.parameter_display_dict['tau']['read'] = False
+        self.parameter_display_dict['T_pop']['val'] = 0
+        self.parameter_display_dict['T_pop']['unit'] = ' ps'
+        self.parameter_display_dict['T_pop']['max'] = 100
+        self.parameter_display_dict['T_pop']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
@@ -53,9 +61,21 @@ class Bigfoot(QtCore.QThread):
         lv.connect()
         serv_connect = lv.isConnected
         print(serv_connect)
+        lv.LV_Control.move_stage_pos(0, self.parameter_dict['tau'])
+        lv.LV_Control.move_stage_pos(1, self.parameter_dict['T_pop'])
 
     def set_parameter(self,parameter,value):
-            pass
+        if parameter == 'tau':
+            self.parameter_dict['tau'] = value
+            lv.LV_Control.move_stage_pos(0, value)
+        elif parameter == 'T_pop':
+            self.parameter_dict['T_pop'] = value
+            lv.LV_Control.move_stage_pos(1, value)
+        # Instructions from example file
+        # move_stage_pos(stage_sel,position)
+        # stage_sel: 0(tau), 1 (T), 2 (t)
+        # position: in ps
+
               
     def run_scan(self,t_delay):
         # change_scan(type, t_length, step_length, fixed_delay)
@@ -72,6 +92,9 @@ class Bigfoot(QtCore.QThread):
         # Returns array of stage movement true (1)/false (0) in the following order: tau/T/t
         if stage_status == [0, 0, 0]:
             self.parameter_dict['bf_idle'] = 100
+            busy = False
         else:
             self.parameter_dict['bf_idle'] = 0
+            busy = True
+        return busy
 

@@ -79,9 +79,9 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['powermeter'] = self.powermeter
 
         # initialize Bigfoot
-        #self.bigfoot = Bigfoot()
-        #self.devices['bigfoot'] = self.bigfoot
-        #print('Bigfoot connected')
+        self.bigfoot = Bigfoot()
+        self.devices['bigfoot'] = self.bigfoot
+        print('Bigfoot connected')
         # initialize SLMDemo
         #self.SLM = SLMDemo()
         #self.devices['SLM'] = self.SLM
@@ -116,7 +116,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.bg_scans_box = self.findChild(QtWidgets.QSpinBox, 'bg_scans_spinBox')
         self.bg_select_box = self.findChild(QtWidgets.QPushButton, 'select_bg_pushButton')
         self.twoD_run_button = self.findChild(QtWidgets.QPushButton, 'twoD_run_pushButton')
-        self.twoD_tau_lineEdit = self.findChild(QtWidgets.QLineEdit, 'twoD_tau_selection')
+        self.twoD_tau_box = self.findChild(QtWidgets.QDoubleSpinBox, 'twoD_tau_spinBox')
         self.kinetic_lineEdit = self.findChild(QtWidgets.QLineEdit, 'kinetic_lineEdit')
         self.kinetic_run_button = self.findChild(QtWidgets.QPushButton, 'kinetic_run_pushButton')
         self.SLM_tab = self.findChild(QtWidgets.QWidget, 'SLM_tab')
@@ -221,8 +221,8 @@ class MainInterface(QtWidgets.QMainWindow):
         self.bg_button.clicked.connect(self.background_measurement)
         self.bg_select_box.clicked.connect(self.load_bg)
         self.bg_check_box.stateChanged.connect(self.update_check_bg)
-        self.twoD_run_button.clicked.connect(self.xxxxxxxxxxxxxxx)
-        self.twoD_tau_lineEdit.editingFinished.connect(self.xxxxxxxxx)
+        #self.twoD_tau_lineEdit.editingFinished.connect(self.twoD_tau_positions)
+        self.twoD_run_button.clicked.connect(self.twoD_measurement)
         self.ParameterPlot.send_idx_change.connect(self.DataHandling.change_send_idx)
         self.ParameterPlot.send_parameter_filename.connect(self.DataHandling.save_parameter)
         self.kinetic_lineEdit.editingFinished.connect(self.change_kinetic_interval)
@@ -421,11 +421,10 @@ class MainInterface(QtWidgets.QMainWindow):
         if not self.measurement_busy:
             self.measurement_busy = True
             self.DataHandling.clear_data()
-            self.measurement = TwoDMeasurement(self.devices, self.parameter)
+            self.measurement = TwoDMeasurement(self.devices, self.twoD_tau_box.value())
             self.measurement.sendProgress.connect(self.set_progress)
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.sendSave.connect(self.DataHandling.save_data)
-            #no '''self.measurement.sendParameter.connect(self.change_parameter)'''  ?
+            self.measurement.sendParameter.connect(self.change_parameter)
             self.measurement.start()
 
     def kinetic_measurement(self):
