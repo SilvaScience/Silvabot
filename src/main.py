@@ -308,16 +308,6 @@ class MainInterface(QtWidgets.QMainWindow):
     def update_check_bg(self):
         self.DataHandling.correct_background = self.bg_check_box.isChecked()
 
-    def twoD_tau_positions(self):
-        try:
-            tau_max = float(self.twoD_tau_lineEdit.text())
-            step = 0.15 #### can be changed if needed, or added with a button in the interface
-            tau_array = np.arange(0.0, tau_max + step, step) #the last tau scanned is between tau_max and tau_max + step
-            #self.twoD_tau_lineEdit.setText(str(tau_array[-1]))
-            print('tau_array: ', tau_array)
-        except ValueError:
-            print('The tau value entered cannot be converted to float')
-
     def change_kinetic_interval(self):
         # generate timing array for time resolved measurement
         try:
