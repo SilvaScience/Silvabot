@@ -75,7 +75,7 @@ class Heliotis(QtCore.QThread):
         print(self.grating)
 
         #initial heliotis settings
-        self.num_frames = 160
+        self.num_frames = 140
 
         # set parameter dict
         self.parameter_dict = defaultdict()
@@ -293,13 +293,13 @@ class Heliotis(QtCore.QThread):
         # Lock-In Amplification (LIA)
 
         # Sensor sensitivity in %/100, 0.5 for C4-S40, 0.2 for C4-S40U, 0.05 for C4-S41U and 0.25 for C4M
-        sensitivity = 0.1
+        sensitivity = 0.5
         # Number of intergration periods
-        NPeriods = 8
+        NPeriods = 25
         # Background suppression on/off switch, 'AC' or 'DC'
         coupling = 'DC'
         # Reference frequency in Hz
-        refFrequency = 30000.0
+        refFrequency = 29806.0    #real : 29796.0
         # Source of reference signal, 'Internal' or 'External'
         refSource = 'Internal'
         # Expected frequency deviation of external reference input in %
@@ -398,8 +398,8 @@ class CameraWorker(QtCore.QThread):
                 ########
                 # rawI index : [frame, x, y]
                 # our tables (avg_I, avg_Q...) : [frame, y, x] so that it displays as we want (x = horizontal = frequency axis, y = vertical = position on the slit (eventually linked to k)
-                x_range = (200, 300) # x range as displayed in Silvabot (in the 512 pixels) (focus on brightest spots to find optimal frequency and phase)
-                y_range = (258, 265) # y range as displayed in Silvabot (in the 542 pixels)
+                x_range = (200, 270) # x range as displayed in Silvabot (in the 512 pixels) (focus on brightest spots to find optimal frequency and phase)
+                y_range = (260, 265) # y range as displayed in Silvabot (in the 542 pixels)
                 print(np.shape(rawI))
                 avg_I = np.mean(rawI[:, y_range[0]:y_range[1], x_range[0]:x_range[1]], axis=(1, 2))
                 avg_Q = np.mean(rawQ[:, y_range[0]:y_range[1], x_range[0]:x_range[1]], axis=(1, 2))
@@ -407,22 +407,33 @@ class CameraWorker(QtCore.QThread):
                 frame_axis = np.arange(rawI.shape[0])
                 time_axis = frame_axis / frame_rate  # time in seconds
 
-                sin_fit = False
+                sin_fit = True
+                two_sin_fit = False
                 #Curve fit on average I/Q value of each frame to find the best frequency and phase
                 if sin_fit:
                     def sine_function(x, A, omega, phase, offset):
-                        return A * np.sign(np.sin(omega * x + phase)) + offset
+                        return A * np.sin(omega * x + phase) + offset
 
-                    initial_guess = [0.01, 377, -0.2, 0.994]   #usually needs an initial guess relatively close. omega is in rad/s
-                    lower_bounds = [0.006, 370, -2*np.pi, 0.990]
-                    upper_bounds = [0.014, 483, 2*np.pi, 0.998]
+                    initial_guess = [0.03, 900, -0.2, 0.98]   #usually needs an initial guess relatively close. omega is in rad/s
+                    lower_bounds = [0.028, 800, -2*np.pi, 0.96]
+                    upper_bounds = [0.035, 1100, 2*np.pi, 1.0]
                     popt, pcov = curve_fit(sine_function, time_axis, IdivQ, p0=initial_guess, bounds=(lower_bounds, upper_bounds), maxfev=2000)
                     A_general, omega_general, phase_general, offset_general = popt
+                elif two_sin_fit:
+                    omega_fast = 4000  # or 2*np.pi*frame_rate ?
+                    def two_sine_function(x, A, phase_fast, omega_slow, phase_slow, offset, omega_fast = 4000):
+                        return A * np.sin(omega_fast*x + phase_fast) * np.sin(omega_slow*x + phase_slow) + offset
+
+                    initial_guess = [0.08, 0.0, 2*np.pi*33, 0.0, 0.99]
+                    lower_bounds = [0.076, -2*np.pi, 2*np.pi*27, -2*np.pi, 0.98]
+                    upper_bounds = [0.09, 2*np.pi, 2*np.pi*36, 2*np.pi, 1.0]
+                    popt, pcov = curve_fit(two_sine_function, time_axis, IdivQ, p0=initial_guess, bounds=(lower_bounds, upper_bounds), maxfev=2000)
+                    A_general, phase_fast, omega_slow, phase_slow, offset = popt
                 else:
                     omega_general = 60
 
-                    def square_plus_sine(t, A_sq, phase, C_sq, A_sin, f_sin, phase_sin, k=10, f_sq=60):
-                        sq = A_sq * np.tanh(k * np.sin(2 * np.pi * f_sq * t + phase)) + C_sq
+                    def square_plus_sine(t, A_sq, phase_sq, C_sq, A_sin, f_sin, phase_sin, k=10, f_sq=60):
+                        sq = A_sq * np.tanh(k * np.sin(2 * np.pi * f_sq * t + phase_sq)) + C_sq
                         sin = A_sin * np.sin(2 * np.pi * f_sin * t + phase_sin)
                         return sq + sin
 
@@ -436,7 +447,9 @@ class CameraWorker(QtCore.QThread):
                 ########
                 #Minimize difference between 'matrix product X * [A // offset]' and 'y' to find optimal A and offset of each pixel
                 if sin_fit:
-                    s = np.sin(omega_general * time_axis + phase_general)  #+ np.sin(omegaB_general * time_axis + phase_general) #shape (frames,)
+                    s = np.sin(omega_general * time_axis + phase_general)  #shape (frames,)
+                elif two_sin_fit:
+                    s = np.sin(omega_slow * time_axis + phase_slow) * np.sin(omega_fast * time_axis + phase_fast)
                 else:
                     s = np.sign(np.sin(2 * np.pi * omega_general * time_axis + phase_general))
                 X = np.vstack([s, np.ones_like(s)]).T  #shape (frames, 2)
@@ -465,7 +478,7 @@ class CameraWorker(QtCore.QThread):
                 #Troubleshooting
                 t1 = time.time()
                 if sin_fit:
-                    print('sin fit was made')
+                    print('sin_fit selected')
                     print('Frequency [in Hz] from curve fit :', omega_general / (2 * np.pi))
 
 
@@ -475,6 +488,7 @@ class CameraWorker(QtCore.QThread):
                         print('Standard deviation of A, omega, phase, offset :', np.sqrt(np.diag(pcov)))
                         print('A_general, omega_general, phase_general, offset_general', popt)
                         plt.plot(time_axis, sine_function(time_axis,A_general, omega_general, phase_general, offset_general))
+                        #plt.plot(time_axis, 1 + 0.03*np.sin(2*np.pi*5*time_axis + phase_general))
                         plt.title('IdivQ')
                         plt.grid()
                         plt.xlabel('Time (s)')
@@ -493,15 +507,38 @@ class CameraWorker(QtCore.QThread):
                         plt.xlabel('Time (s)')
                         plt.ylabel('Amplitude')
                         plt.show()
-                else:
+
+                elif two_sin_fit:
                     plt.plot(time_axis, IdivQ)
-                    plt.plot(time_axis, square_plus_sine(time_axis, *popt))
+                    print('residuals, rank, singular_values of np.linalg.lstsq', residuals, rank, singular_values)
+                    other_time_axis = np.linspace(time_axis[0], time_axis[-1], 1000)
+                    plt.plot(other_time_axis, two_sine_function(other_time_axis, A_general, phase_fast, omega_slow, phase_slow, offset))
+                    # plt.plot(time_axis, 1 + 0.03*np.sin(2*np.pi*5*time_axis + phase_general))
                     plt.title('IdivQ')
                     plt.grid()
                     plt.xlabel('Time (s)')
                     plt.ylabel('Amplitude')
                     plt.show()
+                    print('A_general, phase_fast, omega_slow [Hz], phase_slow, offset :', A_general, phase_fast, omega_slow/(2*np.pi), phase_slow, offset)
+
+                else:
+                    plt.plot(time_axis, IdivQ)
+                    plt.plot(time_axis, square_plus_sine(time_axis, *popt))
+                    #plt.plot(time_axis, 1 + 0.017*np.sin(2*np.pi*305*time_axis + phase_general))
+                    plt.title('IdivQ')
+                    plt.xlim(0, 0.073)
+                    plt.ylim(0.975, 1.025)
+                    plt.grid()
+                    plt.xlabel('Time (s)')
+                    plt.ylabel('Amplitude')
+                    plt.show()
                     print(f'frequency of sin: {f_sin}, Amplitude of sin: {A_sin}, Amplitude of square: {A_general}, Offset of square: {offset_general}')
+                    #plt.plot(time_axis, rawI[:,100,263]/rawQ[:,100,263])
+                    #plt.title('Pixel (100, 263)')
+                    #plt.xlim(0, 0.04)
+                    #plt.ylim(0.91, 1.07)
+                    #plt.grid()
+                    #plt.show()
 
 
 
@@ -510,7 +547,7 @@ class CameraWorker(QtCore.QThread):
                 '''
                 ty_res = time.localtime(time.time())
                 timestamp = time.strftime("%H_%M_%S", ty_res)
-                folder = r"C:\DATA\BIGFOOT\2025-07-16"
+                folder = r"C:\DATA\BIGFOOT\2025-07-17"
                 filename = os.path.join(folder,"data" + timestamp + '.h5')
                 data = [time_axis, IdivQ]
                 with h5py.File(filename, 'w') as f:
