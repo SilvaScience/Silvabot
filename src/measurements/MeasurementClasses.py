@@ -9,6 +9,8 @@ import time
 import re
 from PyQt5 import QtCore
 import numpy as np
+import h5py
+import os
 
 
 # Measurement to acquire one spectrum
@@ -155,7 +157,7 @@ class BackgroundMeasurement(QtCore.QThread):
                 self.wls = np.array(self.spectrometer.get_wavelength())
                 self.spec = np.array(self.spectrometer.get_intensities())
                 self.summedspec = self.summedspec + self.spec
-            self.spec = self.summedspec / self.scans                                   ##############
+            self.spec = self.summedspec / self.scans
             if hasattr(self.spectrometer, 'shutter'):
                 self.spectrometer.stop_acquisition()
             self.sendSpectrum.emit(self.wls, self.spec)
@@ -449,11 +451,65 @@ class TwoDMeasurement(QtCore.QThread):
                     print(time.strftime('%H:%M:%S') + f' tau stage moving. Status: {bigfoot_busy}')
                     time.sleep(0.1)
                 self.spec = np.array(self.spectrometer.get_intensities())
+                #ADD BACKGROUND SUPPRESSION HERE?? OR IN get_intensities...?
                 self.sendSpectrum.emit(self.wls, self.spec)
                 print(time.strftime('%H:%M:%S') + f' Spectrum acquired for tau= {tau_value} ps')
 
         self.sendProgress.emit(100)
         print(time.strftime('%H:%M:%S') + ' Finished')
+        return
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+
+class HelicamBackgroundMeasurement(QtCore.QThread):
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray)  # Final averaged image (e.g., A_opt)
+    #sendSave = QtCore.pyqtSignal(str, str)
+    #sendParameter = QtCore.pyqtSignal(str, float)
+
+    def __init__(self, devices):
+        super(HelicamBackgroundMeasurement, self).__init__()
+        self.spectrometer = devices['spectrometer']
+        self.wls = []  # preallocate wls array
+        self.spec = []  # preallocate spec array
+        self.terminate = False
+        #self.acquiring = True
+
+    def run(self):
+        print(time.strftime('%H:%M:%S') + "HelicamBackgroundMeasurement started")
+
+        #Stopping the CameraWorker
+        self.spectrometer.worker.pause()
+        while self.spectrometer.worker.processing:
+            time.sleep(0.1)
+
+        #Acquiring data
+        self.wls = np.array(self.spectrometer.get_wavelength())
+        if not self.terminate:
+            rawI, rawQ = self.spectrometer.worker.acquire()
+            twoD_avgI = np.mean(rawI, axis=0)
+            twoD_avgQ = np.mean(rawQ, axis=0)
+            twoD_IdivQ = twoD_avgI / twoD_avgQ
+            self.sendSpectrum.emit(twoD_avgI)
+            print(time.strftime('%H:%M:%S'), ': Acquisition complete')
+            time.sleep(0.5)
+        print(time.strftime('%H:%M:%S') + 'HelicamBackgroundMeasurement done')
+
+        #Downloading the data
+        ty_res = time.localtime(time.time())
+        timestamp = time.strftime("%H_%M_%S", ty_res)
+        folder = r"C:\DATA\BIGFOOT\2025-07-23"
+        filename = os.path.join(folder, "bg_wo_light" + timestamp + '.h5')
+        with h5py.File(filename, 'w') as f:
+            f.create_dataset('averaged_rawI', data=twoD_avgI)
+            f.create_dataset('averaged_rawQ', data=twoD_avgQ)
+        print(time.strftime('%H:%M:%S') + 'HelicamBackgroundMeasurement saved')
+
+        #Restarting the CameraWorker
+        self.spectrometer.worker.resume()
+
         return
 
     def stop(self):

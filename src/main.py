@@ -20,7 +20,7 @@ from drivers.SpectrometerDemo_advanced import SpectrometerDemo
 from drivers.SLMDemo import SLMDemo
 from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
-from drivers.Heliotis_old import Heliotis
+from drivers.Heliotis_noncontinuous import Heliotis
 from drivers.PixisDemo import PixisDemo
 from drivers.Pixis import Pixis
 from drivers.Bigfoot import Bigfoot
@@ -29,7 +29,7 @@ from drivers.ThorlabsPM100D import ThorlabsPM100D
 from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement, RunMeasurement, BackgroundMeasurement, \
-    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement
+    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement, HelicamBackgroundMeasurement
 
 
 class MainInterface(QtWidgets.QMainWindow):
@@ -117,6 +117,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.bg_select_box = self.findChild(QtWidgets.QPushButton, 'select_bg_pushButton')
         self.twoD_run_button = self.findChild(QtWidgets.QPushButton, 'twoD_run_pushButton')
         self.twoD_tau_box = self.findChild(QtWidgets.QDoubleSpinBox, 'twoD_tau_spinBox')
+        self.helicam_bg_button = self.findChild(QtWidgets.QPushButton, 'helicam_bg_pushButton')
         self.kinetic_lineEdit = self.findChild(QtWidgets.QLineEdit, 'kinetic_lineEdit')
         self.kinetic_run_button = self.findChild(QtWidgets.QPushButton, 'kinetic_run_pushButton')
         self.SLM_tab = self.findChild(QtWidgets.QWidget, 'SLM_tab')
@@ -223,6 +224,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.bg_check_box.stateChanged.connect(self.update_check_bg)
         #self.twoD_tau_lineEdit.editingFinished.connect(self.twoD_tau_positions)
         self.twoD_run_button.clicked.connect(self.twoD_measurement)
+        self.helicam_bg_button.clicked.connect(self.helicam_background_measurement)
         self.ParameterPlot.send_idx_change.connect(self.DataHandling.change_send_idx)
         self.ParameterPlot.send_parameter_filename.connect(self.DataHandling.save_parameter)
         self.kinetic_lineEdit.editingFinished.connect(self.change_kinetic_interval)
@@ -416,6 +418,16 @@ class MainInterface(QtWidgets.QMainWindow):
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
             self.measurement.sendParameter.connect(self.change_parameter)
             self.measurement.start()
+
+    def helicam_background_measurement(self):
+        # acquires averaged rawI & rawQ measurements of the helicam. click on 'Save' after a while to save this as a bg file
+        if not self.measurement_busy:
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+            self.measurement = HelicamBackgroundMeasurement(self.devices)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.start()
+
 
     def kinetic_measurement(self):
         # take time resolved measurements as defined in automation GUI section
