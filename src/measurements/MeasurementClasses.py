@@ -432,10 +432,14 @@ class TwoDMeasurement(QtCore.QThread):
         self.Bigfoot = devices['bigfoot']
         self.wls = []  # preallocate wls array
         self.spec = []  # preallocate spec array
-        step = 0.15 #### can be changed if needed, or added with a button in the interface
+        step = 0.01 #### can be changed if needed, or added with a button in the interface
         self.tau_array = np.arange(0.0, tau_max_value + step, step)
         print('Measure 2D map with following tau array:', self.tau_array)
         self.terminate = False
+
+    @classmethod
+    def get_tau_array(cls, tau_max_value, step=0.01):  #potentially to change
+        return np.arange(0.0, tau_max_value + step, step)
 
     def run(self):
         self.wls = np.array(self.spectrometer.get_wavelength())

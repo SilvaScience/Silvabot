@@ -14,15 +14,15 @@ import os
 
 # %%  
 # load background 
-folder = r"C:\DATA\BIGFOOT\2025-07-23"
-filename_bg = 'avg_data18_15_25'
+folder = r"C:\DATA\BIGFOOT\2025-07-24"
+filename_bg = 'avg_data10_24_07'
 with h5py.File(folder + "\\" + filename_bg + '.h5', 'r') as f:
     bg_rawI = f['averaged_rawI'][:]
     bg_rawQ = f['averaged_rawQ'][:]
 
 # load data 
-folder = r"C:\DATA\BIGFOOT\2025-07-23"
-filename_data = 'raw_data18_20_02'
+folder = r"C:\DATA\BIGFOOT\2025-07-24"
+filename_data = 'raw_data10_26_43'
 with h5py.File(folder + "\\" + filename_data + '.h5', 'r') as f:
     data_rawI = f['rawI'][:]
     data_rawQ = f['rawQ'][:]
@@ -42,7 +42,7 @@ plt.colorbar()
 plt.show()
 
 #%%
-title = f"Amplitude (with bg suppression) \n Generated with: {filename_data} \n{filename_bg} \n Ref power: 0.2mW 100frames"
+title = f"Amplitude (with bg suppression) \n Generated with: {filename_data} \n{filename_bg} \n Ref power: 1.8mW 500frames"
 #amp_wo_bg =np.transpose(amp_wo_bg)
 #amp = np.transpose(amp)
 #np.shape(amp)
