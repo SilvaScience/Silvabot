@@ -29,13 +29,13 @@ from src.measurements.MeasurementClasses import TwoDMeasurement
 
 # load background  ;  CHANGE THIS IF TAU CHANGES THE BG !!!
 folder_bg = r"C:\DATA\BIGFOOT\2025-07-24"
-filename_bg = 'avg_data17_11_58'
+filename_bg = 'avg_data14_27_35'
 with h5py.File(folder_bg + "\\" + filename_bg + '.h5', 'r') as f:
     bg_rawI_row = f['averaged_rawI'][263,:]
     bg_rawQ_row = f['averaged_rawQ'][263,:]
 
 # create 2d map for fft (horizontal = amplitude with bg suppression, vertical = tau axis)
-folder = r"C:\DATA\BIGFOOT\2025-07-24\GaAs_QW_2501_16_08_00"
+folder = r"C:\DATA\BIGFOOT\2025-07-24\GaAs_QW_2501_14_24_54"
 file_list = sorted(os.listdir(folder))
 print(file_list)
 
@@ -66,6 +66,7 @@ plt.title(f'2D Map for fft generated with pixel_y = 263 \n {folder}')
 plt.colorbar(label='Amplitude')
 plt.show()
 
+print(amp_map.shape)
 
 # %%
 
@@ -74,7 +75,7 @@ fft= fft(amp_map, axis=0)  #gives complex data
 fft_shifted = fftshift(fft, axes=0)  #shifts the zero component to the middle so does negative->0->positive (vertically)
 
 freqs = fftfreq(amp_map.shape[0], d=(tau_values[1]-tau_values[0])*(10**(-12)))  #d = time between each tau step i think (in seconds)... 0.15ps for now
-freqs_shifted = fftshift(freqs)  #shifts the freqs axis too
+freqs_shifted = fftshift(freqs) #, axes=0)  #shifts the freqs axis too
 
 fft_magnitude = np.abs(fft_shifted)  #gives amplitude of complex data
 
@@ -82,12 +83,12 @@ fft_magnitude = np.abs(fft_shifted)  #gives amplitude of complex data
 # %%
 
 plt.figure(figsize=(10, 6))
-extent = [0, amp_map.shape[1], freqs_shifted[0], freqs_shifted[-1]]  # x: pixels, y: freq
+extent = [0, amp_map.shape[1], freqs_shifted[0], freqs_shifted[-1]]  # x: pixels, y:  freq
 plt.imshow(fft_magnitude, aspect='auto', origin='lower', extent=extent, cmap='viridis')
 plt.xlabel('Horizontal pixel index')
 plt.ylabel('Frequency [Hz]')
 plt.title(f'2D Spectrum generated with pixel_y = 263 \n {folder}')
 plt.colorbar()
-plt.clim(175,300)
+#plt.clim(175,300)
 plt.tight_layout()
 plt.show()

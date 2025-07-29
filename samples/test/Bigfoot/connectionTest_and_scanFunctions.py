@@ -43,6 +43,7 @@ lv.connect()
 serv_connect = lv.isConnected
 print('serv_connect: ', serv_connect)
 
+print("Effective wavelength and suggested 2D-axis step size :", lv.LV_Control.read_scan_params())
 
 #phase_AB, phase_CD = lv.LV_Control.acquire_phase()
 #print('phase_AB,phase_CD (initial): ', phase_AB, phase_CD)
@@ -155,7 +156,7 @@ def TwoD_scan():
     plt.show()
 
 
-TwoD_scan()
+#TwoD_scan()
 
 
 #function that keeps the time (hour:min:sec:etc) when the tau stage moved.
