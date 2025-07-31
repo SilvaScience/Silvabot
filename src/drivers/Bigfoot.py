@@ -47,6 +47,7 @@ class Bigfoot(QtCore.QThread):
         self.parameter_display_dict['tau']['unit'] = ' ps'
         self.parameter_display_dict['tau']['max'] = 100
         self.parameter_display_dict['tau']['read'] = False
+        self.parameter_display_dict['tau']['min'] = -100
         self.parameter_display_dict['T_pop']['val'] = 0
         self.parameter_display_dict['T_pop']['unit'] = ' ps'
         self.parameter_display_dict['T_pop']['max'] = 100
