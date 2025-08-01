@@ -15,18 +15,18 @@ lv.connect()
 # %%
 
 # load background  ;  CHANGE THIS IF TAU CHANGES THE BG
-folder_bg = r"C:\DATA\BIGFOOT\2025-07-31"
-filename_bg = 'avg_data14_51_32'
+folder_bg = r"C:\DATA\BIGFOOT\2025-08-01"
+filename_bg = 'avg_data11_49_23'
 with h5py.File(folder_bg + "\\" + filename_bg + '.h5', 'r') as f:
     bg_rawI_row = f['averaged_rawI'][263,:]
     bg_rawQ_row = f['averaged_rawQ'][263,:]
 
 # create 2d map for fft (horizontal = amplitude with bg suppression, vertical = tau axis)
-folder = r"C:\DATA\BIGFOOT\2025-07-31\GaAs_QW_2501_15_18_03"
+folder = r"C:\DATA\BIGFOOT\2025-08-01\GaAs_QW_2501_11_54_49"
 file_list = sorted(os.listdir(folder))
 
 step = lv.LV_Control.read_scan_params()[1]  #SINCE THIS RETURNS NUMBERS WITH ++DECIMALS, I'M NOT SURE IT'S THE EXACT TAU POSITIONS THAT WILL BE SENT TO THE STAGE... SEE HOW PRECISE WE CAN ASK BF STAGE TO BE
-tau_values = np.arange(-1, 3.5 + step, step)   #should import tau_max_value instead of writing '2.0'... how?
+tau_values = np.arange(0, 2.0 + step, step)   #should import tau_max_value instead of writing '2.0'... how?
 print(tau_values.shape)
 print(tau_values)
 print(len(file_list))

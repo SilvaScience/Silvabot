@@ -435,7 +435,7 @@ class TwoDMeasurement(QtCore.QThread):
         self.spec = []  # preallocate spec array
         lv.connect()
         step = lv.LV_Control.read_scan_params()[1] #### can be changed if needed, or added with a button in the interface
-        self.tau_array = np.arange(0.0, tau_max_value + step, step)
+        self.tau_array = np.arange(-1., tau_max_value + step, step)
         print('Measure 2D map with following tau array:', self.tau_array)
         self.terminate = False
 
