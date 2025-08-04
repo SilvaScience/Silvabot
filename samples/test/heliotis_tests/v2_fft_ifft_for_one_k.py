@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import h5py
 import os
 from scipy.fft import fft, fftshift, ifftshift, fftfreq, ifft, irfft
-from src.measurements.MeasurementClasses import TwoDMeasurement
+#from src.measurements.MeasurementClasses import TwoDMeasurement
 from jki_python_bridge_for_labview import labview as lv
 from matplotlib.patches import Rectangle
 
@@ -24,8 +24,7 @@ with h5py.File(folder_bg + "\\" + filename_bg + '.h5', 'r') as f:
 # create 2d map for fft (horizontal = amplitude with bg suppression, vertical = tau axis)
 folder = r"C:\DATA\BIGFOOT\2025-08-01\GaAs_QW_2501_11_54_49"
 file_list = sorted(os.listdir(folder))
-
-step = lv.LV_Control.read_scan_params()[1]  #SINCE THIS RETURNS NUMBERS WITH ++DECIMALS, I'M NOT SURE IT'S THE EXACT TAU POSITIONS THAT WILL BE SENT TO THE STAGE... SEE HOW PRECISE WE CAN ASK BF STAGE TO BE
+step = 0.04 # lv.LV_Control.read_scan_params()[1]  #SINCE THIS RETURNS NUMBERS WITH ++DECIMALS, I'M NOT SURE IT'S THE EXACT TAU POSITIONS THAT WILL BE SENT TO THE STAGE... SEE HOW PRECISE WE CAN ASK BF STAGE TO BE
 tau_values = np.arange(0, 2.0 + step, step)   #should import tau_max_value instead of writing '2.0'... how?
 print(tau_values.shape)
 print(tau_values)

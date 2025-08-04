@@ -434,8 +434,8 @@ class TwoDMeasurement(QtCore.QThread):
         self.wls = []  # preallocate wls array
         self.spec = []  # preallocate spec array
         lv.connect()
-        step = lv.LV_Control.read_scan_params()[1] #### can be changed if needed, or added with a button in the interface
-        self.tau_array = np.arange(-1., tau_max_value + step, step)
+        step = 0.02 #lv.LV_Control.read_scan_params()[1] #### can be changed if needed, or added with a button in the interface
+        self.tau_array = np.zeros(50) # np.arange(0, tau_max_value + step, step)
         print('Measure 2D map with following tau array:', self.tau_array)
         self.terminate = False
 

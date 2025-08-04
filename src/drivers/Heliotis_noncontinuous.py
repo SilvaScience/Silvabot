@@ -66,6 +66,7 @@ class Heliotis(QtCore.QThread):
             self.grating_densities[i] = numbers[i*3 + 1]
             self.grating_blazes[i] = numbers[i * 3 + 2]
         self.center_wl = float(self.write_command('?NM')[0])
+        print(f"Current wl: {float(self.write_command('?NM')[0])}" )
         self.num_gratings = 3
         self.grating_densities = [1, 1200, 600]
         self.grating_blazes =[1, 500, 500]
@@ -333,7 +334,7 @@ class Heliotis(QtCore.QThread):
         # Background suppression on/off switch, 'AC' or 'DC'
         coupling = 'DC'
         # Reference frequency in Hz
-        refFrequency = 29796.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
+        refFrequency = 44700.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
         # Source of reference signal, 'Internal' or 'External'
         refSource = 'Internal'
         # Expected frequency deviation of external reference input in %

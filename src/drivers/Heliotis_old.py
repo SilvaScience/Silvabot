@@ -75,7 +75,7 @@ class Heliotis(QtCore.QThread):
         print(self.grating)
 
         #initial heliotis settings
-        self.num_frames = 140
+        self.num_frames = 100
 
         # set parameter dict
         self.parameter_dict = defaultdict()
@@ -295,11 +295,11 @@ class Heliotis(QtCore.QThread):
         # Sensor sensitivity in %/100, 0.5 for C4-S40, 0.2 for C4-S40U, 0.05 for C4-S41U and 0.25 for C4M
         sensitivity = 0.5
         # Number of intergration periods
-        NPeriods = 25
+        NPeriods = 49
         # Background suppression on/off switch, 'AC' or 'DC'
         coupling = 'DC'
         # Reference frequency in Hz
-        refFrequency = 29806.0    #real : 29796.0
+        refFrequency = 29796.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
         # Source of reference signal, 'Internal' or 'External'
         refSource = 'Internal'
         # Expected frequency deviation of external reference input in %
@@ -379,27 +379,59 @@ class CameraWorker(QtCore.QThread):
         self.change_int_time = False
         self.spectrum = np.zeros(self.spec_length)
         self.terminate = False
+        self.paused = False
+        self.processing = False
         self.acquiring = True
 
     def run(self):
         """" Continuous tasks of the Worker are defined here.
         If loops check for requested changes in settings prior each acquisition. """
+
         print('Heliotis worker started')
         initial_time = time.time()
         frame_rate = self.camera.remote_device.node_map.FrameRate.value
-        print('framerate :', frame_rate)
+        print('######### -->> framerate :', frame_rate)
+
+        # Load background
+        time_list = ['08_06', '08_33', '09_00']
+        bg_shape = (len(time_list),542,512)  # *np.shape(rawI))
+        print(bg_shape)
+        bg_rawI = np.zeros(bg_shape)
+        bg_rawQ = np.zeros(bg_shape)
+        for i, hour in enumerate(time_list):
+            filename = r"C:\DATA\BIGFOOT\2025-07-22\background_wo_light\background_wo_light16_" + hour + ".h5"
+            with h5py.File(filename, 'r') as f:
+                bg_rawI[i] = f['averaged_rawI'][:]
+                bg_rawQ[i] = f['averaged_rawQ'][:]
+        bg_rawI = np.mean(bg_rawI, axis=0)
+        bg_rawQ = np.mean(bg_rawQ, axis=0)
 
         while not self.terminate: #infinite loop
             if self.acquiring:
+                if self.paused:
+                    #self.processing = False    do not uncomment i think (wrong)
+                    time.sleep(5)
+                    continue
+                self.processing = True
+
                 t0 = time.time()
                 rawI,rawQ = self.acquire()
                 print("Acquistion Duration:", time.time() - t0)
 
+                twoD_avgI = np.mean(rawI, axis=0)
+                twoD_avgQ = np.mean(rawQ, axis=0)
+                twoD_IdivQ = twoD_avgI / twoD_avgQ
+                print(np.shape(twoD_IdivQ))
+
+                A_opt = np.sqrt((twoD_avgI-bg_rawI)**2 + (twoD_avgQ-bg_rawQ)**2)
+
+
+                '''
                 ########
                 # rawI index : [frame, x, y]
                 # our tables (avg_I, avg_Q...) : [frame, y, x] so that it displays as we want (x = horizontal = frequency axis, y = vertical = position on the slit (eventually linked to k)
                 x_range = (200, 270) # x range as displayed in Silvabot (in the 512 pixels) (focus on brightest spots to find optimal frequency and phase)
-                y_range = (260, 265) # y range as displayed in Silvabot (in the 542 pixels)
+                y_range = (262, 268) # y range as displayed in Silvabot (in the 542 pixels)
                 print(np.shape(rawI))
                 avg_I = np.mean(rawI[:, y_range[0]:y_range[1], x_range[0]:x_range[1]], axis=(1, 2))
                 avg_Q = np.mean(rawQ[:, y_range[0]:y_range[1], x_range[0]:x_range[1]], axis=(1, 2))
@@ -414,9 +446,9 @@ class CameraWorker(QtCore.QThread):
                     def sine_function(x, A, omega, phase, offset):
                         return A * np.sin(omega * x + phase) + offset
 
-                    initial_guess = [0.03, 900, -0.2, 0.98]   #usually needs an initial guess relatively close. omega is in rad/s
-                    lower_bounds = [0.028, 800, -2*np.pi, 0.96]
-                    upper_bounds = [0.035, 1100, 2*np.pi, 1.0]
+                    initial_guess = [0.037, 1420, -0.2, 0.95]   #usually needs an initial guess relatively close. omega is in rad/s
+                    lower_bounds = [0.035, 1380, -2*np.pi, 0.94]
+                    upper_bounds = [0.041, 1440, 2*np.pi, 0.97]
                     popt, pcov = curve_fit(sine_function, time_axis, IdivQ, p0=initial_guess, bounds=(lower_bounds, upper_bounds), maxfev=2000)
                     A_general, omega_general, phase_general, offset_general = popt
                 elif two_sin_fit:
@@ -431,7 +463,6 @@ class CameraWorker(QtCore.QThread):
                     A_general, phase_fast, omega_slow, phase_slow, offset = popt
                 else:
                     omega_general = 60
-
                     def square_plus_sine(t, A_sq, phase_sq, C_sq, A_sin, f_sin, phase_sin, k=10, f_sq=60):
                         sq = A_sq * np.tanh(k * np.sin(2 * np.pi * f_sq * t + phase_sq)) + C_sq
                         sin = A_sin * np.sin(2 * np.pi * f_sin * t + phase_sin)
@@ -478,16 +509,15 @@ class CameraWorker(QtCore.QThread):
                 #Troubleshooting
                 t1 = time.time()
                 if sin_fit:
-                    print('sin_fit selected')
                     print('Frequency [in Hz] from curve fit :', omega_general / (2 * np.pi))
-
 
                     if t1-initial_time < 1300:
                         plt.plot(time_axis, IdivQ)
                         print('residuals, rank, singular_values of np.linalg.lstsq', residuals, rank, singular_values)
                         print('Standard deviation of A, omega, phase, offset :', np.sqrt(np.diag(pcov)))
                         print('A_general, omega_general, phase_general, offset_general', popt)
-                        plt.plot(time_axis, sine_function(time_axis,A_general, omega_general, phase_general, offset_general))
+                        other_time_axis = np.linspace(time_axis[0], time_axis[-1], 1000)
+                        plt.plot(other_time_axis, sine_function(other_time_axis,A_general, omega_general, phase_general, offset_general))
                         #plt.plot(time_axis, 1 + 0.03*np.sin(2*np.pi*5*time_axis + phase_general))
                         plt.title('IdivQ')
                         plt.grid()
@@ -495,7 +525,7 @@ class CameraWorker(QtCore.QThread):
                         plt.ylabel('Amplitude')
                         plt.show()
 
-                    if np.max(A_opt) < 0.005:
+                    if np.max(A_opt) < 0.11:
                         print('############################## PROBLEM #####################################')
                         print('residuals, rank, singular_values of np.linalg.lstsq', residuals, rank, singular_values)
                         print('Standard deviation of A, omega, phase, offset :', np.sqrt(np.diag(pcov)))
@@ -540,23 +570,28 @@ class CameraWorker(QtCore.QThread):
                     #plt.grid()
                     #plt.show()
 
+                '''
 
 
                 ########
                 #Download the data
-                '''
+
                 ty_res = time.localtime(time.time())
                 timestamp = time.strftime("%H_%M_%S", ty_res)
-                folder = r"C:\DATA\BIGFOOT\2025-07-17"
-                filename = os.path.join(folder,"data" + timestamp + '.h5')
-                data = [time_axis, IdivQ]
+                folder = r"C:\DATA\BIGFOOT\2025-07-22"
+                filename = os.path.join(folder,"non_avg_data_bg_w_light" + timestamp + '.h5')
+                #data = [time_axis, IdivQ]
                 with h5py.File(filename, 'w') as f:
-                    f.create_dataset('Amplitude', data=A_opt)
-                    #f.create_dataset('Offset', data=offset_opt)
-                '''
+                    #f.create_dataset('averaged_rawI', data=twoD_avgI)
+                    #f.create_dataset('averaged_rawQ', data=twoD_avgQ)
+                    f.create_dataset('rawI', data=rawI)
+                    f.create_dataset('rawQ', data=rawQ)
 
-                ########
+
+
                 self.sendSpectrum.emit(A_opt)
+                self.processing = False
+
             time.sleep(0.7)
         print('Worker closes')
         return
@@ -593,3 +628,9 @@ class CameraWorker(QtCore.QThread):
         width = self.camera.remote_device.node_map.Width.value
 
         return 2, NFrames, height, width
+
+    def pause(self):
+        self.paused = True
+
+    def resume(self):
+        self.paused = False
