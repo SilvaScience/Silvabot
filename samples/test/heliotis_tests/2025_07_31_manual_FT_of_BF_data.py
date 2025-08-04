@@ -24,17 +24,26 @@ data,header = bf.read_HDF5_file(h5_filename)
 plot_range = [1545,1565]
 bfplot.plot_Reph_Re_Im_Abs(data,header,plot_range)
 
+# there is already...
+#   -> zero padding (after tau_max or after t_max? probably tau_max)
+#   -> freq shift ? try with and without
+#   -> FFT along t axis (to have freq)
+#   -> if this doesn't allow to have extra 'fictive' data in negative taus, do fft and then ifft
+#   -> result should be positive tau data + unmeasured ('fictive') negative taus, relatively symetric to positive data. Horizontal = frequency (i think this whole axis is 'real' (no fictive data) because of the absence of middle demarcation or symetry, but I'm not 100% sure)
+
 # allocate data 
 time_amp = data['raw']['TimeSpec_amp']
 time_phase = data['raw']['TimeSpec_phase']
-tau_t = (time_amp*np.exp(1j*time_phase)).T  #tau vs t 2d map
-plt.imshow(np.abs(tau_t), aspect='auto')
+tau_freq = (time_amp*np.exp(1j*time_phase)).T  #tau vs t 2d map
+plt.imshow(np.abs(tau_freq), aspect='auto')
 plt.ylabel('tau')
-plt.xlabel('t')
+plt.xlabel('freq')
+plt.colorbar()
+#plt.clim(0,0.02)
 plt.show()
 
-tau_t_reordered = fftshift(tau_t, axes=0)
-plt.imshow(np.abs(tau_t_reordered), aspect='auto')
+tau_freq_reordered = fftshift(tau_freq, axes=0)
+plt.imshow(np.abs(tau_freq_reordered), aspect='auto')
 plt.xlim(15,55)
 plt.ylim(85, 30)
 plt.show()
@@ -52,12 +61,12 @@ plt.show()
  
 # fft along t axis to get tau vs freq and compare with heliotis data
 
-# 2d fft on tau_t or half of tau_t (test both)
-cropped_tau_t = tau_t[:int(tau_t.shape[0]/2), :]
+# fft on tau_freq or half of tau_freq (test both) along tau axis
+cropped_tau_freq = tau_freq[:int(tau_freq.shape[0]/2), :]
 #plt.imshow(np.abs(cropped_tau_t), aspect='auto')
 #plt.show()
 
-freq_freq = fft(cropped_tau_t, axis=0)
+freq_freq = fft(tau_freq_reordered, axis=0)
 #em_freqs = fftfreq(freq_freq.shape[1], d=(1.5e-12)/freq_freq.shape[1])  good if there is no frequency shift
 #abs_freqs = fftfreq(freq_freq.shape[0], d=(2e-12)/freq_freq.shape[0])
 #abs_freq_step_meV =  4.1356677 / ((tau_values[1]-tau_values[0]) * freq_freq.shape[0] * 2)  #i put a *2 because of the padding (see eric's mail). i should probably just remove this and give the whole uncropped data
@@ -66,7 +75,7 @@ freq_freq = fft(cropped_tau_t, axis=0)
 
 plt.imshow(np.flipud(np.abs(freq_freq)), aspect='auto')
 plt.colorbar()
-plt.clim(0,1)
-plt.xlim(20, 50)
-plt.ylim(35,10)
+#plt.clim(0,2.5)
+plt.xlim(15, 55)
+plt.ylim(70,25)
 plt.show()

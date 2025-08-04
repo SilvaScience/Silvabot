@@ -64,7 +64,7 @@ def plot_data(header_data,spectrum,min_val,max_val,plot_type='Abs',sizex=5,sizey
     
     if header_data['Scan type'] == '1Q-R' or header_data['Scan type'] == '1Q':
         step_size = abs(header_data['Stepped Energy'][1]-header_data['Stepped Energy'][0])
-        ax.plot([1000, 2500],[-1000, -2500],linestyle='dashed',color=line_color)
+        #ax.plot([1000, 2500],[-1000, -2500],linestyle='dashed',color=line_color)
         ax.set_ylim([-header_data['Plot range max (units)'],-header_data['Plot range min (units)']-step_size])
         ax.set_ylabel('Absorption Energy (' + header_data['Energy units'] + ')', fontweight ='bold')
         ax.set_xlim([header_data['Plot range min (units)']+step_size,header_data['Plot range max (units)']])
@@ -107,4 +107,4 @@ Run = '003'
 header_data = read_header(BaseFolder,Date,Run)
 spectrum = read_data(BaseFolder,Date,Run,header_data)
 fig1 = plot_data(header_data,spectrum[0],min_val=-2.5,max_val=2.5,plot_type='Real',sizex=5,sizey=5)
-fig2 = plot_data(header_data,spectrum[0],min_val=-0.5,max_val=2.5,plot_type='Abs',sizex=5,sizey=5)
+fig2 = plot_data(header_data,spectrum[0],min_val=0,max_val=2.5,plot_type='Abs',sizex=5,sizey=5)
