@@ -80,6 +80,7 @@ class Heliotis(QtCore.QThread):
         self.take_average = False
         self.sensitivity = 0.5
         self.N_Periods = 10
+        self.ref_freq = 50000
 
         # set parameter dict
         self.parameter_dict = defaultdict()
@@ -110,6 +111,10 @@ class Heliotis(QtCore.QThread):
         self.parameter_display_dict['N_Periods']['unit'] = ' '
         self.parameter_display_dict['N_Periods']['max'] = 100
         self.parameter_display_dict['N_Periods']['read'] = False
+        self.parameter_display_dict['ref_freq']['val'] = self.ref_freq
+        self.parameter_display_dict['ref_freq']['unit'] = ' Hz'
+        self.parameter_display_dict['ref_freq']['max'] = 44700
+        self.parameter_display_dict['ref_freq']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
@@ -180,6 +185,13 @@ class Heliotis(QtCore.QThread):
         elif parameter == 'N_Periods':
             self.parameter_dict['N_Periods'] = value
             self.N_Periods = int(value)
+            self.worker.acquiring = False
+            time.sleep(0.1)
+            self.cameraConfig()
+            time.sleep(0.1)
+        elif parameter == 'ref_freq':
+            self.parameter_dict['ref_freq'] = value
+            self.ref_freq = int(value)
             self.worker.acquiring = False
             time.sleep(0.1)
             self.cameraConfig()
@@ -334,7 +346,7 @@ class Heliotis(QtCore.QThread):
         # Background suppression on/off switch, 'AC' or 'DC'
         coupling = 'DC'
         # Reference frequency in Hz
-        refFrequency = 44700.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
+        refFrequency = self.ref_freq # 44700.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
         # Source of reference signal, 'Internal' or 'External'
         refSource = 'Internal'
         # Expected frequency deviation of external reference input in %

@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import h5py
 import os
 from scipy.fft import fft, fftshift, ifftshift, fftfreq, ifft, fft2, ifft2
-from src.measurements.MeasurementClasses import TwoDMeasurement
+#from src.measurements.MeasurementClasses import TwoDMeasurement
 from jki_python_bridge_for_labview import labview as lv
 from matplotlib.patches import Rectangle
 
@@ -11,7 +11,7 @@ from matplotlib.patches import Rectangle
 
 h = 4.135E-15 #eV/Hz
 h_c = 1239.841984 #h * c in eV/nm
-lv.connect()
+#lv.connect()
 # %%
 
 # load background  ;  CHANGE THIS IF TAU CHANGES THE BG
