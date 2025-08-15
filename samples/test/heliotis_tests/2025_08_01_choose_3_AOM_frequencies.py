@@ -11,3 +11,12 @@ C = 80.0586 *1E4
 f = A - (2*B) + C
 print(f)
 print(B-A, C-A, C-B)
+
+# %%
+A = 79.9641 *1E4
+B = 79.989 *1E4
+C = 80.0586 *1E4
+
+f = A - (2*B) + C
+print(f)
+print(B-A, C-A, C-B)

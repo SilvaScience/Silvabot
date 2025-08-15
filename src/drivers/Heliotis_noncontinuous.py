@@ -76,11 +76,11 @@ class Heliotis(QtCore.QThread):
         print(self.grating)
 
         #initial heliotis settings
-        self.num_frames = 100
+        self.num_frames = 20
         self.take_average = False
         self.sensitivity = 0.5
-        self.N_Periods = 10
-        self.ref_freq = 50000
+        self.N_Periods = 95
+        self.ref_freq = 53325
 
         # set parameter dict
         self.parameter_dict = defaultdict()
@@ -113,7 +113,7 @@ class Heliotis(QtCore.QThread):
         self.parameter_display_dict['N_Periods']['read'] = False
         self.parameter_display_dict['ref_freq']['val'] = self.ref_freq
         self.parameter_display_dict['ref_freq']['unit'] = ' Hz'
-        self.parameter_display_dict['ref_freq']['max'] = 44700
+        self.parameter_display_dict['ref_freq']['max'] = 150000 # 44700 29796
         self.parameter_display_dict['ref_freq']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
@@ -348,7 +348,7 @@ class Heliotis(QtCore.QThread):
         # Reference frequency in Hz
         refFrequency = self.ref_freq # 44700.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
         # Source of reference signal, 'Internal' or 'External'
-        refSource = 'Internal'
+        refSource = 'External'
         # Expected frequency deviation of external reference input in %
         expFrequencyDev = 5
         # Number of frames to be recorded
@@ -361,7 +361,7 @@ class Heliotis(QtCore.QThread):
         # Signal generator peak-to-peak amplitude in % of full range
         sgnAmplitude = 10.0
         # Signal generator frequency in Hz
-        sgnFrequency = 9975.0
+        sgnFrequency = 29796.0
 
         # Configuration
 
@@ -388,8 +388,8 @@ class Heliotis(QtCore.QThread):
         self.camera.remote_device.node_map.LockInReferenceSourceType.value = refSource
 
         # For external reference signal only
-        #self.camera.remote_device.node_map.LockInReferenceFrequencyScaler.value = "Off" #"DivideBy2"  # or "Off", "DivideBy2" etc
-        #self.camera.remote_device.node_map.LockInReferenceSourceSignal.value = "FI2"
+        self.camera.remote_device.node_map.LockInReferenceFrequencyScaler.value = "DivideBy4" #"DivideBy2"  # or "Off", "DivideBy2" etc
+        self.camera.remote_device.node_map.LockInReferenceSourceSignal.value = "FI2"
 
         # Illumination
 
@@ -449,7 +449,7 @@ class CameraWorker(QtCore.QThread):
         ty_res = time.localtime(time.time())
         timestamp = time.strftime("%H_%M_%S", ty_res)
         datestamp = time.strftime("20%y-%m-%d", ty_res)
-        folder = os.path.join(r"C:\DATA\BIGFOOT",datestamp)
+        folder = os.path.join(r"D:\DATA\BIGFOOT",datestamp)
         if take_average:
             filename = os.path.join(folder,"avg_data" + timestamp + '.h5')
             with h5py.File(filename, 'w') as f:
@@ -466,7 +466,7 @@ class CameraWorker(QtCore.QThread):
         print('Worker closes')
         return np.sqrt((twoD_avgI)**2 + (twoD_avgQ)**2)
 
-    def acquire(self, timeout=30):
+    def acquire(self, timeout=50):
         """
         Initiate a measurement and retrieve lock-in data.
         \param h harvester object
