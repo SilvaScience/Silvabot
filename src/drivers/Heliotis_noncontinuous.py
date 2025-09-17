@@ -20,9 +20,8 @@ https://www.teledynevisionsolutions.com/products/pi_max4/?vertical=tvs-princeton
 import numpy as np
 import os
 from harvesters.core import Harvester
-from packaging.version import parse
-from PyQt5 import QtCore
 from collections import defaultdict
+from PyQt5 import QtCore
 from pylablib.devices import PrincetonInstruments
 import time
 from scipy.optimize import curve_fit
