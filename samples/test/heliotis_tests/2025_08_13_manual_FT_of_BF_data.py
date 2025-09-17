@@ -32,7 +32,7 @@ bfplot.plot_Reph_Re_Im_Abs(data,header,plot_range)
 #   -> if this doesn't allow to have extra 'fictive' data in negative taus, do fft and then ifft
 #   -> result should be positive tau data + unmeasured ('fictive') negative taus, relatively symetric to positive data. Horizontal = frequency (i think this whole axis is 'real' (no fictive data) because of the absence of middle demarcation or symetry, but I'm not 100% sure)
 
-# %%
+# %% plot raw data 
 # allocate data 
 time_amp = data['raw']['TimeSpec_amp']
 time_phase = data['raw']['TimeSpec_phase']
@@ -54,6 +54,22 @@ plt.colorbar()
 plt.title(f'Raw data \n {header['file_id']}')
 #plt.clim(0,0.02)
 plt.show()
+
+# %% plot data a T=0 
+plt.plot(t_axis,np.abs(tau_freq[0]))
+plt.xlabel('Energy (meV)')
+plt.xlim(1530,1580)
+plt.title(f'Spectrum at 0ps \n {header['file_id']}')
+plt.show()
+
+# %% plot data a 1545meV
+idx =np.argmin(abs(tau_axis-1545))
+plt.plot(tau_axis_time,np.abs(tau_freq[:,idx]))
+plt.xlabel('Time (ps)')
+#plt.xlim(1530,1580)
+plt.title(f'Evolution at 1545meV \n {header['file_id']}')
+plt.show()
+
 # %% plot fft of tau
 
 # calculate fft axis 

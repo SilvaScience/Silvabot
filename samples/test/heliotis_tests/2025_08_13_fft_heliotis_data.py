@@ -6,6 +6,8 @@ from scipy.fft import fft, fftshift, ifftshift, fftfreq, ifft, fft2, ifft2
 #from src.measurements.MeasurementClasses import TwoDMeasurement
 from jki_python_bridge_for_labview import labview as lv
 from matplotlib.patches import Rectangle
+import matplotlib.ticker as ticker
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 
 
@@ -15,20 +17,25 @@ h_c = 1239.841984 #h * c in eV/nm
 # %%
 # input 
 date = '2025-08-14' # '2025-07-24' # 
-data_name =  'GaAs_QW_2501_11_50_55' # 'GaAs_QW_2501_16_08_00' #
-bg_name =  'avg_data11_16_10' # 'avg_data17_11_58' # # load background  ;  CHANGE THIS IF TAU CHANGES THE 
+data_name =  'GaAs_QW_2501_21_25_52' # 'GaAs_QW_2501_16_08_00' #
+bg_name =  'avg_data21_32_27' # 'avg_data17_11_58' # # load background  ;  CHANGE THIS IF TAU CHANGES THE 
 path = r"D:\DATA\BIGFOOT"
 title_id = os.path.join(date,data_name)
 
 
 with h5py.File(os.path.join(path,date,bg_name + '.h5'), 'r') as f:
-    bg_rawI_row = f['averaged_rawI'][263,:]
-    bg_rawQ_row = f['averaged_rawQ'][263,:]
+    bg_rawI_row = np.sum(f['averaged_rawI'][260:268,:],axis =0)
+    bg_rawQ_row = np.sum(f['averaged_rawQ'][260:268,:],axis =0)
+    image_I_bg =  f['averaged_rawI'][:]
 
 # create 2d map for fft (horizontal = amplitude with bg suppression, vertical = tau axis)
 folder = os.path.join(path,date,data_name)
 file_list = sorted(os.listdir(folder))
 
+#plt.pcolor(image_I_bg)
+#plt.ylim(260,270)
+plt.plot(image_I_bg[264])
+plt.show()
 
 step = 0.02 # 0.02 # lv.LV_Control.read_scan_params()[1]  #SINCE THIS RETURNS NUMBERS WITH ++DECIMALS, I'M NOT SURE IT'S THE EXACT TAU POSITIONS THAT WILL BE SENT TO THE STAGE... SEE HOW PRECISE WE CAN ASK BF STAGE TO BE
 tau_values = np.arange(0, 2+step, step)   #should import tau_max_value instead of writing '2.0'... how?
@@ -42,28 +49,42 @@ for i, filename in enumerate(file_list):
     filepath = os.path.join(folder, filename)
 
     with h5py.File(filepath, 'r') as f:
-        rawI_row = f['rawI'][:, 263, :]  # shape: (n_avg, x)
-        rawQ_row = f['rawQ'][:, 263, :]
+        rawI_row = np.sum(f['rawI'][:, 260:268, :],axis =1)  # shape: (n_avg, x)
+        rawQ_row = np.sum(f['rawQ'][:, 260:268, :],axis =1) 
 
-        amp_row = np.sqrt((rawI_row-bg_rawI_row) ** 2 + (rawQ_row-bg_rawQ_row) ** 2)
-        mean_amp_row = np.mean(amp_row, axis=0)
-        amp_map[i, :] = mean_amp_row
+    amp_row = np.sqrt((rawI_row-bg_rawI_row) ** 2 + (rawQ_row-bg_rawQ_row) ** 2)
+    #amp_row = amp_row[np.max(amp_row,axis=1)>100]
+    mean_amp_row = np.mean(amp_row, axis=0)
+    print(np.shape(amp_row)[0])
+    amp_map[i, :] = mean_amp_row
 
 amp_map = np.fliplr(amp_map)
 # %% plot raw files
 approx_x_axis = np.linspace(1429,1429+250,np.shape(amp_map)[1])
-plt.pcolor(approx_x_axis,tau_values,amp_map)
-#plt.pcolor(approx_x_axis,tau_values,amp_map-np.mean(amp_map,axis =0))
-#plt.title(f'Raw data -mean(raw data) \n {title_id}') 
-plt.title(f'Raw data \n {title_id}')  
+bg_correct = False
+if bg_correct:
+    plt.pcolor(approx_x_axis,tau_values,amp_map-np.mean(amp_map,axis =0))
+    plt.title(f'Raw data -mean(raw data) \n {title_id}') 
+else:
+    plt.pcolor(approx_x_axis,tau_values,amp_map)
+    plt.title(f'Raw data \n {title_id}')  
 plt.xlim(1530,1580)
 plt.xlabel('Energy (meV)')
 plt.ylabel('Time (ps)')
 plt.colorbar()
+
 plt.show()
 amp_map_bg_correct = amp_map-np.mean(amp_map,axis =0)
 amp_map = amp_map_bg_correct
 
+plot_average = True
+if plot_average:
+    plt.plot(approx_x_axis,np.average(amp_row,axis=0))
+    plt.xlabel('Energy (meV)')
+    plt.ylabel('Intensitz')
+    plt.title(f'Averaged raw data \n {title_id}')
+    plt.xlim(1530,1580)
+    plt.plot()
 
 # %% FT data as done for BF data 
 padded_amp_map = np.pad(amp_map,((0,np.shape(amp_map)[0]),(0,0)))
@@ -77,11 +98,94 @@ cal_tau_freq_axis = np.linspace(-freq_shift-cal_tau_freq_step*num_padded_step/2,
 
 freq_freq = fft(padded_amp_map, axis=0)
 plt.pcolor(approx_x_axis, cal_tau_freq_axis,np.abs(freq_freq))
+plt.clim(0,100)
+plt.colorbar()
 plt.xlim(1530,1580)
-#plt.xlim(1545,1565)
-#plt.ylim(-1565,-1545)
+plt.xlim(1545,1565)
+plt.ylim(-1565,-1545)
 plt.title(f'FT Data \n {title_id}')  
 plt.xlabel('Emission Energy (meV)')
 plt.ylabel('Absorption Energy (meV)')
+formatter = ticker.FormatStrFormatter('%.0f')
+plt.gca().xaxis.set_major_formatter(formatter)
+plt.gca().yaxis.set_major_formatter(formatter)
+
+# %% plot individual spectrum
+file_idx = 7
+filename = file_list[file_idx]
+filepath = os.path.join(folder, filename)
+#data_name = 'GaAs_QW_2501_19_39_48'
+#title_id = os.path.join(date,data_name)
+#filepath = os.path.join(path,date,data_name + '.h5')
+with h5py.File(filepath, 'r') as f:
+    rawI_row = np.sum(f['rawI'][:, 260:268, :],axis =1)  # shape: (n_avg, x)
+    rawQ_row = np.sum(f['rawQ'][:, 260:268, :],axis =1) 
+    amp_row = np.sqrt((rawI_row-bg_rawI_row) ** 2 + (rawQ_row-bg_rawQ_row) ** 2)
+    #amp_row = amp_row[np.max(amp_row,axis=1)>100]
+    mean_amp_row = np.mean(amp_row, axis=0)
+
+f, plts = plt.subplots(2, figsize =(4,4),gridspec_kw={'height_ratios': [1, 2]})
+plts[0].plot(approx_x_axis,np.average(amp_row,axis=0))
+pc = plts[1].pcolor(approx_x_axis,np.linspace(1,np.shape(amp_row)[0],np.shape(amp_row)[0]),amp_row)
+plts[1].set_xlabel('Emission Energy (meV)')
+plts[1].set_ylabel('Frame number')
+plts[0].set_ylabel('Intensity')
+plts[0].set_xticks([])
+plts[0].set_title(f'Raw data at T={tau_values[file_idx]}ps \n {title_id}')
+
+f.colorbar(pc, orientation='horizontal', pad =0.25, shrink=0.9)
+for i in range(2): plts[i].set_xlim(1510,1590)  
+
+f.subplots_adjust(wspace =0,hspace =0)
+
+# %% plot individual AC spectrum
+file_idx = 7
+filename = file_list[file_idx]
+filepath = os.path.join(folder, filename)
+date = '2025-08-15'
+data_name = 'GaAs_QW_2501_09_14_31'
+#data_name = 'GaAs_QW_2501_09_58_55_Divideby8'
+#GaAs_QW_2501_09_58_55_Divideby8
+bg_name = 'GaAs_QW_2501_09_18_49_T100'
+title_id = os.path.join(date,data_name)
+filepath = os.path.join(path,date,data_name + '.h5')
+filepath_bg = os.path.join(path,date,bg_name + '.h5')
+with h5py.File(filepath_bg, 'r') as f:
+    bg_rawI_row = np.sum(f['rawI'][:, 260:268, :],axis =1)  # shape: (n_avg, x)
+    bg_rawQ_row = np.sum(f['rawQ'][:, 260:268, :],axis =1) 
+    bg_amp_row = np.sqrt((bg_rawI_row) ** 2 + (bg_rawQ_row) ** 2)
+    #amp_row = amp_row[np.max(amp_row,axis=1)>100]
+    bg_mean_amp_row = np.mean(bg_amp_row, axis=0)
 
 
+with h5py.File(filepath, 'r') as f:
+    rawI_row = np.sum(f['rawI'][:, 260:268, :],axis =1)  # shape: (n_avg, x)
+    rawQ_row = np.sum(f['rawQ'][:, 260:268, :],axis =1) 
+    amp_row = np.sqrt((rawI_row-bg_rawI_row) ** 2 + (rawQ_row-bg_rawQ_row) ** 2)
+    amp_row = np.sqrt((rawI_row) ** 2 + (rawQ_row) ** 2)
+    #amp_row = amp_row[np.max(amp_row,axis=1)>100]
+    mean_amp_row = np.mean(amp_row, axis=0)
+
+f, plts = plt.subplots(2, figsize =(4,4),gridspec_kw={'height_ratios': [1, 2]})
+plts[0].plot(approx_x_axis,np.average(amp_row,axis=0))
+pc = plts[1].pcolor(approx_x_axis,np.linspace(1,np.shape(amp_row)[0],np.shape(amp_row)[0]),amp_row-mean_amp_row) #-mean_amp_row
+plts[1].set_xlabel('Emission Energy (meV)')
+plts[1].set_ylabel('Frame number')
+plts[0].set_ylabel('Intensity')
+plts[0].set_xticks([])
+plts[0].set_title(f'AC background suppression \n {title_id}')
+
+f.colorbar(pc, orientation='horizontal', pad =0.25, shrink=0.9)
+for i in range(2): plts[i].set_xlim(1510,1590)  
+
+f.subplots_adjust(wspace =0,hspace =0)
+plt.show()
+
+plot_evolution = False
+if plot_evolution:
+    idx = np.argmin(abs(approx_x_axis-1545))
+    plt.plot(np.linspace(1,np.shape(amp_row)[0],np.shape(amp_row)[0]),amp_row[:,idx])
+    plt.xlabel('Frame')
+    plt.ylabel('Intensity')
+    plt.title(f'Evolution at 1545nm \n {title_id}')
+    plt.show()

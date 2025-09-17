@@ -76,11 +76,11 @@ class Heliotis(QtCore.QThread):
         print(self.grating)
 
         #initial heliotis settings
-        self.num_frames = 20
+        self.num_frames = 100
         self.take_average = False
         self.sensitivity = 0.5
-        self.N_Periods = 95
-        self.ref_freq = 53325
+        self.N_Periods = 40 #95
+        self.ref_freq =  29790  # # 71531.2#26662#53325
 
         # set parameter dict
         self.parameter_dict = defaultdict()
@@ -344,7 +344,7 @@ class Heliotis(QtCore.QThread):
         # Number of intergration periods
         NPeriods = self.N_Periods #49
         # Background suppression on/off switch, 'AC' or 'DC'
-        coupling = 'DC'
+        coupling = 'AC'
         # Reference frequency in Hz
         refFrequency = self.ref_freq # 44700.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
         # Source of reference signal, 'Internal' or 'External'
@@ -388,7 +388,7 @@ class Heliotis(QtCore.QThread):
         self.camera.remote_device.node_map.LockInReferenceSourceType.value = refSource
 
         # For external reference signal only
-        self.camera.remote_device.node_map.LockInReferenceFrequencyScaler.value = "DivideBy4" #"DivideBy2"  # or "Off", "DivideBy2" etc
+        self.camera.remote_device.node_map.LockInReferenceFrequencyScaler.value = "Off" #"DivideBy8" # 8 #"DivideBy2"  # or "Off", "DivideBy2" etc
         self.camera.remote_device.node_map.LockInReferenceSourceSignal.value = "FI2"
 
         # Illumination
@@ -466,7 +466,7 @@ class CameraWorker(QtCore.QThread):
         print('Worker closes')
         return np.sqrt((twoD_avgI)**2 + (twoD_avgQ)**2)
 
-    def acquire(self, timeout=50):
+    def acquire(self, timeout=500):
         """
         Initiate a measurement and retrieve lock-in data.
         \param h harvester object
