@@ -11,7 +11,6 @@ import os
 from collections import defaultdict
 from pathlib import Path
 import numpy as np
-import pyvisa
 from PyQt5 import QtCore, QtWidgets, uic
 from functools import partial
 from GUI.ParameterPlot import ParameterPlot
@@ -46,21 +45,9 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices = defaultdict(dict)
 
         # initialize cryostat
+        #self.cryostat = CryoPasqal()
         try:
             try:
-                # rm = pyvisa.ResourceManager()
-                # Opti = rm.open_resource('ASRL9::INSTR',baud_rate=115200,
-                #                         data_bits=8,
-                #                         parity=pyvisa.constants.Parity.none,
-                #                         stop_bits=pyvisa.constants.StopBits.one,
-                #                         read_termination = '\n',
-                #                         write_termination = '\n',
-                #                         timeout=1000)
-                # time.sleep(3)
-                # Opti.write('*IDN?')
-                # time.sleep(3)
-                # print(f'Connected to {Opti.read()}')
-                print('Connected to the Pasqal cryo')
                 self.cryostat = CryoPasqal()
             except:
                 self.cryostat = Cryocore()
