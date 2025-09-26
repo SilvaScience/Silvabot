@@ -57,7 +57,7 @@ class Heliotis(QtCore.QThread):
         # get startup values
         self.grating = float(self.write_command('?GRATING')[0])
         numbers = self.write_command('?GRATINGS')
-        print(numbers)
+        print('Gratings:',numbers)
         self.num_gratings = int((len(numbers)-8)/2)
         self.grating_densities = np.zeros(self.num_gratings)
         self.grating_blazes = np.zeros(self.num_gratings)
@@ -347,18 +347,18 @@ class Heliotis(QtCore.QThread):
         # Reference frequency in Hz
         refFrequency = self.ref_freq # 44700.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
         # Source of reference signal, 'Internal' or 'External'
-        refSource = 'External'
+        refSource = 'External' # 'External'
         # Expected frequency deviation of external reference input in %
-        expFrequencyDev = 5
+        expFrequencyDev = 1
         # Number of frames to be recorded
         NFrames = self.num_frames
 
         # Illumination Driving Signal
 
         # Signal generator DC offset in % of full range
-        sgnOffset = 20.0
+        sgnOffset = 50.0
         # Signal generator peak-to-peak amplitude in % of full range
-        sgnAmplitude = 10.0
+        sgnAmplitude = 50.0
         # Signal generator frequency in Hz
         sgnFrequency = 29796.0
 
@@ -395,7 +395,7 @@ class Heliotis(QtCore.QThread):
         #self.camera.remote_device.node_map.SignalGeneratorOffset.value = sgnOffset
         #self.camera.remote_device.node_map.SignalGeneratorAmplitude.value = sgnAmplitude
         #self.camera.remote_device.node_map.LightControllerSelector.value = "LightController0"
-        #self.camera.remote_device.node_map.SignalGeneratorModulationMode.value = "Off"
+        #self.camera.remote_device.node_map.SignalGeneratorModulationMode.value = "On"
         #self.camera.remote_device.node_map.SignalGeneratorFrequency.value = sgnFrequency
         #self.camera.remote_device.node_map.LightControllerSource.value = "SignalGenerator"
         self.camera.remote_device.node_map.LightControllerSource.value = 'Off'
@@ -443,8 +443,9 @@ class CameraWorker(QtCore.QThread):
         t0 = time.time()
         rawI, rawQ = self.acquire()
         print("Acquistion Duration:", time.time() - t0)
-        twoD_avgI = np.mean(rawI, axis=0)
-        twoD_avgQ = np.mean(rawQ, axis=0)
+        twoD_avgI = rawI -np.mean(rawI, axis=0)
+        twoD_avgQ = rawQ -np.mean(rawQ, axis=0)
+        amp = np.sqrt((twoD_avgI)**2 + (twoD_avgQ)**2)
         ty_res = time.localtime(time.time())
         timestamp = time.strftime("%H_%M_%S", ty_res)
         datestamp = time.strftime("20%y-%m-%d", ty_res)
@@ -463,7 +464,7 @@ class CameraWorker(QtCore.QThread):
             print(timestamp + "Raw data acquired")
         self.acquiring = False
         print('Worker closes')
-        return np.sqrt((twoD_avgI)**2 + (twoD_avgQ)**2)
+        return np.mean(amp, axis=0)
 
     def acquire(self, timeout=500):
         """
