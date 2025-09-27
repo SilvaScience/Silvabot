@@ -117,6 +117,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.bg_select_box = self.findChild(QtWidgets.QPushButton, 'select_bg_pushButton')
         self.twoD_run_button = self.findChild(QtWidgets.QPushButton, 'twoD_run_pushButton')
         self.twoD_tau_box = self.findChild(QtWidgets.QDoubleSpinBox, 'twoD_tau_spinBox')
+        self.twoD_step_box = self.findChild(QtWidgets.QDoubleSpinBox, 'twoD_step_spinBox')
         self.helicam_bg_button = self.findChild(QtWidgets.QPushButton, 'helicam_bg_pushButton')
         self.kinetic_lineEdit = self.findChild(QtWidgets.QLineEdit, 'kinetic_lineEdit')
         self.kinetic_run_button = self.findChild(QtWidgets.QPushButton, 'kinetic_run_pushButton')
@@ -413,7 +414,7 @@ class MainInterface(QtWidgets.QMainWindow):
         if not self.measurement_busy:
             self.measurement_busy = True
             self.DataHandling.clear_data()
-            self.measurement = TwoDMeasurement(self.devices, self.twoD_tau_box.value())
+            self.measurement = TwoDMeasurement(self.devices, self.twoD_tau_box.value(),self.twoD_step_box.value())
             self.measurement.sendProgress.connect(self.set_progress)
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
             self.measurement.sendParameter.connect(self.change_parameter)

@@ -896,7 +896,7 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
             <string> ps</string>
            </property>
            <property name="decimals">
-            <number>1</number>
+            <number>2</number>
            </property>
            <property name="maximum">
             <double>10000.000000000000000</double>
@@ -942,6 +942,31 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
            </property>
            <property name="text">
             <string>Go to Spectrum View to save the data once sufficient measures have been taken</string>
+           </property>
+          </widget>
+          <widget class="QDoubleSpinBox" name="twoD_step_spinBox">
+           <property name="geometry">
+            <rect>
+             <x>20</x>
+             <y>60</y>
+             <width>61</width>
+             <height>21</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="suffix">
+            <string> ps</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="maximum">
+            <double>10000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.020000000000000</double>
            </property>
           </widget>
          </widget>

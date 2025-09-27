@@ -40,8 +40,8 @@ class Heliotis(QtCore.QThread):
         super(Heliotis, self).__init__()
 
         #self.camera.start()
-        self.wavelength =  np.linspace(200,1000,542) # get property from Worker
-        self.px0 = np.linspace(1,1024,542)
+        self.wavelength =  np.linspace(200,1000,512) # get property from Worker
+        self.px0 = np.linspace(1,512,512)
         self.spec_length = (542,512) # # pixis length is (xx, 542, 512), xx is acquired frames
         self.image = np.zeros(self.spec_length)
 
@@ -220,10 +220,10 @@ class Heliotis(QtCore.QThread):
         Returns:
             wavelengths: 1D numpy array of wavelengths (nm)
         """
-        calibrated = False
+        calibrated = True
         if calibrated:
             pixel_size_mm = 24 / 1E3  # specs of Heliotis
-            focal_length_mm = 203  # specs of SP2150
+            focal_length_mm = 203  # specs of Isoplane
             num_pixels = 512  # specs of Heliotis
 
             #
@@ -233,9 +233,18 @@ class Heliotis(QtCore.QThread):
             px = self.px0
 
             # calibration from notebook
-            f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(330605663.74965495), np.float64(-0.20488367116307532), np.float64(2.021864300924973), np.float64(508.0), 0, 6666.666666666667, 26000.0, np.float64(3.1224154313329654e-06)]
-
-
+            if self.grating == 3:
+                f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(24739656.496170387), np.float64(4.763915731068521), np.float64(1.4300129817768625), np.float64(243.0), 0, 4926.108374384236, 24000.0, np.float64(-0.0001681610550643024)]
+            elif self.grating == 2:
+                f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(1197096958.9926493), np.float64(-18.68106438263782), np.float64(-1.6871589585359328), np.float64(238.25), 0, 4926.108374384236, 24000.0, np.float64(-6.663483223202162e-06)]
+            else:
+                print('WARNING: GRATING NOT CALIBRATED. Use calib of grating3 ')
+                f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(24739656.496170387),
+                                                                                     np.float64(4.763915731068521),
+                                                                                     np.float64(1.4300129817768625),
+                                                                                     np.float64(243.0), 0,
+                                                                                     4926.108374384236, 24000.0,
+                                                                                     np.float64(-0.0001681610550643024)]
 
             n = px - (n0 + offset_adjust * wl_center)
 
@@ -262,7 +271,7 @@ class Heliotis(QtCore.QThread):
 
             # Wavelength at each pixel
             wavelengths = center_wavelength_nm + (pixel_indices - center_pixel) * dispersion * pixel_size_mm
-
+        self.wavelength = wavelengths
         return wavelengths
 
     def get_intensities(self):
@@ -270,7 +279,7 @@ class Heliotis(QtCore.QThread):
         perform a binning. Such functionalities might also be given by the camera.
         This function will be accessible from MeasurementClasses."""
         #if not self.worker.acquiring:
-        spectrum = self.worker.run(self.take_average)
+        spectrum = self.worker.run(self.take_average,self.wavelength) # self.wavelength needs to be removed in final version
         #else:
         #    print('Worker is busy')
         #    dummy_spectrum = np.zeros((self.num_frames,512,542))
@@ -429,7 +438,7 @@ class CameraWorker(QtCore.QThread):
         self.processing = False
         self.acquiring = False
 
-    def run(self, take_average):
+    def run(self, take_average, wavelength):
         """" Continuous tasks of the Worker are defined here.
         If loops check for requested changes in settings prior each acquisition. """
 
@@ -455,18 +464,20 @@ class CameraWorker(QtCore.QThread):
             with h5py.File(filename, 'w') as f:
                 f.create_dataset('averaged_rawI', data=twoD_avgI)
                 f.create_dataset('averaged_rawQ', data=twoD_avgQ)
+                f['averaged_rawI'].attrs["xaxis"] = wavelength
             print(timestamp + "Average data acquired")
         else:
             filename = os.path.join(folder,"raw_data" + timestamp + '.h5')
             with h5py.File(filename, 'w') as f:
                 f.create_dataset('rawI', data=rawI)
                 f.create_dataset('rawQ', data=rawQ)
+                f['rawI'].attrs["xaxis"] = wavelength
             print(timestamp + "Raw data acquired")
         self.acquiring = False
         print('Worker closes')
         return np.mean(amp, axis=0)
 
-    def acquire(self, timeout=500):
+    def acquire(self, timeout=10000):
         """
         Initiate a measurement and retrieve lock-in data.
         \param h harvester object

@@ -52,6 +52,12 @@ class Bigfoot(QtCore.QThread):
         self.parameter_display_dict['T_pop']['unit'] = ' ps'
         self.parameter_display_dict['T_pop']['max'] = 100
         self.parameter_display_dict['T_pop']['read'] = False
+        self.parameter_display_dict['T_pop']['min'] = -100
+        self.parameter_display_dict['t']['val'] = 0
+        self.parameter_display_dict['t']['unit'] = ' ps'
+        self.parameter_display_dict['t']['max'] = 100
+        self.parameter_display_dict['t']['read'] = False
+        self.parameter_display_dict['t']['min'] = -100
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
@@ -64,6 +70,7 @@ class Bigfoot(QtCore.QThread):
         print(serv_connect)
         lv.LV_Control.move_stage_pos(0, self.parameter_dict['tau'])
         lv.LV_Control.move_stage_pos(1, self.parameter_dict['T_pop'])
+        lv.LV_Control.move_stage_pos(2, self.parameter_dict['t'])
 
     def set_parameter(self,parameter,value):
         if parameter == 'tau':
@@ -72,6 +79,9 @@ class Bigfoot(QtCore.QThread):
         elif parameter == 'T_pop':
             self.parameter_dict['T_pop'] = value
             lv.LV_Control.move_stage_pos(1, value)
+        elif parameter == 't':
+            self.parameter_dict['t'] = value
+            lv.LV_Control.move_stage_pos(2, value)
         # Instructions from example file
         # move_stage_pos(stage_sel,position)
         # stage_sel: 0(tau), 1 (T), 2 (t)

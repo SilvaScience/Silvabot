@@ -427,14 +427,14 @@ class TwoDMeasurement(QtCore.QThread):
     sendSave = QtCore.pyqtSignal(str, str)
     sendParameter = QtCore.pyqtSignal(str, float)
 
-    def __init__(self, devices, tau_max_value):
+    def __init__(self, devices, tau_max_value, tau_step_value):
         super(TwoDMeasurement, self).__init__()
         self.spectrometer = devices['spectrometer']
         self.Bigfoot = devices['bigfoot']
         self.wls = []  # preallocate wls array
         self.spec = []  # preallocate spec array
         lv.connect()
-        step = 0.02 #lv.LV_Control.read_scan_params()[1] #### can be changed if needed, or added with a button in the interface
+        step = tau_step_value #lv.LV_Control.read_scan_params()[1] #### can be changed if needed, or added with a button in the interface
         self.tau_array =  np.arange(0, tau_max_value + step, step)
         print('Measure 2D map with following tau array:', self.tau_array)
         self.terminate = False
