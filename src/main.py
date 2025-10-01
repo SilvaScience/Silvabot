@@ -72,12 +72,13 @@ class MainInterface(QtWidgets.QMainWindow):
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
 
-         #try:
-        #    self.tstage = PI863()
-        #except:
-        self.tstage = PI863Demo()
-        print('WARNING you are using a DEMO version of the translation stage')
-        self.devices['tstage'] = self.tstage
+        # initialize delay stage
+        try:
+            self.tstage = PI863()
+        except:
+            self.tstage = PI863Demo()
+            print('WARNING you are using a DEMO version of the translation stage')
+            self.devices['tstage'] = self.tstage
 
         # initialize lock-in
         try:
