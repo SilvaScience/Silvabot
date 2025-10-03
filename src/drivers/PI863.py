@@ -23,8 +23,9 @@ class PI863():
         self.parameter_dict['set_speed'] = 0
         self.parameter_dict['set_target_position'] = 0
         self.parameter_dict['position'] = 0
+        self.parameter_dict['OnOffScan'] = 0
         
-        self.parameter_display_dict['set_speed']['val'] = 0
+        self.parameter_display_dict['set_speed']['val'] = 10
         self.parameter_display_dict['set_speed']['unit'] = ' mm/s'
         self.parameter_display_dict['set_speed']['max'] = 20
         self.parameter_display_dict['set_speed']['read'] = False
@@ -33,6 +34,11 @@ class PI863():
         self.parameter_display_dict['set_target_position']['unit'] = ' mm'
         self.parameter_display_dict['set_target_position']['max'] = 50
         self.parameter_display_dict['set_target_position']['read'] = False
+
+        self.parameter_display_dict['OnOffScan']['val'] = 0
+        self.parameter_display_dict['OnOffScan']['unit'] = ' '
+        self.parameter_display_dict['OnOffScan']['max'] = 1
+        self.parameter_display_dict['OnOffScan']['read'] = False
 
         self.parameter_display_dict['position']['val'] = 0
         self.parameter_display_dict['position']['unit'] = ' mm'
@@ -45,16 +51,10 @@ class PI863():
             self.parameter_dict[key] = self.parameter_display_dict[key]['val']
 
         # initialize translation stage
-        Controler = 'C-863.11'
-        Stage = '62309120'
-        RefMode = 'FNL'
-        with GCSDevice(Controler) as self.pidevice:
-            self.pidevice.ConnectUSB(serialnum='0025550268')
-            print('connected: {}'.format(self.pidevice.qIDN().strip()))
-            if self.pidevice.HasqVER():
-                print('version info:\n{}'.format(self.pidevice.qVER().strip()))
-            print('initialize connected stages...')
-            pitools.startup(self.pidevice, stages=Stage, refmodes=RefMode)
+        self.pidevice = GCSDevice('C-863.11')
+        self.pidevice.ConnectUSB(serialnum='0025550268')
+        print('connected: {}'.format(self.pidevice.qIDN().strip()))
+        pitools.startup(self.pidevice, stages='62309120', refmodes='FNL')
 
         # start updating position
         self.UpdateWorker_Position = UpdateWorker_Position(self.pidevice)
@@ -66,12 +66,13 @@ class PI863():
             self.update_set_speed(value)
         if parameter == 'set_target_position':
             self.update_set_target_position(value)
+        if parameter == 'OnOffScan':
+            self.update_scan_state(value)
         if parameter == 'position':
             self.update_position(value)
-            self.position = value
 
     def update_set_speed(self, set_speed):
-        self.pidevice.VEL(set_speed)
+        self.pidevice.VEL(1, set_speed)
         get_speed = self.pidevice.qVEL()
         print(f'Speed set to {get_speed}')
     
@@ -82,31 +83,46 @@ class PI863():
     def update_position(self, new_Position):
         self.parameter_dict['position'] = new_Position
 
-    # function to scan between positions 1 and 2
-    def scan(self):
-        rangemin = self.pidevice.qTMN()
-        rangemax = self.pidevice.qTMX()
+    def update_scan_state(self, value):
+        if value == 1:
+            print('Starting scan')
+            rangemin = self.pidevice.qTMN()['1']
+            rangemax = self.pidevice.qTMX()['1']
+            self.pidevice.MOV(1, rangemax)
+
+             # Timer to check the position every 50 ms and start the second movement of the scan when the first is completed
+            self.timer = QtCore.QTimer()
+            self.timer.setInterval(50)
+
+            def check_position():
+                if abs(self.parameter_dict.get('position') - rangemax) <= 0.001:
+                    self.timer.stop()
+                    self.timer.deleteLater()
+                    self.pidevice.MOV(1, rangemin)
+
+            self.timer.timeout.connect(check_position)
+            self.timer.start()
     
 class UpdateWorker_Position(QtCore.QThread):
     new_Position = QtCore.pyqtSignal(float)
 
-    def __init__(self):
+    def __init__(self, device):
         super().__init__()
         self.currentPosition = []
         self.stop = False
-        self.waitTime = 0.1
+        self.waitTime = 0.05
         self.target = 0
+        self.pidevice = device
 
     def run(self):
         while not self.stop:
-            # calling the read temperature function
             self.readposition = self.read_position()
-
-            # waiting to remeasure the temperature
             time.sleep(self.waitTime)
-            self.new_Position.emit(self.readposition)
+            if self.readposition is not None:
+                self.new_Position.emit(self.readposition)
     
     def read_position(self):
-        pos = self.target + np.random.rand(1)
-        # pos = self.pidevice.qPOS(1)[1]
-        return pos
+        try:
+            return self.pidevice.qPOS(1)[1]
+        except:
+            return None

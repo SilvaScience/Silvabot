@@ -48,7 +48,50 @@ class MainInterface(QtWidgets.QMainWindow):
         # set devices dict
         self.devices = defaultdict(dict)
 
-         # initialize translation stage
+        # initialize spectrometer
+        self.spectrometer = SpectrometerDemo()
+        self.spec_length = self.spectrometer.spec_length
+        self.devices['spectrometer'] = self.spectrometer
+
+        # initialize delay stage
+        try:
+            self.tstage = PI863()
+        except:
+            self.tstage = PI863Demo()
+            print('WARNING you are using a DEMO version of the translation stage')
+        self.devices['tstage'] = self.tstage
+
+        # initialize lock-in
+        try:
+            self.lock_in = UHF()
+        except:
+            self.lock_in = UHFDemo()
+            print('WARNING you are using a DEMO version of the lock in')
+        self.devices['lock_in'] = self.lock_in
+
+        # initialize Powermeter
+        # try:
+        #     self.powermeter = ThorlabsPM100D()
+        #     print('Thorlabs powermeter connected')
+        # except:
+        #     self.powermeter = ThorlabsPM100DDemo()
+        #     print('WARNING you are using a DEMO version of the powermeter')
+        # self.devices['powermeter'] = self.powermeter
+
+        # initialize SLMDemo
+        #self.SLM = SLMDemo()
+        #self.devices['SLM'] = self.SLM
+        #print('SLMDemo connected')
+
+        # initialize StresingDemo
+        #self.Stresing = StresingDemo()
+        #self.devices['Stresing'] = self.Stresing
+        #print('Stresing connected')
+
+        # initialize MonochromDemo
+        #self.Monochrom = MonochromDemo()
+        #self.devices['Monochrom'] = self.Monochrom
+        #print('Monochrom DEMO connected')
 
         # initialize cryostat
         # always try to include communication on important events.
@@ -68,50 +111,6 @@ class MainInterface(QtWidgets.QMainWindow):
         # except:
         #     self.spectrometer = PixisDemo()
         #     print('Pixis connection failed, use DEMO')
-        self.spectrometer = SpectrometerDemo()
-        self.spec_length = self.spectrometer.spec_length
-        self.devices['spectrometer'] = self.spectrometer
-
-        # initialize delay stage
-        try:
-            self.tstage = PI863()
-        except:
-            self.tstage = PI863Demo()
-            print('WARNING you are using a DEMO version of the translation stage')
-            self.devices['tstage'] = self.tstage
-
-        # initialize lock-in
-        try:
-            self.lock_in = UHF()
-        except:
-            self.lock_in = UHFDemo()
-            print('WARNING you are using a DEMO version of the lock in')
-        self.devices['lock_in'] = self.lock_in
-
-        # initialize Powermeter
-        # try:
-        #     self.powermeter = ThorlabsPM100D()
-        #     print('Thorlabs powermeter connected')
-        # except:
-        #     self.powermeter = ThorlabsPM100DDemo()
-        #     print('WARNING you are using a DEMO version of the powermeter')
-        # self.devices['powermeter'] = self.powermeter
-
-
-        # initialize SLMDemo
-        #self.SLM = SLMDemo()
-        #self.devices['SLM'] = self.SLM
-        #print('SLMDemo connected')
-
-        # initialize StresingDemo
-        #self.Stresing = StresingDemo()
-        #self.devices['Stresing'] = self.Stresing
-        #print('Stresing connected')
-
-        # initialize MonochromDemo
-        #self.Monochrom = MonochromDemo()
-        #self.devices['Monochrom'] = self.Monochrom
-        #print('Monochrom DEMO connected')
 
         # find items to complement in GUI
         self.parameter_tree = self.findChild(QtWidgets.QTreeWidget, 'parameters_treeWidget')
@@ -467,7 +466,10 @@ class MainInterface(QtWidgets.QMainWindow):
         self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
         self.measurement.run()
 
-
+    # This code executes when closing the main window to appropriately disconnect the translation stage.
+    def closeEvent(self):
+        self.tstage.pidevice.CloseConnection()
+        print("Translation stage disconnected")
 
 class UpdateWorker(QtCore.QThread):
 
