@@ -78,7 +78,7 @@ class Heliotis(QtCore.QThread):
         self.num_frames = 100
         self.take_average = False
         self.sensitivity = 0.5
-        self.N_Periods = 40 #95
+        self.N_Periods = 100 #95
         self.ref_freq =  29790  # # 71531.2#26662#53325
 
         # set parameter dict
@@ -352,7 +352,7 @@ class Heliotis(QtCore.QThread):
         # Number of intergration periods
         NPeriods = self.N_Periods #49
         # Background suppression on/off switch, 'AC' or 'DC'
-        coupling = 'AC'
+        coupling = 'DC'
         # Reference frequency in Hz
         refFrequency = self.ref_freq # 44700.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
         # Source of reference signal, 'Internal' or 'External'

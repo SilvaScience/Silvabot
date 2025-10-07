@@ -20,9 +20,9 @@ h_c = 1239.841984 #h * c in eV/nm
 #lv.connect()
 # %%
 # input 
-date = '2025-09-26' # '2025-07-24' # 
-data_name =  'GaAs_QW_2501_21_10_05' # 'GaAs_QW_2501_16_08_00' #
-bg_name =  'avg_data11_33_56' # 'avg_data17_11_58' # # load background  ;  CHANGE THIS IF TAU CHANGES THE 
+date = '2025-10-01' # '2025-07-24' # 
+data_name =  'GaAs_QW_2501_14_48_44' # 'GaAs_QW_2501_16_08_00' #
+bg_name =  'avg_data15_25_36' # 'avg_data17_11_58' # # load background  ;  CHANGE THIS IF TAU CHANGES THE 
 path = r"D:\DATA\BIGFOOT"
 title_id = os.path.join(date,data_name)
 
@@ -47,7 +47,7 @@ file_list = sorted(os.listdir(folder))
 plt.plot(amp_row_bg)
 plt.show()
 
-step = 0.02 # 0.02 # lv.LV_Control.read_scan_params()[1]  #SINCE THIS RETURNS NUMBERS WITH ++DECIMALS, I'M NOT SURE IT'S THE EXACT TAU POSITIONS THAT WILL BE SENT TO THE STAGE... SEE HOW PRECISE WE CAN ASK BF STAGE TO BE
+step = 0.1 # 0.02 # lv.LV_Control.read_scan_params()[1]  #SINCE THIS RETURNS NUMBERS WITH ++DECIMALS, I'M NOT SURE IT'S THE EXACT TAU POSITIONS THAT WILL BE SENT TO THE STAGE... SEE HOW PRECISE WE CAN ASK BF STAGE TO BE
 tau_values = np.arange(0, len(file_list)*step, step)   #should import tau_max_value instead of writing '2.0'... how?
 print(tau_values.shape)
 print(len(file_list))
@@ -91,7 +91,7 @@ amp_map = np.fliplr(amp_map)
 raw_amp_map = amp_map
 # %% plot raw files
 approx_x_axis = np.flip(1240/wl*1E3)
-bg_correct = True
+bg_correct = False
 if bg_correct:
     plt.pcolor(approx_x_axis,tau_values,amp_map/np.mean(amp_map,axis =0))
     plt.title(f'Raw data -mean(raw data) \n {title_id}') 
@@ -99,13 +99,19 @@ else:
     plt.pcolor(approx_x_axis,tau_values,amp_map)
     plt.title(f'Raw data \n {title_id}')  
 plt.xlim(1545,1565)
-plt.clim(0.98,1.02)
+plt.clim(12,15)
+#plt.clim(0.98,1.02)
 plt.xlabel('Energy (meV)')
 plt.ylabel('Time (ps)')
+formatter = ticker.FormatStrFormatter('%.0f')
+plt.gca().xaxis.set_major_formatter(formatter)
+plt.gca().yaxis.set_major_formatter(formatter)
+  
 plt.colorbar()
 
 plt.show()
-amp_map_bg_correct = amp_map-np.mean(amp_map,axis =0)
+#amp_map_bg_correct = amp_map-np.mean(amp_map,axis =0) # correct by tau mean
+amp_map_bg_correct = amp_map-amp_map[40] # correct by last tau value
 #amp_map = amp_map_bg_correct
 
 plot_average = False
@@ -117,7 +123,7 @@ if plot_average:
     plt.xlim(1530,1580)
     plt.plot()
     
-plot_average_evolution = True
+plot_average_evolution = False
 if plot_average_evolution:
     average =np.average(amp_map[:,find_idx(approx_x_axis,1545):find_idx(approx_x_axis,1565)],axis=1)
     plt.plot(tau_values,average/np.mean(average))
@@ -198,29 +204,43 @@ amp_map = raw_amp_map
 amp_map = amp_map_bg_correct
 
 padded_amp_map = np.pad(amp_map,((0,np.shape(amp_map)[0]),(0,0)))
-num_padded_step = np.shape(padded_amp_map)[0]
+num_padded_steps = np.shape(padded_amp_map)[0]
 
+# Revisit frequency axis 
+ps_to_meV = 4.1356677 # E = h*f, h=4.135E-15eV*s 
+freq_shift = 1240/0.796 # 0.796 
 
-
-ps_to_meV = 4.1356677
-cal_tau_freq_step = ps_to_meV/(step*num_padded_step)
-freq_shift = 1240/0.796 
-cal_tau_freq_axis = np.linspace(-freq_shift-cal_tau_freq_step*num_padded_step/2,-freq_shift+cal_tau_freq_step*num_padded_step/2,num_padded_step)
+freq_axis = np.fft.fftfreq(num_padded_steps,(tau_values[1]-tau_values[0]))
+shifted_freq_axis = np.fft.fftshift(freq_axis)*ps_to_meV - freq_shift
+cal_tau_freq_axis = shifted_freq_axis
+step_freq_axis = shifted_freq_axis[1] -shifted_freq_axis[0]
+print(f'Energy resolution is {step_freq_axis}meV')
+# %
 
 
 freq_freq = fft(padded_amp_map, axis=0)
 plot_ind = True 
 if plot_ind:
+    
+    # pcolot plot 
     #plt.pcolor(approx_x_axis, cal_tau_freq_axis,np.abs(freq_freq))
-    norm = matplotlib.colors.TwoSlopeNorm(vmin=np.min(np.abs(freq_freq)), vcenter=(np.max(np.abs(freq_freq))-np.min(np.abs(freq_freq)))/2, vmax=np.max(np.abs(freq_freq)))
-    plt.contourf(approx_x_axis, cal_tau_freq_axis,np.abs(freq_freq),levels=30, norm = norm)
-    #plt.clim(0,5)
+    #plt.clim(0,4)
+    #plt.colorbar()
+
+    
+    #contour plot (needs to be optimized)
+    maxval = 4    
+    minval = 0.1   
+    levels = np.linspace(minval, maxval, 60)
+    norm = matplotlib.colors.Normalize(vmin=minval, vmax=maxval)
+    plt.contourf(approx_x_axis, cal_tau_freq_axis,np.abs(freq_freq),levels=levels, norm = norm)
     plt.colorbar()
-    plt.xlim(1548,1568)
-    #plt.ylim(-1590,-1540)
-    #plt.xlim(1545,1565)
-    #plt.xlim(1550,1610)
-    plt.ylim(-1575,-1535)
+    
+    # diagonal 
+    plt.plot([1565,1545],[-1565,-1545], c = 'grey')
+    
+    plt.xlim(1545,1565)
+    plt.ylim(-1565,-1545)
     plt.title(f'FT Data \n {title_id}')  
     plt.xlabel('Emission Energy (meV)')
     plt.ylabel('Absorption Energy (meV)')
@@ -228,7 +248,7 @@ if plot_ind:
     plt.gca().xaxis.set_major_formatter(formatter)
     plt.gca().yaxis.set_major_formatter(formatter)
   
-plot_comb = True 
+plot_comb = False 
 if plot_comb:
     pc = {}
     f, plts = plt.subplots(3, figsize =(4,6))
@@ -253,11 +273,11 @@ if plot_comb:
 
 # %% plot individual spectrum
 N_period = 100
-freq = 29780
+freq = 25000
 fps = freq/N_period
-plot_external = False
+plot_external = True
 if plot_external:
-    data_name = 'GaAs_QW_2501_13_08_01'
+    data_name = 'GaAs_QW_2501_14_13_52'
     title_id = os.path.join(date,data_name)
     filepath = os.path.join(path,date,data_name + '.h5')
 else:

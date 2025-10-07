@@ -113,3 +113,20 @@ print(f'B-A={B-A}, C-A={C-A}, C-B={C-B}, D-C={D-C}')
 
 # This frequency leads to 213.3/2=106.65 stable signal. This requires N = 100 
 # It can also be divided by 4, 213.3 = 53.325. This requires N = 20
+
+# %% BF 4 beam config. with 25kH
+A = 78.729 *1E3
+B = 78.8606 *1E3# 79.0835*1E4 #   78.8606
+C = 79.4554 *1E3
+D = 79.5995 *1E3
+
+
+f = + A - 2*B + C
+f2 =  + A - B - C + D
+f3 =  -(+ A - B) - C + D
+BA = B-A
+DC = D-C
+print(f)
+print(f2)
+print(BA-DC)
+print(f'B-A={B-A}, D-C={D-C}')
