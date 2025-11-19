@@ -25,6 +25,7 @@ from drivers.PixisDemo import PixisDemo
 from drivers.Pixis import Pixis
 from drivers.Bigfoot import Bigfoot
 from drivers.Cryocore import Cryocore
+from drivers.ThorlabsCCS200 import ThorlabsCCS200
 from drivers.ThorlabsPM100D import ThorlabsPM100D
 from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
 from DataHandling.DataHandling import DataHandling
@@ -63,7 +64,7 @@ class MainInterface(QtWidgets.QMainWindow):
         #self.spectrometer = Pixis()
         #print('Pixis camera connected')
         #except:
-        self.spectrometer = Heliotis()
+        self.spectrometer = ThorlabsCCS200()
         print('Pixis connection failed, use DEMO')
         #self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length

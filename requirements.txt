@@ -4,6 +4,8 @@ PyQt5~=5.15.11
 matplotlib~=3.10.1
 pip
 pillow
+joblib
+jki_python_bridge_for_labview
 requests~=2.32.3
 pandas~=2.2.3
 h5py~=3.13.0
