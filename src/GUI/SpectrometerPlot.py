@@ -147,6 +147,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
     def set_data(self, wls, spec):
+        print('SpectrometerPlot: set data')
         self.wls = wls
         wls_span = np.max(wls) - np.min(wls)
         for i in range (4):

@@ -23,6 +23,7 @@ from drivers.MonochromDemo import MonochromDemo
 from drivers.PixisDemo import PixisDemo
 from drivers.Pixis import Pixis
 from drivers.Cryocore import Cryocore
+from drivers.ThorlabsCCS200 import ThorlabsCCS200
 from drivers.ThorlabsPM100D import ThorlabsPM100D
 from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
 from DataHandling.DataHandling import DataHandling
@@ -58,8 +59,10 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize Spectrometer
         try:
-            self.spectrometer = Pixis()
+            #self.spectrometer = Pixis()
             print('Pixis camera connected')
+            self.spectrometer = ThorlabsCCS200()
+            print('CCS200 spectrometer connected')
         except:
             self.spectrometer = PixisDemo()
             print('Pixis connection failed, use DEMO')

@@ -100,6 +100,7 @@ class ThorlabsCCS200(QtCore.QThread):
         """ Gets the intensity. The example include the possibility of averaging several spectra and to
         perform a binning. Such functionalities might also be given by the camera.
         This function will be accessible from MeasurementClasses."""
+        print('CCS200: get_intensities')
         if self.avg_scan == 1:
             while not self.new_spectrum:
                 time.sleep(0.05)
@@ -113,6 +114,7 @@ class ThorlabsCCS200(QtCore.QThread):
                     time.sleep(0.05)
                 spectrum = spectrum + self.spectrum
                 self.new_spectrum = False
+        print('CCS200: get_intensities')
         return self.do_binning(spectrum)
 
     def do_binning(self, spectrum):
