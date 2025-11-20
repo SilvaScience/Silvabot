@@ -60,7 +60,7 @@ class MainInterface(QtWidgets.QMainWindow):
         # initialize Spectrometer
         try:
             #self.spectrometer = Pixis()
-            print('Pixis camera connected')
+            #print('Pixis camera connected')
             self.spectrometer = ThorlabsCCS200()
             print('CCS200 spectrometer connected')
         except:
