@@ -7,6 +7,13 @@ parameter_dict (set write and read parameter)
 parameter_display_dict (set Spinbox options)
 set_parameter function (assign set functions)
 
+TO DOs:
+- This driver needs to be cleaned up!
+- Enable automatic device selection (automated port selection).
+
+NOTES:
+- If connections are changed (either change of PC or of spectrometer) the corresponding devices IDs can be found
+by setting 'debug=True' in the Device Worker.
 """
 
 from PyQt5 import QtCore, QtWidgets
@@ -110,9 +117,11 @@ class ThorlabsPM100DInterface(object):
     Thorlabs PM100D power meter
 
     uses the PyVISA 1.5 library to communicate over USB.
+    # USB ID for screen powermeter is: USB0::0x1313::0x8075::P5002302::INSTR
+    # USB ID for economy powermeter: USB0::0x1313::0x807B::250825519::INSTR
     """
 
-    def __init__(self, port="USB0::0x1313::0x8075::P5002302::INSTR", debug=False):
+    def __init__(self, port="USB0::0x1313::0x807B::250825519::INSTR", debug=False):
         self.name = 'PM100D'
         self.port = port
         self.debug = debug
@@ -139,18 +148,18 @@ class ThorlabsPM100DInterface(object):
         self.wavelength_max = float(self.query("SENS:CORR:WAV? MAX"))
         self.get_wavelength()
 
-        self.get_attenuation_dB()  # does not exist
+        #self.get_attenuation_dB()  # does not exist
 
         self.write("SENS:POW:UNIT W")  # set to Watts
         self.power_unit = self.query("SENS:POW:UNIT?")
 
-        self.get_auto_range()
+        #self.get_auto_range()
 
-        self.get_average_count()  # does not exist
+        #self.get_average_count()  # does not exist
 
         self.get_power_range()
         self.measure_power()
-        self.measure_frequency()  # does not exist
+        #self.measure_frequency()  # does not exist
 
     def query(self, cmd):
         resp = self.pm.query(cmd)

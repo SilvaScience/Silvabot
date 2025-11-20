@@ -50,7 +50,7 @@ class MainInterface(QtWidgets.QMainWindow):
         # always try to include communication on important events.
         # This is extremely useful for debugging and troubleshooting.
         try:
-            self.cryostat = CryoDemo() # launch cryostat interface
+            self.cryostat = Cryocore() # launch cryostat interface
             print('Connected to Montana CryoCore')
         except:
             self.cryostat = CryoDemo()
@@ -71,12 +71,12 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['spectrometer'] = self.spectrometer
 
         # initialize Powermeter
-        try:
-            self.powermeter = ThorlabsPM100D()
-            print('Thorlabs powermeter connected')
-        except:
-            self.powermeter = ThorlabsPM100DDemo()
-            print('WARNING you are using a DEMO version of the powermeter')
+        #try:
+        self.powermeter = ThorlabsPM100D()
+        print('Thorlabs powermeter connected')
+        #except:
+        #    self.powermeter = ThorlabsPM100DDemo()
+        #    print('WARNING you are using a DEMO version of the powermeter')
         self.devices['powermeter'] = self.powermeter
 
         # initialize SLMDemo
