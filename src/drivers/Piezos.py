@@ -1,6 +1,6 @@
 #This code is a Demo that controles attocube piezos. This routine 
 #can move x,y,z axis to any position and then return them home.
-#Home is setting in the same position when piezos are turned on.
+#Home is setting in the same position when piezos are turned on
 
 import numpy as np 
 from pylablib.devices import Attocube

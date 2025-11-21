@@ -1,6 +1,6 @@
 #TCLakeshoreDemo
 #LakeShore 335 Temperature Controller
-#This script just read the temperature values.
+#This script just read the temperature values
 
 
 #import csv

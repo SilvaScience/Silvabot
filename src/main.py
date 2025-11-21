@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
-""""
-Created on Tue Jan  1 14:34:11 2025
-@author: David Tiede
-"""
+
+
 
 import sys
 import time
@@ -11,6 +8,9 @@ import os
 from collections import defaultdict
 from pathlib import Path
 import numpy as np
+import csv
+from lakeshore import Model335, Model335InputSensorSettings
+from time import sleep
 from PyQt5 import QtCore, QtWidgets, uic
 from functools import partial
 from GUI.ParameterPlot import ParameterPlot
@@ -20,26 +20,35 @@ from drivers.SpectrometerDemo_advanced import SpectrometerDemo
 from drivers.SLMDemo import SLMDemo
 from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
+from drivers.Piezos import Piezos ##NEW
+from drivers.TCLakeshore import TCLakeshore
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
     ViewMeasurement, KineticMeasurement
 
 
+
+
 class MainInterface(QtWidgets.QMainWindow):
 
+
+   
     def __init__(self):
         super(MainInterface, self).__init__()
         project_folder = Path(__file__).parent.resolve()
         uic.loadUi(Path(project_folder,r'GUI/main_GUI.ui'), self)
 
+
         # fancy name
         self.setWindowTitle('COLBERTo')
+
 
         # set devices dict
         self.devices = defaultdict(dict)
 
+
         # initialize cryostat
-        """ This is a demo devices that has read and write parameters. 
+        """ This is a demo devices that has read and write parameters.
         Illustrates use of parameters"""
         # always try to include communication on important events.
         # This is extremely useful for debugging and troubleshooting.
@@ -47,26 +56,62 @@ class MainInterface(QtWidgets.QMainWindow):
         self.cryostat = CryoDemo() # launch cryostat interface
         self.devices['cryostat'] = self.cryostat # store in global device dict.
 
+
         # initialize Spectrometer
         self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
         print('Spectrometer connection failed, use DEMO')
 
+
         # initialize SLMDemo
         self.SLM = SLMDemo()
         self.devices['SLM'] = self.SLM
         print('SLMDemo connected')
+
 
         # initialize StresingDemo
         self.Stresing = StresingDemo()
         self.devices['Stresing'] = self.Stresing
         print('Stresing connected')
 
+
         # initialize MonochromDemo
-        self.Monochrom = MonochromDemo() 
-        self.devices['Monochrom'] = self.Monochrom 
+        self.Monochrom = MonochromDemo()
+        self.devices['Monochrom'] = self.Monochrom
         print('Monochrom DEMO connected')
+
+
+
+
+        # initialize Piezos NEWWW
+         
+        self.Piezos = Piezos() #NEWWW
+        self.Piezos.set_home()
+        self.devices['Piezos'] = self.Piezos #NEWWW
+        print('Piezos connected') #NEWWWW
+       
+
+
+        # initialize TCLakeshoreDemo NEWWW
+         
+        self.TCLakeshore = TCLakeshore() #NEWWW
+        self.devices['TCLakeshore'] = self.TCLakeshore #NEWWW
+        print('TCLakeshore connected') #NEWWWW
+        # Updated parameter
+        self.TCLakeshore.temperature_updated.connect(self.update_temperature_display)
+        self.TCLakeshore.start()
+
+
+
+
+
+
+        #PIEZOS DEMO SHOW SIGNALS
+        self.Piezos.finished.connect(self.piezos_update)
+
+
+
 
         # find items to complement in GUI
         self.parameter_tree = self.findChild(QtWidgets.QTreeWidget, 'parameters_treeWidget')
@@ -90,13 +135,16 @@ class MainInterface(QtWidgets.QMainWindow):
         self.kinetic_run_button = self.findChild(QtWidgets.QPushButton, 'kinetic_run_pushButton')
         self.SLM_tab = self.findChild(QtWidgets.QWidget, 'SLM_tab')
 
+
         # initial parameter values, retrieved from devices
         self.parameter_dic = defaultdict(lambda: defaultdict(dict))
         for device in self.devices.keys():
             self.parameter_dic[device] = self.devices[device].parameter_display_dict
 
+
         # create parameter array for easy access
         self.create_parameter_array()
+
 
         # add items to GUI
         self.SpectrometerPlot = SpectrometerPlot()
@@ -108,11 +156,13 @@ class MainInterface(QtWidgets.QMainWindow):
         vbox.addWidget(self.ParameterPlot)
         self.parameter_tab.setLayout(vbox)
 
+
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(self.SLM)
         self.SLM_tab.setLayout(vbox)
 
-        """ This initializes the parameter tree. It is constructed based on the device dict, 
+
+        """ This initializes the parameter tree. It is constructed based on the device dict,
         that includes parameter information of each device """
         self.parameter_tree.setColumnCount(2)
         self.parameter_tree.setHeaderLabels(["Name", "Value"])
@@ -147,16 +197,19 @@ class MainInterface(QtWidgets.QMainWindow):
                 self.parameter_tree.setItemWidget(child, 0, name_widget)
                 self.parameter_tree.setItemWidget(child, 1, self.parameter_widgets[param])
 
+
         # start DataHandling
         self.DataHandling = DataHandling(self.parameter, self.spec_length)
         self.DataHandling.sendParameterarray.connect(self.ParameterPlot.set_data)
         self.DataHandling.sendSpectrum.connect(self.SpectrometerPlot.set_data)
         self.DataHandling.sendMaximum.connect(self.SpectrometerPlot.update_datareader)
 
+
         # start Updater to update device read parameters
         self.Updater = UpdateWorker(self.devices, self.readonly_parameter)
         self.Updater.new_parameter.connect(self.update_read_parameter)
         self.Updater.start()
+
 
         # set variables
         self.measurement_busy = False
@@ -165,6 +218,7 @@ class MainInterface(QtWidgets.QMainWindow):
         #can everyone simply create a C:/Data/test' path on their device? # Not sure how to handle different OS here.
         self.filename = r'C:/Data/test'
         self.power_calib_array = []
+
 
         # set connect events
         self.acquire_button.clicked.connect(self.acquire_measurement)
@@ -182,13 +236,37 @@ class MainInterface(QtWidgets.QMainWindow):
         self.kinetic_lineEdit.editingFinished.connect(self.change_kinetic_interval)
         self.kinetic_run_button.clicked.connect(self.kinetic_measurement)
 
+
         # run some functions once to define default values
         self.change_filename()
+
 
         # show GUI, to be executed at the end of init.
         self.show()
 
+
     ##### General functions #####
+
+
+    #TCLakeshore
+
+
+    def update_temperature_display(self, temperatures):
+       
+        for param, value in temperatures.items():
+            if param in self.parameter_widgets:
+                self.parameter_widgets[param].setValue(value)
+                self.parameter[param] = value
+
+
+
+
+    #PIEZOS DEMO UPDATE
+
+
+    def piezos_update(self,message):
+        print("PiezosDemo:",message)
+
 
     def create_parameter_array(self):
         # initialization function to store all parameters in one array
@@ -196,6 +274,7 @@ class MainInterface(QtWidgets.QMainWindow):
         for devices in self.devices.keys():
             for param in self.devices[devices].parameter_dict.keys():
                 self.parameter[param] = self.devices[devices].parameter_dict[param]
+
 
     def update_read_parameter(self, new_parameter):
         # update all read parameters
@@ -205,10 +284,12 @@ class MainInterface(QtWidgets.QMainWindow):
         # send parameters to DataViewer
         self.DataHandling.update_parameter(list(self.parameter.values()))
 
+
     def change_parameter(self, parameter, value):
         # change parameter when called from another script
         self.parameter_widgets[parameter].setValue(value)
         self.set_parameter(parameter)
+
 
     def set_parameter(self, new_parameter):
         # set parameter when Spinbox is changed and send it to devices and DataHandling
@@ -220,9 +301,38 @@ class MainInterface(QtWidgets.QMainWindow):
                 # change parameter in DataHandling
                 self.parameter[new_parameter] = value
 
+
+        if new_parameter in self.devices['Piezos'].parameter_dict.keys():
+            self.devices['Piezos'].move_axis(self.devices['Piezos'].axis)
+
+
+        if new_parameter == 'voltage':
+            self.devices['PiezosDemo'].set_voltage_n_freqs()
+
+
+        if new_parameter == 'temperature':
+            self.devices['Piezos'].d_min_step = self.devices['Piezos'].set_temp(self.devices['Piezos'].parameter_dict['temperature'])
+            self.devices['Piezos'].f_x = self.devices['Piezos'].velocity_x_to_frequency_x(self.devices['Piezos'].parameter_dict['velocity_x'])
+            self.devices['Piezos'].f_y = self.devices['Piezos'].velocity_y_to_frequency_y(self.devices['Piezos'].parameter_dict['velocity_y'])
+            self.devices['Piezos'].f_z = self.devices['Piezos'].velocity_z_to_frequency_z(self.devices['Piezos'].parameter_dict['velocity_z'])
+            self.devices['Piezos'].set_voltage_n_freqs()
+   
+        if new_parameter in ['velocity_x', 'velocity_y', 'velocity_z']:
+            self.devices['Piezos'].f_x = self.devices['Piezos'].velocity_x_to_frequency_x(self.devices['Piezos'].parameter_dict['velocity_x'])
+            self.devices['Piezos'].f_y = self.devices['Piezos'].velocity_y_to_frequency_y(self.devices['Piezos'].parameter_dict['velocity_y'])
+            self.devices['Piezos'].f_z = self.devices['Piezos'].velocity_z_to_frequency_z(self.devices['Piezos'].parameter_dict['velocity_z'])
+            self.devices['Piezos'].set_voltage_n_freqs()
+
+
+       
+
+
+
+
     def test(self):
         # test function to test anything
         print('I am testing')
+
 
     def set_progress(self, progress):
         # set progress bar and define whether a measurement is running. When progess ne 100, no new measurement starts
@@ -230,20 +340,24 @@ class MainInterface(QtWidgets.QMainWindow):
         if progress == 100.:
             self.measurement_busy = False
 
+
     def change_folder(self):
         # select folder to save data
         self.save_folder_path = QtWidgets.QFileDialog.getExistingDirectory(self, 'Select data saving folder')
         print('Data folder: ' + str(self.save_folder_path))
         self.change_filename()
 
+
     def change_filename(self):
         # change filename to string of LineEdit
         self.filename = str(self.save_folder_path) + "/" + str(self.filename_edit.text().strip('\n'))
         print('filename changed to: ' + str(self.filename))
 
+
     def save_data(self):
         # save data
         self.DataHandling.save_data(self.filename, self.comments_edit.toPlainText())
+
 
     def load_bg(self):
         # open background file and set as background
@@ -253,12 +367,15 @@ class MainInterface(QtWidgets.QMainWindow):
         self.DataHandling.background = bg[-self.spec_length:, 1]
         # print(np.shape(bg[1:,1]))
 
+
         # display background filename
         idx = bg_path.rfind('/')
         self.bg_file_indicator.setText(bg_path[idx+1:])
 
+
     def update_check_bg(self):
         self.DataHandling.correct_background = self.bg_check_box.isChecked()
+
 
     def change_kinetic_interval(self):
         # generate timing array for time resolved measurement
@@ -285,7 +402,9 @@ class MainInterface(QtWidgets.QMainWindow):
         except:
             print('Lecture of kinetic interval failed')
 
+
     ##### Measurements #####
+
 
     def acquire_measurement(self):
         # take one spectrum with spectrometer
@@ -302,6 +421,7 @@ class MainInterface(QtWidgets.QMainWindow):
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
             self.measurement.start()
 
+
     def view_measurement(self):
         # take one spectrum with spectrometer
         if not self.measurement_busy:
@@ -315,6 +435,7 @@ class MainInterface(QtWidgets.QMainWindow):
         else:
             print('Measurement not started, devices are busy')
 
+
     def run_measurement(self):
         # continuously taking spectra with spectrometer
         if not self.measurement_busy:
@@ -326,6 +447,7 @@ class MainInterface(QtWidgets.QMainWindow):
             self.measurement.start()
         else:
             print('Measurement not started, devices are busy')
+
 
     def background_measurement(self):
         # acquire background to subtract from spectra. May average over several spectra
@@ -340,6 +462,7 @@ class MainInterface(QtWidgets.QMainWindow):
             self.measurement.start()
         else:
             print('Measurement not started, devices are busy')
+
 
     def kinetic_measurement(self):
         # take time resolved measurements as defined in automation GUI section
@@ -356,15 +479,20 @@ class MainInterface(QtWidgets.QMainWindow):
         else:
             print('Measurement not started, devices are busy')
 
+
     def stop_measurement(self):
         # stop measurement
         self.measurement.stop()
         self.measurement_busy = False
 
 
+
+
 class UpdateWorker(QtCore.QThread):
 
+
     new_parameter = QtCore.pyqtSignal(dict)
+
 
     def __init__(self, devices_dic, read_only):
         super(UpdateWorker, self).__init__()
@@ -373,6 +501,7 @@ class UpdateWorker(QtCore.QThread):
         self.stop = False
         self.updated_param = {}
         self.update_interval = 0.5
+
 
     def run(self):
         while not self.stop:
@@ -385,6 +514,11 @@ class UpdateWorker(QtCore.QThread):
             time.sleep(self.update_interval)
 
 
+
+
 app = QtWidgets.QApplication(sys.argv)
 window = MainInterface()
 app.exec_()
+
+
+
