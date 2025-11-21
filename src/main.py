@@ -58,11 +58,12 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['cryostat'] = self.cryostat
 
         # initialize Spectrometer
+        self.spectrometer = Pixis()
         try:
             #self.spectrometer = Pixis()
-            #print('Pixis camera connected')
-            self.spectrometer = ThorlabsCCS200()
-            print('CCS200 spectrometer connected')
+            print('Pixis camera connected')
+            #self.spectrometer = ThorlabsCCS200()
+            #print('CCS200 spectrometer connected')
         except:
             self.spectrometer = PixisDemo()
             print('Pixis connection failed, use DEMO')
@@ -71,12 +72,12 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['spectrometer'] = self.spectrometer
 
         # initialize Powermeter
-        #try:
-        self.powermeter = ThorlabsPM100D()
-        print('Thorlabs powermeter connected')
-        #except:
-        #    self.powermeter = ThorlabsPM100DDemo()
-        #    print('WARNING you are using a DEMO version of the powermeter')
+        try:
+            self.powermeter = ThorlabsPM100D()
+            print('Thorlabs powermeter connected')
+        except:
+            self.powermeter = ThorlabsPM100DDemo()
+            print('WARNING you are using a DEMO version of the powermeter')
         self.devices['powermeter'] = self.powermeter
 
         # initialize SLMDemo
