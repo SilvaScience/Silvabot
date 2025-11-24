@@ -1,6 +1,11 @@
-#This code is a Demo that controles attocube piezos. This routine 
-#can move x,y,z axis to any position and then return them home.
-#Home is setting in the same position when piezos are turned on
+"""
+This driver code that controles attocube piezos. This routine 
+can move x,y,z axis to any position and then return them home.
+Home is setting in the same position when piezos are turned on
+
+NOTES: COM Port Adress of piezos need to be changed if computer is changed. 
+"""
+
 
 import numpy as np 
 from pylablib.devices import Attocube
@@ -16,11 +21,12 @@ class Piezos(QtCore.QThread):
 
         
         #This line ensures the main code works if the piezos are not connected
+        port = 'COM5'
         try:
-            self.anc = Attocube.ANC300("COM5") #Entablish communication with ANC300, verify which COM you are using
+            self.anc = Attocube.ANC300(port) #Entablish communication with ANC300, verify which COM you are using
             self.anc.enable_axis("all") #Enable all axis
         except:
-            print("COM5 is not connected")
+            print(f"{port} is not connected")
             self.anc = None
         
         self.axis = np.array([1, 2, 3])  # {x,y,z} axis
