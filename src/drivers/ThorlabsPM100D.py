@@ -14,6 +14,7 @@ TO DOs:
 NOTES:
 - If connections are changed (either change of PC or of spectrometer) the corresponding devices IDs can be found
 by setting 'debug=True' in the Device Worker.
+- If powermeter is not found in pyvisa.ResourceManager(), likely the driver has changed. Update it to an "IVI" one.
 """
 
 from PyQt5 import QtCore, QtWidgets
@@ -119,9 +120,10 @@ class ThorlabsPM100DInterface(object):
     uses the PyVISA 1.5 library to communicate over USB.
     # USB ID for screen powermeter is: USB0::0x1313::0x8075::P5002302::INSTR
     # USB ID for economy powermeter: USB0::0x1313::0x807B::250825519::INSTR
+    # currently, connection is tried for both device ids through and try, except loop.
     """
 
-    def __init__(self, port="USB0::0x1313::0x807B::250825519::INSTR", debug=False):
+    def __init__(self, port="USB0::0x1313::0x807B::250825519::INSTR", debug=True):
         self.name = 'PM100D'
         self.port = port
         self.debug = debug
@@ -134,7 +136,11 @@ class ThorlabsPM100DInterface(object):
             print('List of resources')
             print(self.visa_resource_manager.list_resources(query='?*'))
 
-        self.pm = self.visa_resource_manager.open_resource(port)
+        try:
+            self.pm = self.visa_resource_manager.open_resource(port)
+        except:
+            port = 'USB0::0x1313::0x8075::P5002302::INSTR'
+            self.pm = self.visa_resource_manager.open_resource(port)
 
         self.idn = self.query("*IDN?")
 
