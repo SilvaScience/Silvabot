@@ -141,7 +141,7 @@ class SpectrometerWorker(QtCore.QThread):
         super(SpectrometerWorker, self).__init__()  # Elevates this thread to be independent.
 
         # definition of some parameters
-        os.chdir(os.path.join(os.getcwd(),"src/drivers/dlls"))
+        os.chdir(os.path.join(os.getcwd(),"drivers\\dlls"))
         self.lib = cdll.LoadLibrary("TLCCS_64.dll")
         self.ccs_handle = c_int(0)
         # windows device manager -> NI-VISA USB Device -> Spectrometer -> Properties -> Details -> Device Instance ID
@@ -159,7 +159,8 @@ class SpectrometerWorker(QtCore.QThread):
         self.wavelengths_c = (c_double * self.spec_length)()
         self.spectrum_c = (c_double * self.spec_length)()
         self.lib.tlccs_getWavelengthData(self.ccs_handle, 0, byref(self.wavelengths_c), c_void_p(None), c_void_p(None))
-        self.wavelengths = np.ctypeslib.as_array(self.wavelengths_c)
+        self.wavelengths = np.ctypeslib.as_array(self.wavelengths
+        _c)
 
         self.spec_range = np.r_[0:2048]
         self.change_int_time = False

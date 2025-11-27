@@ -59,10 +59,10 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize Spectrometer
         try:
-            #self.spectrometer = Pixis()
-            #print('Pixis camera connected')
-            self.spectrometer = ThorlabsCCS200()
-            print('CCS200 spectrometer connected')
+            self.spectrometer = Pixis()
+            print('Pixis camera connected')
+            #self.spectrometer = ThorlabsCCS200()
+            #print('CCS200 spectrometer connected')
         except:
             self.spectrometer = PixisDemo()
             print('Pixis connection failed, use DEMO')
@@ -71,9 +71,8 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['spectrometer'] = self.spectrometer
 
         # initialize Powermeter
-        self.powermeter = ThorlabsPM100D()
         try:
-            #self.powermeter = ThorlabsPM100D()
+            self.powermeter = ThorlabsPM100D()
             print('Thorlabs powermeter connected')
         except:
             self.powermeter = ThorlabsPM100DDemo()
