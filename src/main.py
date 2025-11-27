@@ -86,8 +86,8 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize Piezos NEWWW
          
-        self.Piezos = Piezos() #NEWWW
-        self.Piezos.set_home()
+        self.Piezos = Piezos('COM5') #NEWWW those comments are not needed
+        self.Piezos.set_home() # needs to be removed
         self.devices['Piezos'] = self.Piezos #NEWWW
         print('Piezos connected') #NEWWWW
        
@@ -99,8 +99,8 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['TCLakeshore'] = self.TCLakeshore #NEWWW
         print('TCLakeshore connected') #NEWWWW
         # Updated parameter
-        self.TCLakeshore.temperature_updated.connect(self.update_temperature_display)
-        self.TCLakeshore.start()
+        self.TCLakeshore.temperature_updated.connect(self.update_temperature_display) # needs to be removed
+        self.TCLakeshore.start() # needs to be removed
 
 
 
@@ -108,7 +108,7 @@ class MainInterface(QtWidgets.QMainWindow):
 
 
         #PIEZOS DEMO SHOW SIGNALS
-        self.Piezos.finished.connect(self.piezos_update)
+        self.Piezos.finished.connect(self.piezos_update) # needs to be removed
 
 
 
@@ -250,7 +250,7 @@ class MainInterface(QtWidgets.QMainWindow):
 
     #TCLakeshore
 
-
+    # this block needs to be removed
     def update_temperature_display(self, temperatures):
        
         for param, value in temperatures.items():
@@ -275,6 +275,7 @@ class MainInterface(QtWidgets.QMainWindow):
             for param in self.devices[devices].parameter_dict.keys():
                 self.parameter[param] = self.devices[devices].parameter_dict[param]
 
+    # this block needs to be removed
 
     def update_read_parameter(self, new_parameter):
         # update all read parameters

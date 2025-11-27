@@ -1,5 +1,5 @@
 """
-This driver code that controles attocube piezos. This routine 
+This driver code that controls attocube piezos. This routine
 can move x,y,z axis to any position and then return them home.
 Home is setting in the same position when piezos are turned on
 
@@ -16,12 +16,12 @@ class Piezos(QtCore.QThread):
 
     name = 'piezos'
 
-    def __init__(self):
+    def __init__(self, port):
         super(Piezos, self).__init__()
 
         
         #This line ensures the main code works if the piezos are not connected
-        port = 'COM5'
+        #port = 'COM5'
         try:
             self.anc = Attocube.ANC300(port) #Entablish communication with ANC300, verify which COM you are using
             self.anc.enable_axis("all") #Enable all axis
@@ -34,7 +34,7 @@ class Piezos(QtCore.QThread):
         self.parameter_display_dict = {}
 
         #Piezos parameters
-
+        # check this again
         self.parameter_display_dict['temperature'] = {}
         self.parameter_display_dict['temperature']['val'] = 300
         self.parameter_display_dict['temperature']['unit'] = 'K'
@@ -96,7 +96,7 @@ class Piezos(QtCore.QThread):
 
 
         #Minimum step size
-        self.d_min_step = self.set_temp(self.parameter_dict['temperature'])
+        self.d_min_step = self.set_temp(self.parameter_dict['temperature'])# this needs to be reviewed according to spec
 
         #Frequencies of each axis
         self.f_x = self.velocity_x_to_frequency_x(self.parameter_dict['velocity_x'])
@@ -105,7 +105,16 @@ class Piezos(QtCore.QThread):
 
 
 
-    def set_parameter(self, param, value):
+    def set_parameter(self, parameter, value):
+        """REQUIRED. This function defines how changes in the parameter tree are handled.
+        In devices with workers, a pause of continuous acquisition might be required. """
+        if parameter == 'voltage':
+            self.parameter_dict['voltage'] = value
+            for i in range(3): self.anc.set_voltage(i + 1, value)
+        if parameter == 'velocity':
+            self.parameter_dict['velocity'] = value
+            freq = self.velocity_to_frequency(value)
+            for i in range(3): self.anc.set_frequency(i+1, freq)
 
         if param in self.parameter_dict:
             self.parameter_dict[param] = value
@@ -125,9 +134,9 @@ class Piezos(QtCore.QThread):
         return(d_min)
 
     #This function calculates the frequency of the x-axis piezo movement with the velocity value
-    def velocity_x_to_frequency_x(self, velocity_x):
-        freq_x=round(velocity_x / self.d_min_step)
-        return(freq_x) 
+    def velocity_to_frequency(self, velocity):
+        freq=round(velocity / self.d_min_step)
+        return(freq)
 
     #This function calculates the frequency of the y-axis piezo movement with the velocity value
     def velocity_y_to_frequency_y(self, velocity_y):
@@ -157,11 +166,11 @@ class Piezos(QtCore.QThread):
     #This function set the values of frequency and voltage
     def set_voltage_n_freqs(self):
         self.anc.set_frequency(1, self.f_x)
-        self.anc.set_voltage(1, self.parameter_dict['voltage'])
+        #self.anc.set_voltage(1, self.parameter_dict['voltage'])
         self.anc.set_frequency(2, self.f_y)
-        self.anc.set_voltage(2, self.parameter_dict['voltage'])
+        #self.anc.set_voltage(2, self.parameter_dict['voltage'])
         self.anc.set_frequency(3, self.f_z)
-        self.anc.set_voltage(3, self.parameter_dict['voltage'])
+        #self.anc.set_voltage(3, self.parameter_dict['voltage'])
 
     #This function saves the first position (when you turn on the system) as home.
     def set_home(self):
