@@ -38,25 +38,25 @@ class Piezos(QtCore.QThread):
 
 
         self.parameter_display_dict['voltage'] = {}
-        self.parameter_display_dict['voltage']['val'] = 25
+        self.parameter_display_dict['voltage']['val'] = 30
         self.parameter_display_dict['voltage']['unit'] = 'V'
         self.parameter_display_dict['voltage']['max'] = 30
         self.parameter_display_dict['voltage']['read'] = False
 
         self.parameter_display_dict['velocity_x'] = {}
-        self.parameter_display_dict['velocity_x']['val'] = 2
+        self.parameter_display_dict['velocity_x']['val'] = 0.2
         self.parameter_display_dict['velocity_x']['unit'] = 'mm/s'
         self.parameter_display_dict['velocity_x']['max'] = 2.9
         self.parameter_display_dict['velocity_x']['read'] = False
 
         self.parameter_display_dict['velocity_y'] = {}
-        self.parameter_display_dict['velocity_y']['val'] = 2
+        self.parameter_display_dict['velocity_y']['val'] = 0.2
         self.parameter_display_dict['velocity_y']['unit'] = 'mm/s'
         self.parameter_display_dict['velocity_y']['max'] = 2.9
         self.parameter_display_dict['velocity_y']['read'] = False
 
         self.parameter_display_dict['velocity_z'] = {}
-        self.parameter_display_dict['velocity_z']['val'] = 2
+        self.parameter_display_dict['velocity_z']['val'] = 0.2
         self.parameter_display_dict['velocity_z']['unit'] = 'mm/s'
         self.parameter_display_dict['velocity_z']['max'] = 2.9
         self.parameter_display_dict['velocity_z']['read'] = False

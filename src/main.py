@@ -21,7 +21,7 @@ from drivers.SLMDemo import SLMDemo
 from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
 from drivers.Piezos import Piezos ##NEW
-from drivers.TCLakeshore import TCLakeshore
+from drivers.TCnHLakeshore import TCnHLakeshore
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
     ViewMeasurement, KineticMeasurement
@@ -95,12 +95,12 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize TCLakeshoreDemo NEWWW
          
-        self.TCLakeshore = TCLakeshore() #NEWWW
-        self.devices['TCLakeshore'] = self.TCLakeshore #NEWWW
-        print('TCLakeshore connected') #NEWWWW
+        self.TCnHLakeshore = TCnHLakeshore() #NEWWW
+        self.devices['TCnHLakeshore'] = self.TCnHLakeshore #NEWWW
+        print('TCnHLakeshore connected') #NEWWWW
         # Updated parameter
-        self.TCLakeshore.temperature_updated.connect(self.update_temperature_display)
-        self.TCLakeshore.start()
+        self.TCnHLakeshore.temperature_updated.connect(self.update_temperature_display)
+        self.TCnHLakeshore.start()
 
 
 
@@ -322,6 +322,14 @@ class MainInterface(QtWidgets.QMainWindow):
             self.devices['Piezos'].f_y = self.devices['Piezos'].velocity_y_to_frequency_y(self.devices['Piezos'].parameter_dict['velocity_y'])
             self.devices['Piezos'].f_z = self.devices['Piezos'].velocity_z_to_frequency_z(self.devices['Piezos'].parameter_dict['velocity_z'])
             self.devices['Piezos'].set_voltage_n_freqs()
+
+    
+        if new_parameter == 'Set Point':
+            self.devices['TCnHLakeshore'].s_p = self.devices['TCnHLakeshore'].heater_control(self.devices['TCnHLakeshore'].parameter_dict['Set Point'])
+            #self.devices['TCnHLakeshore'].set_voltage_n_freqs()
+
+
+
 
 
        
