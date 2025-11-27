@@ -159,8 +159,7 @@ class SpectrometerWorker(QtCore.QThread):
         self.wavelengths_c = (c_double * self.spec_length)()
         self.spectrum_c = (c_double * self.spec_length)()
         self.lib.tlccs_getWavelengthData(self.ccs_handle, 0, byref(self.wavelengths_c), c_void_p(None), c_void_p(None))
-        self.wavelengths = np.ctypeslib.as_array(self.wavelengths
-        _c)
+        self.wavelengths = np.ctypeslib.as_array(self.wavelengths_c)
 
         self.spec_range = np.r_[0:2048]
         self.change_int_time = False
