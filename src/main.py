@@ -1,6 +1,5 @@
 
 
-
 import sys
 import time
 import re
@@ -20,16 +19,16 @@ from drivers.SpectrometerDemo_advanced import SpectrometerDemo
 from drivers.SLMDemo import SLMDemo
 from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
-from drivers.Piezos import Piezos ##NEW
+from drivers.Piezos import Piezos
 from drivers.TCnHLakeshore import TCnHLakeshore
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
     ViewMeasurement, KineticMeasurement
 
 
-
-
 class MainInterface(QtWidgets.QMainWindow):
+
+
 
 
    
@@ -39,12 +38,18 @@ class MainInterface(QtWidgets.QMainWindow):
         uic.loadUi(Path(project_folder,r'GUI/main_GUI.ui'), self)
 
 
+
+
         # fancy name
         self.setWindowTitle('COLBERTo')
 
 
+
+
         # set devices dict
         self.devices = defaultdict(dict)
+
+
 
 
         # initialize cryostat
@@ -57,11 +62,15 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['cryostat'] = self.cryostat # store in global device dict.
 
 
+
+
         # initialize Spectrometer
         self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
         print('Spectrometer connection failed, use DEMO')
+
+
 
 
         # initialize SLMDemo
@@ -70,10 +79,14 @@ class MainInterface(QtWidgets.QMainWindow):
         print('SLMDemo connected')
 
 
+
+
         # initialize StresingDemo
         self.Stresing = StresingDemo()
         self.devices['Stresing'] = self.Stresing
         print('Stresing connected')
+
+
 
 
         # initialize MonochromDemo
@@ -84,33 +97,15 @@ class MainInterface(QtWidgets.QMainWindow):
 
 
 
-        # initialize Piezos NEWWW
-         
-        self.Piezos = Piezos('COM5') #NEWWW those comments are not needed
-        self.Piezos.set_home() # needs to be removed
-        self.devices['Piezos'] = self.Piezos #NEWWW
-        print('Piezos connected') #NEWWWW
+        # initialize Piezos
+        self.Piezos = Piezos('COM5')
+        self.devices['Piezos'] = self.Piezos
+        print('Piezos connected')
        
-
-
-        # initialize TCLakeshoreDemo NEWWW
-         
-        self.TCnHLakeshore = TCnHLakeshore() #NEWWW
-        self.devices['TCnHLakeshore'] = self.TCnHLakeshore #NEWWW
-        print('TCnHLakeshore connected') #NEWWWW
-        # Updated parameter
-
-        self.TCLakeshore.temperature_updated.connect(self.update_temperature_display) # needs to be removed
-        self.TCLakeshore.start() # needs to be removed
-
-
-
-
-
-
-
-        #PIEZOS DEMO SHOW SIGNALS
-        self.Piezos.finished.connect(self.piezos_update) # needs to be removed
+        # initialize TCLakeshoreDemo
+        self.TCnHLakeshore = TCnHLakeshore()
+        self.devices['TCnHLakeshore'] = self.TCnHLakeshore
+        print('TCnHLakeshore connected')
 
 
 
@@ -138,14 +133,20 @@ class MainInterface(QtWidgets.QMainWindow):
         self.SLM_tab = self.findChild(QtWidgets.QWidget, 'SLM_tab')
 
 
+
+
         # initial parameter values, retrieved from devices
         self.parameter_dic = defaultdict(lambda: defaultdict(dict))
         for device in self.devices.keys():
             self.parameter_dic[device] = self.devices[device].parameter_display_dict
 
 
+
+
         # create parameter array for easy access
         self.create_parameter_array()
+
+
 
 
         # add items to GUI
@@ -159,9 +160,13 @@ class MainInterface(QtWidgets.QMainWindow):
         self.parameter_tab.setLayout(vbox)
 
 
+
+
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(self.SLM)
         self.SLM_tab.setLayout(vbox)
+
+
 
 
         """ This initializes the parameter tree. It is constructed based on the device dict,
@@ -200,6 +205,8 @@ class MainInterface(QtWidgets.QMainWindow):
                 self.parameter_tree.setItemWidget(child, 1, self.parameter_widgets[param])
 
 
+
+
         # start DataHandling
         self.DataHandling = DataHandling(self.parameter, self.spec_length)
         self.DataHandling.sendParameterarray.connect(self.ParameterPlot.set_data)
@@ -207,8 +214,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.DataHandling.sendMaximum.connect(self.SpectrometerPlot.update_datareader)
 
 
-        # start Updater to update device read parameters
-        self.Updater = UpdateWorker(self.devices, self.readonly_parameter)
+        self.Updater = UpdateWorker(self.devices,self.readonly_parameter)
         self.Updater.new_parameter.connect(self.update_read_parameter)
         self.Updater.start()
 
@@ -220,6 +226,8 @@ class MainInterface(QtWidgets.QMainWindow):
         #can everyone simply create a C:/Data/test' path on their device? # Not sure how to handle different OS here.
         self.filename = r'C:/Data/test'
         self.power_calib_array = []
+
+
 
 
         # set connect events
@@ -239,35 +247,21 @@ class MainInterface(QtWidgets.QMainWindow):
         self.kinetic_run_button.clicked.connect(self.kinetic_measurement)
 
 
+
+
         # run some functions once to define default values
         self.change_filename()
+
+
 
 
         # show GUI, to be executed at the end of init.
         self.show()
 
 
+
+
     ##### General functions #####
-
-
-    #TCLakeshore
-
-    # this block needs to be removed
-    def update_temperature_display(self, temperatures):
-       
-        for param, value in temperatures.items():
-            if param in self.parameter_widgets:
-                self.parameter_widgets[param].setValue(value)
-                self.parameter[param] = value
-
-
-
-
-    #PIEZOS DEMO UPDATE
-
-
-    def piezos_update(self,message):
-        print("PiezosDemo:",message)
 
 
     def create_parameter_array(self):
@@ -277,10 +271,9 @@ class MainInterface(QtWidgets.QMainWindow):
             for param in self.devices[devices].parameter_dict.keys():
                 self.parameter[param] = self.devices[devices].parameter_dict[param]
 
-    # this block needs to be removed
 
     def update_read_parameter(self, new_parameter):
-        # update all read parameters
+        # update all read parameter
         for param in new_parameter.keys():
             self.parameter_widgets[param].setValue(new_parameter[param])
             self.parameter[param] = new_parameter[param]
@@ -288,10 +281,14 @@ class MainInterface(QtWidgets.QMainWindow):
         self.DataHandling.update_parameter(list(self.parameter.values()))
 
 
+
+
     def change_parameter(self, parameter, value):
         # change parameter when called from another script
         self.parameter_widgets[parameter].setValue(value)
         self.set_parameter(parameter)
+
+
 
 
     def set_parameter(self, new_parameter):
@@ -305,37 +302,6 @@ class MainInterface(QtWidgets.QMainWindow):
                 self.parameter[new_parameter] = value
 
 
-        if new_parameter in self.devices['Piezos'].parameter_dict.keys():
-            self.devices['Piezos'].move_axis(self.devices['Piezos'].axis)
-
-
-        if new_parameter == 'voltage':
-            self.devices['PiezosDemo'].set_voltage_n_freqs()
-
-
-        if new_parameter == 'temperature':
-            self.devices['Piezos'].d_min_step = self.devices['Piezos'].set_temp(self.devices['Piezos'].parameter_dict['temperature'])
-            self.devices['Piezos'].f_x = self.devices['Piezos'].velocity_x_to_frequency_x(self.devices['Piezos'].parameter_dict['velocity_x'])
-            self.devices['Piezos'].f_y = self.devices['Piezos'].velocity_y_to_frequency_y(self.devices['Piezos'].parameter_dict['velocity_y'])
-            self.devices['Piezos'].f_z = self.devices['Piezos'].velocity_z_to_frequency_z(self.devices['Piezos'].parameter_dict['velocity_z'])
-            self.devices['Piezos'].set_voltage_n_freqs()
-   
-        if new_parameter in ['velocity_x', 'velocity_y', 'velocity_z']:
-            self.devices['Piezos'].f_x = self.devices['Piezos'].velocity_x_to_frequency_x(self.devices['Piezos'].parameter_dict['velocity_x'])
-            self.devices['Piezos'].f_y = self.devices['Piezos'].velocity_y_to_frequency_y(self.devices['Piezos'].parameter_dict['velocity_y'])
-            self.devices['Piezos'].f_z = self.devices['Piezos'].velocity_z_to_frequency_z(self.devices['Piezos'].parameter_dict['velocity_z'])
-            self.devices['Piezos'].set_voltage_n_freqs()
-
-    
-        if new_parameter == 'Set Point':
-            self.devices['TCnHLakeshore'].s_p = self.devices['TCnHLakeshore'].heater_control(self.devices['TCnHLakeshore'].parameter_dict['Set Point'])
-            #self.devices['TCnHLakeshore'].set_voltage_n_freqs()
-
-
-
-
-
-       
 
 
 
@@ -345,11 +311,15 @@ class MainInterface(QtWidgets.QMainWindow):
         print('I am testing')
 
 
+
+
     def set_progress(self, progress):
         # set progress bar and define whether a measurement is running. When progess ne 100, no new measurement starts
         self.progress_bar.setValue(int(progress))
         if progress == 100.:
             self.measurement_busy = False
+
+
 
 
     def change_folder(self):
@@ -359,15 +329,21 @@ class MainInterface(QtWidgets.QMainWindow):
         self.change_filename()
 
 
+
+
     def change_filename(self):
         # change filename to string of LineEdit
         self.filename = str(self.save_folder_path) + "/" + str(self.filename_edit.text().strip('\n'))
         print('filename changed to: ' + str(self.filename))
 
 
+
+
     def save_data(self):
         # save data
         self.DataHandling.save_data(self.filename, self.comments_edit.toPlainText())
+
+
 
 
     def load_bg(self):
@@ -379,13 +355,19 @@ class MainInterface(QtWidgets.QMainWindow):
         # print(np.shape(bg[1:,1]))
 
 
+
+
         # display background filename
         idx = bg_path.rfind('/')
         self.bg_file_indicator.setText(bg_path[idx+1:])
 
 
+
+
     def update_check_bg(self):
         self.DataHandling.correct_background = self.bg_check_box.isChecked()
+
+
 
 
     def change_kinetic_interval(self):
@@ -414,7 +396,11 @@ class MainInterface(QtWidgets.QMainWindow):
             print('Lecture of kinetic interval failed')
 
 
+
+
     ##### Measurements #####
+
+
 
 
     def acquire_measurement(self):
@@ -433,6 +419,8 @@ class MainInterface(QtWidgets.QMainWindow):
             self.measurement.start()
 
 
+
+
     def view_measurement(self):
         # take one spectrum with spectrometer
         if not self.measurement_busy:
@@ -445,6 +433,8 @@ class MainInterface(QtWidgets.QMainWindow):
             self.measurement.start()
         else:
             print('Measurement not started, devices are busy')
+
+
 
 
     def run_measurement(self):
@@ -460,6 +450,8 @@ class MainInterface(QtWidgets.QMainWindow):
             print('Measurement not started, devices are busy')
 
 
+
+
     def background_measurement(self):
         # acquire background to subtract from spectra. May average over several spectra
         if not self.measurement_busy:
@@ -473,6 +465,8 @@ class MainInterface(QtWidgets.QMainWindow):
             self.measurement.start()
         else:
             print('Measurement not started, devices are busy')
+
+
 
 
     def kinetic_measurement(self):
@@ -491,6 +485,8 @@ class MainInterface(QtWidgets.QMainWindow):
             print('Measurement not started, devices are busy')
 
 
+
+
     def stop_measurement(self):
         # stop measurement
         self.measurement.stop()
@@ -499,10 +495,18 @@ class MainInterface(QtWidgets.QMainWindow):
 
 
 
+
+
+
+
 class UpdateWorker(QtCore.QThread):
 
 
+
+
     new_parameter = QtCore.pyqtSignal(dict)
+
+
 
 
     def __init__(self, devices_dic, read_only):
@@ -512,6 +516,8 @@ class UpdateWorker(QtCore.QThread):
         self.stop = False
         self.updated_param = {}
         self.update_interval = 0.5
+
+
 
 
     def run(self):
@@ -527,9 +533,20 @@ class UpdateWorker(QtCore.QThread):
 
 
 
+
+
+
+
 app = QtWidgets.QApplication(sys.argv)
 window = MainInterface()
 app.exec_()
+
+
+
+
+
+
+
 
 
 
