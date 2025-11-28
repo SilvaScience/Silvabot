@@ -202,5 +202,3 @@ class Piezos(QtCore.QThread):
 
 
 
-
-

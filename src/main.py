@@ -26,6 +26,12 @@ from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,Ba
     ViewMeasurement, KineticMeasurement
 
 
+
+
+
+
+
+
 class MainInterface(QtWidgets.QMainWindow):
 
 
@@ -540,8 +546,6 @@ class UpdateWorker(QtCore.QThread):
 app = QtWidgets.QApplication(sys.argv)
 window = MainInterface()
 app.exec_()
-
-
 
 
 

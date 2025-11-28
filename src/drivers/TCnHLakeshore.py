@@ -390,6 +390,3 @@ class UpdateWorker(QtCore.QThread):
     #    tempa=temps[0]
     #    tempb=temps[1]
     #    return tempa
-
-
-
