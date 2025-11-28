@@ -1,6 +1,6 @@
 #TCLakeshoreDemo
 #LakeShore 335 Temperature Controller
-#This script just read the temperature values
+#This script reads the temperature values and controls the heater
 
 
 
@@ -116,23 +116,15 @@ class TCnHLakeshore(QtCore.QThread):
 
 
 
-
-
-
     def set_parameter(self, param, value):
 
-
-        if param == 'TempA':
-            temp=self.my_model_335.get_all_kelvin_reading()
-            self.parameter_dict['TempA'] = temp[0]
-           
-        if param == 'TempB':
-            temp=self.my_model_335.get_all_kelvin_reading()
-            self.parameter_dict['TempB'] = temp[1]
-           
+ 
         if param == 'SetPoint':
-            self.heater_control(self.parameter_dict['SetPoint'])
-
+            self.parameter_dict['SetPoint'] = value
+            self.my_model_335.set_heater_setup_one(self.my_model_335.HeaterResistance.HEATER_25_OHM, 0.5, self.my_model_335.HeaterOutputDisplay.POWER) #MAX CURRENT 0.7A
+            self.my_model_335.set_control_setpoint(1, value)
+            self.my_model_335.set_heater_output_mode(1,self.my_model_335.HeaterOutputMode.CLOSED_LOOP,self.my_model_335.InputSensor.CHANNEL_A,powerup_enable=False)
+            self.my_model_335.set_heater_range(1, self.my_model_335.HeaterRange.MEDIUM)
 
 
 
@@ -161,205 +153,6 @@ class TCnHLakeshore(QtCore.QThread):
 
 
 
-
-
-    #this function controls the heater
-
-
-    def heater_control(self,set_point):
-
-
-       
-        #Entablish setpoint
-        #self.set_point = 267
-
-
-        #We are using heater 1 which resistance is 25omh, and we are applying current of 0.5A.
-        self.my_model_335.set_heater_setup_one(self.my_model_335.HeaterResistance.HEATER_25_OHM, 0.5, self.my_model_335.HeaterOutputDisplay.POWER) #MAX CURRENT 0.7A
-
-
-        #Gives the set point information to the heater 1
-        self.my_model_335.set_control_setpoint(1, set_point)
-
-
-
-
-
-
-        #The heater is giving LOW power (it could be MEDIUM or HIGH)
-        self.my_model_335.set_heater_range(1, self.my_model_335.HeaterRange.MEDIUM)
-
-
-
-
-        #HEATER 1 WITH TEMP A
-        self.my_model_335.set_heater_output_mode(
-            1,                                  # Heater output 1
-            self.my_model_335.HeaterOutputMode.CLOSED_LOOP,  # Closed Loop
-            self.my_model_335.InputSensor.CHANNEL_A,         # Temperature channel A
-            powerup_enable=False                )
-
-
-            ######################################################################################################################################### AUTOTUNE
-            #########################################################################################################################################
-            # AUTOTUNE LOOP ROBUSTO: REINTENTAR HASTA QUE FUNCIONE
-            #########################################################################################################################################
-
-
-        self.tempA = []
-        self.tempB = []
-        self.heater1 = []
-
-
-        try:
-                while True:     # Este loop reinicia todo el control si algo falla
-                    print("\n=== Intentando iniciar AUTOTUNE ===")
-
-
-                    try:
-                        #
-                        # 1. Verificar condiciones antes de iniciar autotune
-                        #
-                        while True:
-                            heater_error = self.my_model_335.get_heater_status(1)
-                            if heater_error is not self.my_model_335.HeaterError.NO_ERROR:
-                                raise Exception(f"Heater error: {heater_error.name}")
-
-
-                            kelvin_reading = self.my_model_335.get_kelvin_reading(1)
-                            if abs(kelvin_reading - self.s_p) > 5:
-                                raise Exception("Temperatura fuera del rango ±5 K para iniciar autotune")
-
-
-                            # Si todo bien → iniciar autotune
-                            self.my_model_335.set_autotune(1, self.my_model_335.AutotuneMode.P_I)
-                            print("Autotune iniciado correctamente!")
-                            break  # salir del pre-check
-
-
-                        #
-                        # 2. Monitorear el autotune hasta que termine o ocurra un error
-                        #
-                        while True:
-                            autotune_status = self.my_model_335.get_tuning_control_status()
-
-
-                            if autotune_status["tuning_error"]:
-                                raise Exception("Autotune reportó un error interno")
-
-
-                            if not autotune_status["active_tuning_enable"]:
-                                print("Autotune finalizado exitosamente!")
-                                break
-
-
-                            print(f"Stage: {autotune_status['stage_status']} / 10")
-
-
-                            # Registrar datos
-                            temperature_reading = self.my_model_335.get_all_kelvin_reading()
-                            heater_output_1 = self.my_model_335.get_heater_output(1)
-
-
-                            self.tempA.append(temperature_reading[0])
-                            self.tempB.append(temperature_reading[1])
-                            self.heater1.append(heater_output_1)
-
-
-                            sleep(5)
-
-
-                        # Si llegamos aquí, el autotune terminó sin errores
-                        break
-
-
-                    except Exception as e:
-                        print("\n*** ERROR detectado durante autotune ***")
-                        print("Detalle:", e)
-
-
-                        # Reiniciar heater y control
-                        self.my_model_335.all_heaters_off()
-                        sleep(0.5)
-                        self.my_model_335.set_manual_output(1, 0)
-                        sleep(0.5)
-                        self.my_model_335.set_heater_range(1, self.my_model_335.HeaterRange.MEDIUM)
-
-
-                        print("Reintentando en 3 segundos...\n")
-                        sleep(3)
-                        continue  # vuelve a intentar el autotune
-
-
-                #####################################################################################################
-                # 3. CONTROL NORMAL POST-AUTOTUNE
-                #####################################################################################################
-
-
-                print("\n=== Control corriendo después de autotune ===")
-
-
-                while True:
-                    temperature_reading = self.my_model_335.get_all_kelvin_reading()
-                    heater_output_1 = self.my_model_335.get_heater_output(1)
-
-
-                    self.tempA.append(temperature_reading[0])
-                    self.tempB.append(temperature_reading[1])
-                    self.heater1.append(heater_output_1)
-
-
-                    print(f"Temp A = {temperature_reading[0]:.3f} K")
-                    print(f"Temp B = {temperature_reading[1]:.3f} K")
-                    print(f"Heater = {heater_output_1}%")
-
-
-                    if abs(temperature_reading[0] - self.set_point) > 5:
-                        #print("Temperatura fuera de rango. Apagando heater...")
-                        #my_model_335.all_heaters_off()
-                        #break
-                        raise Exception
-
-
-                    sleep(5)
-
-
-                #####################################################################################################
-                # GUARDAR LOG AL FINAL
-                #####################################################################################################
-
-
-                with open(r"C:\Users\Andres Sanchez\Downloads\log_lakeshore.csv", "w", newline="") as f:
-                    self.writer = self.csv.writer(f)
-                    self.writer.writerow(["TempA (K)", "TempB (K)", "Heater (%)"])
-                    for a, b, h in zip(self.tempA, self.tempB, self.heater1):
-                        self.writer.writerow([a, b, h])
-
-
-                print("log_lakeshore.csv guardado correctamente")
-
-
-        except KeyboardInterrupt:
-                print("\nInterrupción por usuario. Guardando datos...")
-
-
-                with open(r"C:\Users\Andres Sanchez\Downloads\log_lakeshore.csv", "w", newline="") as f:
-                    self.writer = self.csv.writer(f)
-                    self.writer.writerow(["TempA (K)", "TempB (K)", "Heater (%)"])
-                    for a, b, h in zip(self.tempA, self.tempB, self.heater1):
-                        self.writer.writerow([a, b, h])
-
-
-                self.my_model_335.all_heaters_off()
-                print("Heaters OFF y archivo guardado.")
-
-
-
-
-
-
-
-
 class UpdateWorker(QtCore.QThread):
     new_T = QtCore.pyqtSignal(list)
 
@@ -383,10 +176,3 @@ class UpdateWorker(QtCore.QThread):
             sleep(self.waitTime)
             self.new_T.emit(self.readtemp)
 
-
-    #def read_T(self):
-        # read the current platform target temperature
-    #    temps=self.my_model_335.get_all_temepratures()
-    #    tempa=temps[0]
-    #    tempb=temps[1]
-    #    return tempa

@@ -1,7 +1,6 @@
 """
 This driver code that controls attocube piezos. This routine
-can move x,y,z axis to any position and then return them home.
-Home is setting in the same position when piezos are turned on
+can move x,y,z axis to any position.
 
 
 NOTES: COM Port Adress of piezos need to be changed if computer is changed.
