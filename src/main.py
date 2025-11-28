@@ -83,7 +83,7 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize Arduino
         try:
-            self.arduino = Arduino('COM5')
+            self.arduino = Arduino('COM8')
             print('Arduino connected')
             self.devices['arduino'] = self.arduino
         except:
@@ -462,7 +462,7 @@ class UpdateWorker(QtCore.QThread):
         self.read_only = read_only
         self.stop = False
         self.updated_param = {}
-        self.update_interval = 0.5
+        self.update_interval = 1
 
     def run(self):
         while not self.stop:

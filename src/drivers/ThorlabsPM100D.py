@@ -138,9 +138,11 @@ class ThorlabsPM100DInterface(object):
 
         try:
             self.pm = self.visa_resource_manager.open_resource(port)
+            print('Economy Powermeter connected')
         except:
             port = 'USB0::0x1313::0x8075::P5002302::INSTR'
             self.pm = self.visa_resource_manager.open_resource(port)
+            print('Display Powermeter connected')
 
         self.idn = self.query("*IDN?")
 
