@@ -23,8 +23,11 @@ from drivers.MonochromDemo import MonochromDemo
 from drivers.PixisDemo import PixisDemo
 from drivers.Pixis import Pixis
 from drivers.Cryocore import Cryocore
+from drivers.ThorlabsCCS200 import ThorlabsCCS200
 from drivers.ThorlabsPM100D import ThorlabsPM100D
 from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
+from drivers.Arduino import Arduino
+from drivers.ArduinoDemo import ArduinoDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
     ViewMeasurement, KineticMeasurement, TSeriesMeasurement
@@ -49,7 +52,7 @@ class MainInterface(QtWidgets.QMainWindow):
         # always try to include communication on important events.
         # This is extremely useful for debugging and troubleshooting.
         try:
-            self.cryostat = CryoDemo() # launch cryostat interface
+            self.cryostat = Cryocore() # launch cryostat interface
             print('Connected to Montana CryoCore')
         except:
             self.cryostat = CryoDemo()
@@ -60,6 +63,8 @@ class MainInterface(QtWidgets.QMainWindow):
         try:
             self.spectrometer = Pixis()
             print('Pixis camera connected')
+            #self.spectrometer = ThorlabsCCS200()
+            #print('CCS200 spectrometer connected')
         except:
             self.spectrometer = PixisDemo()
             print('Pixis connection failed, use DEMO')
@@ -75,6 +80,17 @@ class MainInterface(QtWidgets.QMainWindow):
             self.powermeter = ThorlabsPM100DDemo()
             print('WARNING you are using a DEMO version of the powermeter')
         self.devices['powermeter'] = self.powermeter
+
+        # initialize Arduino
+        try:
+            self.arduino = Arduino('COM8')
+            print('Arduino connected')
+            self.devices['arduino'] = self.arduino
+        except:
+            print('Arduino connection failed')
+            #self.arduino = ArduinoDemo()
+            #print('ArduinoDemo connected')
+            #self.devices['arduino'] = self.arduino
 
         # initialize SLMDemo
         #self.SLM = SLMDemo()
@@ -446,7 +462,7 @@ class UpdateWorker(QtCore.QThread):
         self.read_only = read_only
         self.stop = False
         self.updated_param = {}
-        self.update_interval = 0.5
+        self.update_interval = 1
 
     def run(self):
         while not self.stop:
