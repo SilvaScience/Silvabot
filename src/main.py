@@ -11,7 +11,6 @@ from collections import defaultdict
 from pathlib import Path
 import numpy as np
 import csv
-from lakeshore import Model335, Model335InputSensorSettings
 from time import sleep
 from PyQt5 import QtCore, QtWidgets, uic
 from functools import partial
@@ -23,7 +22,7 @@ from drivers.SLMDemo import SLMDemo
 from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
 from drivers.Piezos import Piezos
-from drivers.TCnHLakeshore import TCnHLakeshore
+from drivers.Lakeshore import Lakeshore
 from drivers.PixisDemo import PixisDemo
 from drivers.Pixis import Pixis
 from drivers.Cryocore import Cryocore
@@ -112,14 +111,14 @@ class MainInterface(QtWidgets.QMainWindow):
         #print('Monochrom DEMO connected')
 
         # initialize Piezos
-        self.Piezos = Piezos('COM5')
+        self.Piezos = Piezos('COM9')
         self.devices['Piezos'] = self.Piezos
         print('Piezos connected')
        
         # initialize TCLakeshoreDemo
-        self.TCnHLakeshore = TCnHLakeshore()
-        self.devices['TCnHLakeshore'] = self.TCnHLakeshore
-        print('TCnHLakeshore connected')
+        self.TCnHLakeshore = Lakeshore()
+        self.devices['Lakeshore'] = self.TCnHLakeshore
+        print('Lakeshore connected')
 
         # find items to complement in GUI
         self.parameter_tree = self.findChild(QtWidgets.QTreeWidget, 'parameters_treeWidget')

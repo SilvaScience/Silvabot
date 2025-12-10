@@ -13,20 +13,19 @@ NOTES:
 #LakeShore 335 Temperature Controller
 #This script reads the temperature values and controls the heater
 """
-
 from lakeshore import Model335, Model335InputSensorSettings
 from time import sleep
 from PyQt5 import QtCore
 from collections import defaultdict
 
 
-class TCnHLakeshore(QtCore.QThread):
+class Lakeshore(QtCore.QThread):
 
     name = 'tc'
     temperature_updated=QtCore.pyqtSignal(dict)
 
     def __init__(self):
-        super(TCnHLakeshore,self).__init__()
+        super(Lakeshore, self).__init__()
        
         try:
             #Communication with the device
@@ -61,28 +60,28 @@ class TCnHLakeshore(QtCore.QThread):
         self.stop = False
 
         #Values of the temperature A (the sample one)
-        self.parameter_display_dict['TempA'] = {}
-        self.parameter_display_dict['TempA']['val'] = self.temperature_reading[0]
-        self.parameter_display_dict['TempA']['unit'] = 'K'
-        self.parameter_display_dict['TempA']['max'] = 350
-        self.parameter_display_dict['TempA']['min'] = 1
-        self.parameter_display_dict['TempA']['read'] = True
+        self.parameter_display_dict['temp_A'] = {}
+        self.parameter_display_dict['temp_A']['val'] = self.temperature_reading[0]
+        self.parameter_display_dict['temp_A']['unit'] = 'K'
+        self.parameter_display_dict['temp_A']['max'] = 350
+        self.parameter_display_dict['temp_A']['min'] = 1
+        self.parameter_display_dict['temp_A']['read'] = True
 
         #Values of the temperature B (non sample one)
-        self.parameter_display_dict['TempB'] = {}
-        self.parameter_display_dict['TempB']['val'] = self.temperature_reading[1]
-        self.parameter_display_dict['TempB']['unit'] = 'K'
-        self.parameter_display_dict['TempB']['max'] = 350
-        self.parameter_display_dict['TempB']['min'] = 1
-        self.parameter_display_dict['TempB']['read'] = True
+        self.parameter_display_dict['temp_B'] = {}
+        self.parameter_display_dict['temp_B']['val'] = self.temperature_reading[1]
+        self.parameter_display_dict['temp_B']['unit'] = 'K'
+        self.parameter_display_dict['temp_B']['max'] = 350
+        self.parameter_display_dict['temp_B']['min'] = 1
+        self.parameter_display_dict['temp_B']['read'] = True
 
         #Values of the setpoint
-        self.parameter_display_dict['SetPoint'] = {}
-        self.parameter_display_dict['SetPoint']['val'] = 300
-        self.parameter_display_dict['SetPoint']['unit'] = 'K'
-        self.parameter_display_dict['SetPoint']['max'] = 350
-        self.parameter_display_dict['SetPoint']['min'] = 1
-        self.parameter_display_dict['SetPoint']['read'] = False
+        self.parameter_display_dict['set_temp'] = {}
+        self.parameter_display_dict['set_temp']['val'] = 300
+        self.parameter_display_dict['set_temp']['unit'] = 'K'
+        self.parameter_display_dict['set_temp']['max'] = 350
+        self.parameter_display_dict['set_temp']['min'] = 1
+        self.parameter_display_dict['set_temp']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
@@ -99,16 +98,16 @@ class TCnHLakeshore(QtCore.QThread):
 
     def set_parameter(self, param, value):
 
-        if param == 'SetPoint':
-            self.parameter_dict['SetPoint'] = value
+        if param == 'set_temp':
+            self.parameter_dict['set_temp'] = value
             self.my_model_335.set_heater_setup_one(self.my_model_335.HeaterResistance.HEATER_25_OHM, 0.5, self.my_model_335.HeaterOutputDisplay.POWER) #MAX CURRENT 0.7A
             self.my_model_335.set_control_setpoint(1, value)
             self.my_model_335.set_heater_output_mode(1,self.my_model_335.HeaterOutputMode.CLOSED_LOOP,self.my_model_335.InputSensor.CHANNEL_A,powerup_enable=False)
             self.my_model_335.set_heater_range(1, self.my_model_335.HeaterRange.MEDIUM)
 
     def update_temp(self, new_T):
-        self.parameter_dict['TempA'] = new_T[0]
-        self.parameter_dict['TempB'] = new_T[1]
+        self.parameter_dict['temp_A'] = new_T[0]
+        self.parameter_dict['temp_B'] = new_T[1]
 
 
 class UpdateWorker(QtCore.QThread):

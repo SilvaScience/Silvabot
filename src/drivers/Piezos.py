@@ -18,6 +18,7 @@ We can probably implement a linear dependency.
 import numpy as np
 from pylablib.devices import Attocube
 from PyQt5 import QtCore
+import time
 
 class Piezos(QtCore.QThread):
 
@@ -31,7 +32,7 @@ class Piezos(QtCore.QThread):
             self.anc = Attocube.ANC300(port) #Entablish communication with ANC300, verify which COM you are using
             self.anc.enable_axis("all") #Enable all axis
         except:
-            print(f"{port} is not connected")
+            print(f"No piezos found at port {port}.Use Demo.")
             self.anc = None
        
         self.axis = np.array([1, 2, 3])  # {x,y,z} axis
@@ -39,42 +40,42 @@ class Piezos(QtCore.QThread):
         #Piezos parameters
         self.parameter_display_dict['temperature'] = {}
         self.parameter_display_dict['temperature']['val'] = 300
-        self.parameter_display_dict['temperature']['unit'] = 'K'
+        self.parameter_display_dict['temperature']['unit'] = ' K'
         self.parameter_display_dict['temperature']['max'] = 400
         self.parameter_display_dict['temperature']['min'] = 4
         self.parameter_display_dict['temperature']['read'] = False
 
         self.parameter_display_dict['voltage'] = {}
         self.parameter_display_dict['voltage']['val'] = 30
-        self.parameter_display_dict['voltage']['unit'] = 'V'
+        self.parameter_display_dict['voltage']['unit'] = ' V'
         self.parameter_display_dict['voltage']['max'] = 30
         self.parameter_display_dict['voltage']['read'] = False
 
         self.parameter_display_dict['velocity'] = {}
-        self.parameter_display_dict['velocity']['val'] = 0.05
-        self.parameter_display_dict['velocity']['unit'] = 'mm/s'
-        self.parameter_display_dict['velocity']['max'] = 0.05
+        self.parameter_display_dict['velocity']['val'] = 10
+        self.parameter_display_dict['velocity']['unit'] = ' um/s'
+        self.parameter_display_dict['velocity']['max'] = 20 #allowing for max 2000 Hz at low T.
         self.parameter_display_dict['velocity']['read'] = False
 
         self.parameter_display_dict['position_x'] = {}
         self.parameter_display_dict['position_x']['val'] = 0
-        self.parameter_display_dict['position_x']['unit'] = 'mm'
-        self.parameter_display_dict['position_x']['max'] = 5
-        self.parameter_display_dict['position_x']['min'] = -5
+        self.parameter_display_dict['position_x']['unit'] = ' um'
+        self.parameter_display_dict['position_x']['max'] = 5000
+        self.parameter_display_dict['position_x']['min'] = -5000
         self.parameter_display_dict['position_x']['read'] = False
 
         self.parameter_display_dict['position_y'] = {}
         self.parameter_display_dict['position_y']['val'] = 0
-        self.parameter_display_dict['position_y']['unit'] = 'mm'
-        self.parameter_display_dict['position_y']['max'] = 5
-        self.parameter_display_dict['position_y']['min'] = -5
+        self.parameter_display_dict['position_y']['unit'] = ' um'
+        self.parameter_display_dict['position_y']['max'] = 5000
+        self.parameter_display_dict['position_y']['min'] = -5000
         self.parameter_display_dict['position_y']['read'] = False
 
         self.parameter_display_dict['position_z'] = {}
         self.parameter_display_dict['position_z']['val'] = 0
-        self.parameter_display_dict['position_z']['unit'] = 'mm'
-        self.parameter_display_dict['position_z']['max'] = 15
-        self.parameter_display_dict['position_z']['min'] = -15
+        self.parameter_display_dict['position_z']['unit'] = ' um'
+        self.parameter_display_dict['position_z']['max'] = 2000
+        self.parameter_display_dict['position_z']['min'] = -2000
         self.parameter_display_dict['position_z']['read'] = False
 
         #This function stores the parameters in a dictionary
@@ -97,26 +98,26 @@ class Piezos(QtCore.QThread):
         if parameter == 'position_x':
             delta_x = value - self.parameter_dict['position_x']
             self.parameter_dict['position_x'] = value
+            self.anc.wait_move(1) # check if stage is still moving from previous command
             self.anc.move_by(1,round(delta_x/self.d_min_step,5))
-            self.anc.wait_move(1)
         if parameter == 'position_y':
             delta_y = value - self.parameter_dict['position_y']
             self.parameter_dict['position_y'] = value
+            self.anc.wait_move(2) # check if stage is still moving from previous command
             self.anc.move_by(2,round(delta_y/self.d_min_step,5))
-            self.anc.wait_move(2)  
         if parameter == 'position_z':
             delta_z = value - self.parameter_dict['position_z']
             self.parameter_dict['position_z'] = value
+            self.anc.wait_move(3) # check if stage is still moving from previous command
             self.anc.move_by(3,round(delta_z/self.d_min_step,5))
-            self.anc.wait_move(3)
 
     #This function sets the minimum step according to the temperature
     # THIS NEEDS TO BE REVIEWED 
     def set_temp(self, temperature):
         if temperature == 300:
-            d_min=0.00005#0.0012 #mm #
+            d_min=0.05#0.0012 #um #
         else:
-            d_min=0.00001#10**(-5) #mm #
+            d_min=0.01#10**(-5) #um #
         return(d_min)
 
 
