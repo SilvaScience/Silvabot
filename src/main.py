@@ -21,9 +21,17 @@ from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
 from drivers.Piezos import Piezos
 from drivers.TCnHLakeshore import TCnHLakeshore
+from drivers.PixisDemo import PixisDemo
+from drivers.Pixis import Pixis
+from drivers.Cryocore import Cryocore
+from drivers.ThorlabsCCS200 import ThorlabsCCS200
+from drivers.ThorlabsPM100D import ThorlabsPM100D
+from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
+from drivers.Arduino import Arduino
+from drivers.ArduinoDemo import ArduinoDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
-    ViewMeasurement, KineticMeasurement
+    ViewMeasurement, KineticMeasurement, TSeriesMeasurement
 
 
 
@@ -47,7 +55,7 @@ class MainInterface(QtWidgets.QMainWindow):
 
 
         # fancy name
-        self.setWindowTitle('COLBERTo')
+        self.setWindowTitle('Silvabot')
 
 
 
@@ -63,42 +71,73 @@ class MainInterface(QtWidgets.QMainWindow):
         Illustrates use of parameters"""
         # always try to include communication on important events.
         # This is extremely useful for debugging and troubleshooting.
-        print('WARNING you are using a DEMO version of the cryostat')
-        self.cryostat = CryoDemo() # launch cryostat interface
-        self.devices['cryostat'] = self.cryostat # store in global device dict.
+        try:
+            self.cryostat = Cryocore() # launch cryostat interface
+            print('Connected to Montana CryoCore')
+        except:
+            self.cryostat = CryoDemo()
+            print('WARNING you are using a DEMO version of the cryostat')
+        self.devices['cryostat'] = self.cryostat
 
 
 
 
         # initialize Spectrometer
-        self.spectrometer = SpectrometerDemo()
+        try:
+            self.spectrometer = Pixis()
+            print('Pixis camera connected')
+            #self.spectrometer = ThorlabsCCS200()
+            #print('CCS200 spectrometer connected')
+        except:
+            self.spectrometer = PixisDemo()
+            print('Pixis connection failed, use DEMO')
+        #self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
-        print('Spectrometer connection failed, use DEMO')
+
+        # initialize Powermeter
+        try:
+            self.powermeter = ThorlabsPM100D()
+            print('Thorlabs powermeter connected')
+        except:
+            self.powermeter = ThorlabsPM100DDemo()
+            print('WARNING you are using a DEMO version of the powermeter')
+        self.devices['powermeter'] = self.powermeter
+
+        # initialize Arduino
+        try:
+            self.arduino = Arduino('COM8')
+            print('Arduino connected')
+            self.devices['arduino'] = self.arduino
+        except:
+            print('Arduino connection failed')
+            #self.arduino = ArduinoDemo()
+            #print('ArduinoDemo connected')
+            #self.devices['arduino'] = self.arduino
 
 
 
 
         # initialize SLMDemo
-        self.SLM = SLMDemo()
-        self.devices['SLM'] = self.SLM
-        print('SLMDemo connected')
+        #self.SLM = SLMDemo()
+        #self.devices['SLM'] = self.SLM
+        #print('SLMDemo connected')
 
 
 
 
         # initialize StresingDemo
-        self.Stresing = StresingDemo()
-        self.devices['Stresing'] = self.Stresing
-        print('Stresing connected')
+        #self.Stresing = StresingDemo()
+        #self.devices['Stresing'] = self.Stresing
+        #print('Stresing connected')
 
 
 
 
         # initialize MonochromDemo
-        self.Monochrom = MonochromDemo()
-        self.devices['Monochrom'] = self.Monochrom
-        print('Monochrom DEMO connected')
+        #self.Monochrom = MonochromDemo()
+        #self.devices['Monochrom'] = self.Monochrom
+        #print('Monochrom DEMO connected')
 
 
 
@@ -137,6 +176,18 @@ class MainInterface(QtWidgets.QMainWindow):
         self.kinetic_lineEdit = self.findChild(QtWidgets.QLineEdit, 'kinetic_lineEdit')
         self.kinetic_run_button = self.findChild(QtWidgets.QPushButton, 'kinetic_run_pushButton')
         self.SLM_tab = self.findChild(QtWidgets.QWidget, 'SLM_tab')
+        self.Tseries_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_lineEdit')
+        self.Tseries_stab_time_box = self.findChild(QtWidgets.QSpinBox, 'Tseries_stab_time_spinBox')
+        self.Tseries_run_button = self.findChild(QtWidgets.QPushButton, 'Tseries_run_pushButton')
+        self.Tseries_ref_power_box = self.findChild(QtWidgets.QDoubleSpinBox, 'Tseries_ref_power_doubleSpinBox')
+        self.Tseries_int_time_WL_box = self.findChild(QtWidgets.QDoubleSpinBox, 'Tseries_int_time_WL_doubleSpinBox')
+        self.Tseries_int_time_orpheus_box = self.findChild(QtWidgets.QDoubleSpinBox, 'Tseries_int_time_orpheus_doubleSpinBox')
+        self.Tseries_power_dep_checkBox = self.findChild(QtWidgets.QCheckBox, 'Tseries_power_dep_checkBox')
+        self.Tseries_two_sources_checkBox = self.findChild(QtWidgets.QCheckBox, 'Tseries_two_sources_checkBox')
+        self.Tseries_spectra_avg_box = self.findChild(QtWidgets.QSpinBox, 'Tseries_spectra_avg_spinBox')
+        self.Tseries_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_lineEdit')
+        self.Tseries_int_time_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_int_time_lineEdit')
+        self.Tseries_filter_pos_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_filter_pos_lineEdit')
 
 
 
@@ -169,7 +220,8 @@ class MainInterface(QtWidgets.QMainWindow):
 
 
         vbox = QtWidgets.QVBoxLayout()
-        vbox.addWidget(self.SLM)
+        if hasattr(self, 'SLM'):
+            vbox.addWidget(self.SLM)
         self.SLM_tab.setLayout(vbox)
 
 
@@ -227,10 +279,10 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # set variables
         self.measurement_busy = False
-        self.save_folder_path = r'C:/Data/test'
+        self.save_folder_path = r'C:/TEMP'
         #a default data folder is always required and it would be good to keep it seperated from the code.
         #can everyone simply create a C:/Data/test' path on their device? # Not sure how to handle different OS here.
-        self.filename = r'C:/Data/test'
+        self.filename = r'C:/TEMP/test'
         self.power_calib_array = []
 
 
@@ -251,6 +303,8 @@ class MainInterface(QtWidgets.QMainWindow):
         self.ParameterPlot.send_parameter_filename.connect(self.DataHandling.save_parameter)
         self.kinetic_lineEdit.editingFinished.connect(self.change_kinetic_interval)
         self.kinetic_run_button.clicked.connect(self.kinetic_measurement)
+        self.Tseries_lineEdit.editingFinished.connect(self.change_Tseries)
+        self.Tseries_run_button.clicked.connect(self.Tseries_measurement)
 
 
 
@@ -401,8 +455,22 @@ class MainInterface(QtWidgets.QMainWindow):
         except:
             print('Lecture of kinetic interval failed')
 
-
-
+    def change_Tseries(self):
+        # generate temperature array for T dep measurement
+        try:
+            self.Tseries =[]
+            txt = self.Tseries_lineEdit.text()
+            i = 0
+            digits = {}
+            for s in re.split(':| ', txt):
+                if s.replace(".", "", 1).isdigit():
+                    digits[i] = s
+                    i = i+1.
+            for j in range(int(i/3)):
+                self.Tseries = np.append(self.Tseries, np.linspace(float(digits[3*j]), float(digits[3*j+2]), int(digits[3*j+1])))
+            print('T series : ' + str(self.Tseries))
+        except:
+            print('Lecture of T series failed')
 
     ##### Measurements #####
 
@@ -490,8 +558,24 @@ class MainInterface(QtWidgets.QMainWindow):
         else:
             print('Measurement not started, devices are busy')
 
-
-
+    def Tseries_measurement(self):
+        # take temperature dependent measurements as defined in automation GUI section
+        if not self.measurement_busy:
+            print('Start T-Dependent Measurement ')
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+            self.measurement = TSeriesMeasurement(self.devices, self.parameter, self.Tseries,
+                                                  self.Tseries_stab_time_box.value(),self.Tseries_two_sources_checkBox.isChecked(),
+                                                  self.Tseries_ref_power_box.value(),self.Tseries_int_time_WL_box.value(),
+                                                  self.Tseries_int_time_orpheus_box.value(),
+                                                  self.Tseries_spectra_avg_box.value(),
+                                                  self.Tseries_power_dep_checkBox.isChecked(),
+                                                  self.Tseries_filter_pos_lineEdit.text(),
+                                                  self.Tseries_int_time_lineEdit.text())
+            self.measurement.sendProgress.connect(self.set_progress)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.sendParameter.connect(self.change_parameter)
+            self.measurement.start()
 
     def stop_measurement(self):
         # stop measurement
@@ -521,7 +605,7 @@ class UpdateWorker(QtCore.QThread):
         self.read_only = read_only
         self.stop = False
         self.updated_param = {}
-        self.update_interval = 0.5
+        self.update_interval = 1
 
 
 
