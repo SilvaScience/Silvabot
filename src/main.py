@@ -268,7 +268,7 @@ class MainInterface(QtWidgets.QMainWindow):
 
 
     def update_read_parameter(self, new_parameter):
-        # update all read parameter
+        # update all read parameters
         for param in new_parameter.keys():
             self.parameter_widgets[param].setValue(new_parameter[param])
             self.parameter[param] = new_parameter[param]
