@@ -1,3 +1,4 @@
+import h5py
 from PyQt5 import QtWidgets, QtCore, QtGui
 import pyqtgraph as pg
 import numpy as np
@@ -13,8 +14,17 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         # create Widgets for plot
         self.graphWidget = pg.PlotWidget()
         self.clear_button = QtWidgets.QPushButton('Clear')
+        self.bg_button = QtWidgets.QPushButton('Select Background')
+        self.checkbox_bg = QtWidgets.QCheckBox()
         vbox = QtWidgets.QVBoxLayout()
+        bg_hbox = QtWidgets.QHBoxLayout()
+        bg_hbox.addWidget(self.bg_button)
+        bg_hbox.addWidget(QtWidgets.QLabel("Correct background:"))
+        bg_hbox.addWidget(self.checkbox_bg)
+        bg_widget = QtWidgets.QWidget()
+        bg_widget.setLayout(bg_hbox)
         vbox.addWidget(self.clear_button)
+        vbox.addWidget(bg_widget)
 
         #construct math ROIs
         widget = QtWidgets.QWidget()
@@ -80,6 +90,16 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         self.wls = []
         # connect events
         self.clear_button.clicked.connect(self.clear_plot)
+        self.bg_button.clicked.connect(self.load_background)
+
+    def load_background(self):
+        data_path = QtWidgets.QFileDialog.getOpenFileName()[0]
+        with h5py.File(data_path, 'r') as f:
+            bg_spec = f['spectra'][:]
+            self.bg_xaxis = f['spectra'].attrs['xaxis']
+            self.bg_spec = np.average(bg_spec[1:,:,:],axis=0)
+
+
 
     def construct_ROI_input(self):
         layout = QtWidgets.QVBoxLayout()
@@ -147,6 +167,8 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
     def set_data(self, wls, spec):
+        if self.checkbox_bg.isChecked():
+            spec = spec - self.bg_spec
         self.wls = wls
         wls_span = np.max(wls) - np.min(wls)
         if spec.ndim == 1:
@@ -172,7 +194,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
                 img =pg.ImageItem(np.transpose(spec))
                 tr = QtGui.QTransform()  # prepare ImageItem transformation:
                 tr.translate(np.min(wls), 0)  # move 3x3 image to locate center at axis origin
-                tr.scale(wls_span / 1024, 1)
+                tr.scale(wls_span / len(wls), 1)
                 img.setTransform(tr)
                 self.graphWidget.clear()
                 self.graphWidget.addItem(img)
@@ -227,7 +249,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             mousePoint = self.graphWidget.getPlotItem().vb.mapSceneToView(pos)
             self.crosshair_v.setPos(mousePoint.x())
             self.crosshair_h.setPos(mousePoint.y())
-        calibration_mode = False
+        calibration_mode = True
         if calibration_mode:
             pixel = np.argmin(abs(self.wls - mousePoint.x()))
             self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts {pixel:.0f} pixel")

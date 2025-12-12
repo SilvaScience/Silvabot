@@ -23,8 +23,10 @@ from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
 from drivers.Piezos import Piezos
 from drivers.Lakeshore import Lakeshore
+from drivers.Heliotis_noncontinuous import Heliotis
 from drivers.PixisDemo import PixisDemo
 from drivers.Pixis import Pixis
+from drivers.Bigfoot import Bigfoot
 from drivers.Cryocore import Cryocore
 from drivers.ThorlabsCCS200 import ThorlabsCCS200
 from drivers.ThorlabsPM100D import ThorlabsPM100D
@@ -32,8 +34,8 @@ from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
 from drivers.Arduino import Arduino
 from drivers.ArduinoDemo import ArduinoDemo
 from DataHandling.DataHandling import DataHandling
-from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
-    ViewMeasurement, KineticMeasurement, TSeriesMeasurement
+from measurements.MeasurementClasses import AcquireMeasurement, RunMeasurement, BackgroundMeasurement, \
+    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement, HelicamBackgroundMeasurement
 
 
 class MainInterface(QtWidgets.QMainWindow):
@@ -63,15 +65,12 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['cryostat'] = self.cryostat
 
         # initialize Spectrometer
+        #try:
+        #self.spectrometer = Pixis()
+        #print('Pixis camera connected')
+        #except:
         self.spectrometer = ThorlabsCCS200()
-        try:
-            #self.spectrometer = Pixis()
-            #print('Pixis camera connected')
-
-            print('CCS200 spectrometer connected')
-        except:
-            self.spectrometer = PixisDemo()
-            print('Pixis connection failed, use DEMO')
+        print('Pixis connection failed, use DEMO')
         #self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
@@ -96,6 +95,10 @@ class MainInterface(QtWidgets.QMainWindow):
             #print('ArduinoDemo connected')
             #self.devices['arduino'] = self.arduino
 
+        # initialize Bigfoot
+        self.bigfoot = Bigfoot()
+        self.devices['bigfoot'] = self.bigfoot
+        print('Bigfoot connected')
         # initialize SLMDemo
         #self.SLM = SLMDemo()
         #self.devices['SLM'] = self.SLM
@@ -139,6 +142,10 @@ class MainInterface(QtWidgets.QMainWindow):
         self.bg_file_indicator = self.findChild(QtWidgets.QLineEdit, 'bg_file_lineEdit')
         self.bg_scans_box = self.findChild(QtWidgets.QSpinBox, 'bg_scans_spinBox')
         self.bg_select_box = self.findChild(QtWidgets.QPushButton, 'select_bg_pushButton')
+        self.twoD_run_button = self.findChild(QtWidgets.QPushButton, 'twoD_run_pushButton')
+        self.twoD_tau_box = self.findChild(QtWidgets.QDoubleSpinBox, 'twoD_tau_spinBox')
+        self.twoD_step_box = self.findChild(QtWidgets.QDoubleSpinBox, 'twoD_step_spinBox')
+        self.helicam_bg_button = self.findChild(QtWidgets.QPushButton, 'helicam_bg_pushButton')
         self.kinetic_lineEdit = self.findChild(QtWidgets.QLineEdit, 'kinetic_lineEdit')
         self.kinetic_run_button = self.findChild(QtWidgets.QPushButton, 'kinetic_run_pushButton')
         self.SLM_tab = self.findChild(QtWidgets.QWidget, 'SLM_tab')
@@ -244,6 +251,9 @@ class MainInterface(QtWidgets.QMainWindow):
         self.bg_button.clicked.connect(self.background_measurement)
         self.bg_select_box.clicked.connect(self.load_bg)
         self.bg_check_box.stateChanged.connect(self.update_check_bg)
+        #self.twoD_tau_lineEdit.editingFinished.connect(self.twoD_tau_positions)
+        self.twoD_run_button.clicked.connect(self.twoD_measurement)
+        self.helicam_bg_button.clicked.connect(self.helicam_background_measurement)
         self.ParameterPlot.send_idx_change.connect(self.DataHandling.change_send_idx)
         self.ParameterPlot.send_parameter_filename.connect(self.DataHandling.save_parameter)
         self.kinetic_lineEdit.editingFinished.connect(self.change_kinetic_interval)
@@ -427,6 +437,27 @@ class MainInterface(QtWidgets.QMainWindow):
             self.measurement.start()
         else:
             print('Measurement not started, devices are busy')
+
+    def twoD_measurement(self):
+        # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
+        if not self.measurement_busy:
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+            self.measurement = TwoDMeasurement(self.devices, self.twoD_tau_box.value(),self.twoD_step_box.value())
+            self.measurement.sendProgress.connect(self.set_progress)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.sendParameter.connect(self.change_parameter)
+            self.measurement.start()
+
+    def helicam_background_measurement(self):
+        # acquires averaged rawI & rawQ measurements of the helicam. click on 'Save' after a while to save this as a bg file
+        if not self.measurement_busy:
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+            self.measurement = HelicamBackgroundMeasurement(self.devices)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.start()
+
 
     def kinetic_measurement(self):
         # take time resolved measurements as defined in automation GUI section

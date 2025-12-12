@@ -184,11 +184,11 @@
           <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'MS Shell Dlg 2'; font-size:7.8pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;User:&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;Sample:&lt;br /&gt;Power:&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;Wavelength:&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;Freq: &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'MS Shell Dlg 2'; font-size:8.25pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;User:&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Sample:&lt;br /&gt;Power:&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Wavelength:&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Freq: &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
         </widget>
         <widget class="QLabel" name="label">
@@ -311,7 +311,7 @@ p, li { white-space: pre-wrap; }
       <item>
        <widget class="QTabWidget" name="tabWidget">
         <property name="currentIndex">
-         <number>0</number>
+         <number>5</number>
         </property>
         <widget class="QWidget" name="spectro_tab">
          <attribute name="title">
@@ -855,6 +855,121 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
            </property>
           </widget>
          </widget>
+         <widget class="QGroupBox" name="groupBox_5">
+          <property name="geometry">
+           <rect>
+            <x>10</x>
+            <y>520</y>
+            <width>851</width>
+            <height>201</height>
+           </rect>
+          </property>
+          <property name="title">
+           <string>Heliotis Measurements</string>
+          </property>
+          <widget class="QPushButton" name="twoD_run_pushButton">
+           <property name="geometry">
+            <rect>
+             <x>150</x>
+             <y>30</y>
+             <width>75</width>
+             <height>23</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Run 2D Scan</string>
+           </property>
+          </widget>
+          <widget class="QDoubleSpinBox" name="twoD_tau_spinBox">
+           <property name="geometry">
+            <rect>
+             <x>20</x>
+             <y>30</y>
+             <width>61</width>
+             <height>21</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="suffix">
+            <string> ps</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="maximum">
+            <double>10000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>2.000000000000000</double>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_3">
+           <property name="geometry">
+            <rect>
+             <x>90</x>
+             <y>30</y>
+             <width>47</width>
+             <height>13</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>tau</string>
+           </property>
+          </widget>
+          <widget class="QPushButton" name="helicam_bg_pushButton">
+           <property name="geometry">
+            <rect>
+             <x>10</x>
+             <y>120</y>
+             <width>241</width>
+             <height>23</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Run background measurement</string>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_7">
+           <property name="geometry">
+            <rect>
+             <x>10</x>
+             <y>150</y>
+             <width>391</width>
+             <height>21</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Go to Spectrum View to save the data once sufficient measures have been taken</string>
+           </property>
+          </widget>
+          <widget class="QDoubleSpinBox" name="twoD_step_spinBox">
+           <property name="geometry">
+            <rect>
+             <x>20</x>
+             <y>60</y>
+             <width>61</width>
+             <height>21</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="suffix">
+            <string> ps</string>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="maximum">
+            <double>10000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.020000000000000</double>
+           </property>
+          </widget>
+         </widget>
         </widget>
        </widget>
       </item>
@@ -868,7 +983,7 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
      <x>0</x>
      <y>0</y>
      <width>1272</width>
-     <height>26</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
