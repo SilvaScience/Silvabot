@@ -1,1 +1,3 @@
-start C:/Git/Silvabot/.venv/Scripts/python C:/Git/Silvabot/src/main.py
+@echo off
+echo Starting Silvabot ...
+call ".venv\Scripts\python.exe" src\main.py

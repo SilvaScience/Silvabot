@@ -1,7 +1,7 @@
-# colberto
-Modules and code related to Colbert experiment
+# Silvabot
+Modules and code related to Silvabot
 # Documentation
-[Documentation for the main branch can be found here](https://silvascience.github.io/colberto/index.html). You can also check it out in your own branch by running `doxygen doxygen.conf` and opening `index.html` in `/docs/`. It is also automatically built using Doxygen whenever a branch is pushed to this remote.
+Stills needs to be implemented
 
 Follow common [Python DocStrings guidelines](https://www.doxygen.nl/manual/docblocks.html#pythonblocks)
 

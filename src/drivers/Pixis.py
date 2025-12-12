@@ -238,6 +238,7 @@ class Pixis(QtCore.QThread):
                     time.sleep(0.01)
                 spectrum = spectrum + self.spectrum
                 self.new_spectrum = False
+            spectrum = spectrum / self.avg_scan
         return spectrum
 
     def update_temperature(self,temperature):
