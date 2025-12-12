@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Created on Tue Jan  1 14:34:11 2025
 @author: David Tiede
@@ -11,6 +10,8 @@ import os
 from collections import defaultdict
 from pathlib import Path
 import numpy as np
+import csv
+from time import sleep
 from PyQt5 import QtCore, QtWidgets, uic
 from functools import partial
 from GUI.ParameterPlot import ParameterPlot
@@ -20,6 +21,8 @@ from drivers.SpectrometerDemo_advanced import SpectrometerDemo
 from drivers.SLMDemo import SLMDemo
 from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
+from drivers.Piezos import Piezos
+from drivers.Lakeshore import Lakeshore
 from drivers.PixisDemo import PixisDemo
 from drivers.Pixis import Pixis
 from drivers.Cryocore import Cryocore
@@ -34,7 +37,7 @@ from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,Ba
 
 
 class MainInterface(QtWidgets.QMainWindow):
-
+   
     def __init__(self):
         super(MainInterface, self).__init__()
         project_folder = Path(__file__).parent.resolve()
@@ -47,7 +50,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices = defaultdict(dict)
 
         # initialize cryostat
-        """ This is a demo devices that has read and write parameters. 
+        """ This is a demo devices that has read and write parameters.
         Illustrates use of parameters"""
         # always try to include communication on important events.
         # This is extremely useful for debugging and troubleshooting.
@@ -60,11 +63,12 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['cryostat'] = self.cryostat
 
         # initialize Spectrometer
+        self.spectrometer = ThorlabsCCS200()
         try:
-            self.spectrometer = Pixis()
-            print('Pixis camera connected')
-            #self.spectrometer = ThorlabsCCS200()
-            #print('CCS200 spectrometer connected')
+            #self.spectrometer = Pixis()
+            #print('Pixis camera connected')
+
+            print('CCS200 spectrometer connected')
         except:
             self.spectrometer = PixisDemo()
             print('Pixis connection failed, use DEMO')
@@ -106,6 +110,16 @@ class MainInterface(QtWidgets.QMainWindow):
         #self.Monochrom = MonochromDemo()
         #self.devices['Monochrom'] = self.Monochrom
         #print('Monochrom DEMO connected')
+
+        # initialize Piezos
+        self.Piezos = Piezos('COM9')
+        self.devices['Piezos'] = self.Piezos
+        print('Piezos connected')
+       
+        # initialize TCLakeshoreDemo
+        self.TCnHLakeshore = Lakeshore()
+        self.devices['Lakeshore'] = self.TCnHLakeshore
+        print('Lakeshore connected')
 
         # find items to complement in GUI
         self.parameter_tree = self.findChild(QtWidgets.QTreeWidget, 'parameters_treeWidget')
@@ -164,7 +178,8 @@ class MainInterface(QtWidgets.QMainWindow):
             vbox.addWidget(self.SLM)
         self.SLM_tab.setLayout(vbox)
 
-        """ This initializes the parameter tree. It is constructed based on the device dict, 
+
+        """ This initializes the parameter tree. It is constructed based on the device dict,
         that includes parameter information of each device """
         self.parameter_tree.setColumnCount(2)
         self.parameter_tree.setHeaderLabels(["Name", "Value"])
@@ -206,7 +221,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.DataHandling.sendMaximum.connect(self.SpectrometerPlot.update_datareader)
 
         # start Updater to update device read parameters
-        self.Updater = UpdateWorker(self.devices, self.readonly_parameter)
+        self.Updater = UpdateWorker(self.devices,self.readonly_parameter)
         self.Updater.new_parameter.connect(self.update_read_parameter)
         self.Updater.start()
 
@@ -250,6 +265,7 @@ class MainInterface(QtWidgets.QMainWindow):
         for devices in self.devices.keys():
             for param in self.devices[devices].parameter_dict.keys():
                 self.parameter[param] = self.devices[devices].parameter_dict[param]
+
 
     def update_read_parameter(self, new_parameter):
         # update all read parameters
@@ -306,7 +322,7 @@ class MainInterface(QtWidgets.QMainWindow):
         bg = np.loadtxt(bg_path, delimiter=',')
         self.DataHandling.background = bg[-self.spec_length:, 1]
         # print(np.shape(bg[1:,1]))
-
+        
         # display background filename
         idx = bg_path.rfind('/')
         self.bg_file_indicator.setText(bg_path[idx+1:])
@@ -474,7 +490,15 @@ class UpdateWorker(QtCore.QThread):
                 self.new_parameter.emit(self.updated_param)
             time.sleep(self.update_interval)
 
-
+# Execute app
 app = QtWidgets.QApplication(sys.argv)
 window = MainInterface()
 app.exec_()
+
+
+
+
+
+
+
+
