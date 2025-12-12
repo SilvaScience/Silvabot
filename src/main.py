@@ -63,11 +63,12 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['cryostat'] = self.cryostat
 
         # initialize Spectrometer
+        self.spectrometer = ThorlabsCCS200()
         try:
-            self.spectrometer = Pixis()
-            print('Pixis camera connected')
-            #self.spectrometer = ThorlabsCCS200()
-            #print('CCS200 spectrometer connected')
+            #self.spectrometer = Pixis()
+            #print('Pixis camera connected')
+
+            print('CCS200 spectrometer connected')
         except:
             self.spectrometer = PixisDemo()
             print('Pixis connection failed, use DEMO')
