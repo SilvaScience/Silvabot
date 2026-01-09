@@ -23,7 +23,6 @@ class PI863():
         self.parameter_dict['set_speed'] = 0
         self.parameter_dict['set_target_position'] = 0
         self.parameter_dict['position'] = 0
-        self.parameter_dict['OnOffScan'] = 0
         
         self.parameter_display_dict['set_speed']['val'] = 10
         self.parameter_display_dict['set_speed']['unit'] = ' mm/s'
@@ -34,11 +33,6 @@ class PI863():
         self.parameter_display_dict['set_target_position']['unit'] = ' mm'
         self.parameter_display_dict['set_target_position']['max'] = 50
         self.parameter_display_dict['set_target_position']['read'] = False
-
-        self.parameter_display_dict['OnOffScan']['val'] = 0
-        self.parameter_display_dict['OnOffScan']['unit'] = ' '
-        self.parameter_display_dict['OnOffScan']['max'] = 1
-        self.parameter_display_dict['OnOffScan']['read'] = False
 
         self.parameter_display_dict['position']['val'] = 0
         self.parameter_display_dict['position']['unit'] = ' mm'
@@ -66,8 +60,6 @@ class PI863():
             self.update_set_speed(value)
         if parameter == 'set_target_position':
             self.update_set_target_position(value)
-        if parameter == 'OnOffScan':
-            self.update_scan_state(value)
         if parameter == 'position':
             self.update_position(value)
 
@@ -82,26 +74,6 @@ class PI863():
 
     def update_position(self, new_Position):
         self.parameter_dict['position'] = new_Position
-
-    def update_scan_state(self, value):
-        if value == 1:
-            print('Starting scan')
-            rangemin = self.pidevice.qTMN()['1']
-            rangemax = self.pidevice.qTMX()['1']
-            self.pidevice.MOV(1, rangemax)
-
-             # Timer to check the position every 50 ms and start the second movement of the scan when the first is completed
-            self.timer = QtCore.QTimer()
-            self.timer.setInterval(50)
-
-            def check_position():
-                if abs(self.parameter_dict.get('position') - rangemax) <= 0.001:
-                    self.timer.stop()
-                    self.timer.deleteLater()
-                    self.pidevice.MOV(1, rangemin)
-
-            self.timer.timeout.connect(check_position)
-            self.timer.start()
     
 class UpdateWorker_Position(QtCore.QThread):
     new_Position = QtCore.pyqtSignal(float)
@@ -126,3 +98,17 @@ class UpdateWorker_Position(QtCore.QThread):
             return self.pidevice.qPOS(1)[1]
         except:
             return None
+        
+class ScanWorker(QtCore.QThread):
+    finished_scan = QtCore.pyqtSignal()
+
+    def __init__(self, device):
+        super().__init__()
+        self.pidevice = device.pidevice  # Extract the actual GCS device from PI863 instance
+
+    def run(self):
+        self.pidevice.MOV(1, 50)   # Moves the stage to its maximum position
+        pitools.waitontarget(self.pidevice, 1) # Waits until the stage reaches the target position
+        self.pidevice.MOV(1, 0)    # Moves the stage to its initial position
+        pitools.waitontarget(self.pidevice, 1) # Waits until the stage reaches the target position
+        self.finished_scan.emit()

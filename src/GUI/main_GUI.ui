@@ -282,7 +282,7 @@ p, li { white-space: pre-wrap; }
           <string>Stop</string>
          </property>
         </widget>
-        <widget class="QPushButton" name="THz_acquire_pushButton">
+        <widget class="QPushButton" name="Scope_view_pushButton">
          <property name="geometry">
           <rect>
            <x>330</x>
@@ -292,7 +292,7 @@ p, li { white-space: pre-wrap; }
           </rect>
          </property>
          <property name="text">
-          <string>THz acquire</string>
+          <string>Scope view</string>
          </property>
         </widget>
         <widget class="QPushButton" name="view_pushButton">

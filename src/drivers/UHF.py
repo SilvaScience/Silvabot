@@ -23,11 +23,23 @@ class UHF():
         self.parameter_display_dict = defaultdict(dict)
 
         self.parameter_dict['sampling_rate'] = 0
+        self.parameter_dict['filter_order'] = 0
+        self.parameter_dict['time_constant'] = 0
+
 
         self.parameter_display_dict['sampling_rate']['val'] = 1000
         self.parameter_display_dict['sampling_rate']['unit'] = ' samples/s'
         self.parameter_display_dict['sampling_rate']['max'] = 100000
         self.parameter_display_dict['sampling_rate']['read'] = False
+        self.parameter_display_dict['filter_order']['val'] = 1
+        self.parameter_display_dict['filter_order']['unit'] = ' '
+        self.parameter_display_dict['filter_order']['max'] = 8
+        self.parameter_display_dict['filter_order']['min'] = 1
+        self.parameter_display_dict['filter_order']['read'] = False
+        self.parameter_display_dict['time_constant']['val'] = 0.025
+        self.parameter_display_dict['time_constant']['unit'] = 's'
+        self.parameter_display_dict['time_constant']['max'] = 100
+        self.parameter_display_dict['time_constant']['read'] = False
 
         # set up parameter dict that only contains value
         self.parameter_dict = {}
@@ -39,20 +51,38 @@ class UHF():
         self.device = self.session.connect_device("DEV2037")
         print('Connection established with the Lock-In')
 
-        # Configure the signal input 1
+        # Configure the signal input
         self.device.sigins[0].range(1.5)
         self.device.sigins[0].ac(False)
         self.device.sigins[0].imp50(True)
 
-        # Configure the signal input 2
-        self.device.sigins[1].range(1.5)
-        self.device.sigins[1].ac(False)
-        self.device.sigins[1].imp50(True)
+        # Configure the demodulation
+        self.device.demods[0].rate(self.parameter_dict['sampling_rate'])
+        self.device.demods[0].enable(True)
+        self.device.demods[0].order(self.parameter_dict['filter_order'])
+        self.device.demods[0].timeconstant(self.parameter_dict['time_constant'])
+        self.device.demods[3].adcselect(3)
 
-        # Configure external reference
-        self.device.demods[0].enable(1)
-        self.device.demods[3].adcselect(1)
-        self.device.extrefs[0].enable(True)                                                    
+        # Configure the scope parameters
+        self.scope_module = self.session.modules.scope
+        self.scope_module.mode(1)                    # Time-domain, triggered
+        self.scope_module.historylength(5)
+
+        self.wave_node = self.device.scopes[0].wave
+        self.scope_module.subscribe(self.wave_node)
+        with self.device.set_transaction():
+            self.device.scopes[0].trigenable(True)
+            self.device.scopes[0].trigchannel(3)     # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 1: ref trigger 1, 2: ref trigger 2)
+            self.device.scopes[0].trigrising(1)
+            self.device.scopes[0].trigfalling(0)
+            self.device.scopes[0].triglevel(0.0)
+            self.device.scopes[0].trighysteresis.mode(1)
+            self.device.scopes[0].trighysteresis.relative(0.1)
+            self.device.scopes[0].trigholdoffmode(0)
+            self.device.scopes[0].trigholdoff(0.050)
+            self.device.scopes[0].trigreference(0.25)
+            self.device.scopes[0].trigdelay(0.0)
+            self.device.scopes[0].triggate.enable(0)
 
         # Get the internal clock frequency of the device
         self.clockbase = self.device.clockbase()
@@ -63,82 +93,104 @@ class UHF():
         if parameter == 'sampling_rate':
             self.update_sampling_rate(value)
             self.sampling_rate = value
+        if parameter == 'filter_order':
+            self.update_filter_order(value)
+            self.filter_order = value
+        if parameter == 'time_constant':
+            self.update_time_constant(value)
+            self.time_constant = value
 
     def update_sampling_rate(self, sampling_rate):
+        self.device.demods[0].rate(sampling_rate)
         print(f'Sampling rate set to {sampling_rate} samples/s')
+    
+    def update_filter_order(self, filter_order):
+        self.device.demods[0].order(filter_order)
+        print(f'Filter order is set to {filter_order}')
 
-    # Modified read_and_collect_data function
-    def read_and_collect_data(self, daq_module):
-        daq_data = daq_module.read(raw=False, clk_rate=self.clockbase)
-        progress = daq_module.raw_module.progress()[0]
+    def update_time_constant(self, time_constant):
+        self.device.demods[0].timeconstant(time_constant)
+        print(f'Time constant set to {time_constant} s')
 
-        for node in self.sample_nodes:
-            if node in daq_data.keys():
-                for sig_burst in daq_data[node]:
-                    # Determine initial timestamp offset
-                    if np.isnan(self.ts0):
-                        self.ts0 = sig_burst.header['createdtimestamp'][0] / self.clockbase
+    def Scope_acquire(self):
 
-                    t0_burst = sig_burst.header['createdtimestamp'][0] / self.clockbase
-                    
-                    burst_time = sig_burst.time
-                    
-                    # Correcting for shifted sig_burst.time values
-                    if burst_time[1] > 1:
-                        temp_burst_time = np.zeros_like(burst_time)
-                        for i in range(len(burst_time)-1):
-                            temp_burst_time[i+1] = burst_time[i+1] - burst_time[1]
-                        temp_diff = temp_burst_time[-1] - temp_burst_time[-2]
-                        burst_time = np.linspace(burst_time[0], burst_time[0] + (len(burst_time)-1)*temp_diff, len(burst_time))
-                    
-                    t = burst_time + t0_burst - self.ts0
+        while True:
+            self.scope_module.execute()
+            self.device.scopes[0].enable(True)
+            self.session.sync()
 
-                    value = sig_burst.value[0, :]
+            # Wait until at least one record is available
+            while self.scope_module.records() == 0:
+                time.sleep(0.05)
 
-                    # Append to results
-                    self.results[node]["time"].append(t)
-                    self.results[node]["value"].append(value)
+            data = self.scope_module.read()
+            self.device.scopes[0].enable(False)
+            self.scope_module.finish()
 
-    def DAQ_acquire(self):
-        self.ts0 = np.nan
+            self.records = data[self.wave_node]
 
-        self.num_cols = int(np.ceil(self.sampling_rate * self.burst_duration))
-        self.num_bursts = int(np.ceil(self.total_duration / self.burst_duration))
+            # Use the most recent record
+            self.record = self.records[-1][0]
 
-        daq_module = self.session.modules.daq
-        daq_module.device(self.device)
-        daq_module.type(0)
-        daq_module.grid.mode(2)
-        daq_module.count(self.num_bursts)
-        daq_module.duration(self.burst_duration)
-        daq_module.grid.cols(self.num_cols)
+            self.wave = self.record["wave"][0, :]
+            self.totalsamples = self.record["totalsamples"]
+            self.dt = self.record["dt"]
+            self.timestamp = self.record["timestamp"]
+            self.triggertimestamp = self.record["triggertimestamp"]
 
-        self.timeout = 1.5 * self.total_duration
+            t = np.arange(-self.totalsamples, 0) * self.dt + (self.timestamp - self.triggertimestamp) / float(self.clockbase)
+            t_us = 1e6 * t
 
-        self.sample_nodes = [self.device.demods[0].sample.x, self.device.demods[0].sample.y]
-        for node in self.sample_nodes:
-            daq_module.subscribe(node) 
+            return t_us, self.wave
 
-        self.results = {node: {"time": [], "value": []} for node in self.sample_nodes}
+    def FFT_acquire(self, terminate):
+        print(0)
 
+class PlotterWorker(QtCore.QThread):
+    scan_data = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+
+    def __init__(self, device):
+        super().__init__()
+        self.is_running = False
+        self.device = device.device  # Extract the actual device from the UHF instance
+        self.session = device.session
+        self.clockbase = device.clockbase
+
+    def run(self):
+        self.is_running = True
+        sample_node = self.device.demods[0].sample
+        sample_node.subscribe()
+         
+        # Storage for 'continuous' data
+        time_array = []
+        R_array = []
+        
         start_time = time.time()
-        daq_module.execute()
+        last_time = start_time
+        
+        # Start polling loop
+        while self.is_running:
+            # poll() returns all data received since the last call (0.05 = timeout in [ms])
+            data = self.session.poll(0.05)
+            
+            if sample_node in data:
+                samples = data[sample_node]
+                x = samples["x"]
+                y = samples["y"]
+                R = np.sqrt(x**2 + y**2)
+                
+                # Convert timestamps to seconds
+                ts = (samples["timestamp"] - samples["timestamp"][0]) / self.clockbase
+                
+                # Append the data to the storage arrays
+                R_array.extend(R)
+                time_array.extend(ts + (last_time - start_time))
+                last_time = time.time()
 
-        while time.time() - start_time < self.timeout:
-            self.read_and_collect_data(daq_module)
-            if daq_module.raw_module.finished():
-                self.read_and_collect_data(daq_module)
-                break
+            time.sleep(0.1) # buffer
+        
+        sample_node.unsubscribe() # Unsubscribe from the node when done
+        self.scan_data.emit(np.array(time_array), np.array(R_array)) # Emit the collected scan data
 
-            time.sleep(self.burst_duration)
-
-        # Convert bursts into single arrays
-        node_x = self.device.demods[0].sample.x
-        node_y = self.device.demods[0].sample.y
-
-        t_full = np.concatenate(self.results[node_x]["time"])
-        x_full = np.concatenate(self.results[node_x]["value"])
-        y_full = np.concatenate(self.results[node_y]["value"])
-        intensity = np.sqrt(x_full**2 + y_full**2)
-        return t_full, intensity
-
+    def stop(self):
+        self.is_running = False

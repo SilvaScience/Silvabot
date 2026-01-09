@@ -9,6 +9,9 @@ import time
 import re
 from PyQt5 import QtCore
 import numpy as np
+import matplotlib.pyplot as plt
+from drivers.PI863 import ScanWorker
+from drivers.UHF import PlotterWorker
 
 
 # Measurement to acquire one spectrum
@@ -417,29 +420,30 @@ class TSeriesMeasurement(QtCore.QThread):
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
 
-
-class THzAcquire(QtCore.QThread):
+# Measurement to coordinate translation stage scan and UHF data acquisition (like plotter in LabOne) for a back and forth scan of the stage
+class ScanPlotter(QtCore.QThread):
     # set used signal types, destination is set in main script
-    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     sendProgress = QtCore.pyqtSignal(float)
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
 
     def __init__(self, devices):
-        super(THzAcquire, self).__init__()
-        self.lock_in = devices['lock_in']
-        self.t = []  # preallocate time array
-        self.int = []  # preallocate intensity array
-        self.terminate = False
-        self.acquire_measurement = True
+        super(ScanPlotter, self).__init__()
+        self.tstage_thread = ScanWorker(devices['tstage'])
+        self.UHF_thread = PlotterWorker(devices['lock_in'])
 
-# The moving of the tstage needs to be incorporated here.
+        self.tstage_thread.finished_scan.connect(self.stop_measurement)
+        self.UHF_thread.scan_data.connect(self.plot_data)
+
     def run(self):
-        if not self.terminate:  # check whether stopping measurement is called
-            self.sendProgress.emit(50)
-            self.t, self.int = self.lock_in.DAQ_acquire()
-            self.sendSpectrum.emit(self.t, self.int)
-            print(time.strftime('%H:%M:%S') + ' Finished')
-            self.sendProgress.emit(100)
+        self.sendProgress.emit(50)
+        self.UHF_thread.start()
+        self.tstage_thread.start()
 
-    def stop(self):
-        self.terminate = True
-        print(time.strftime('%H:%M:%S') + ' Request Stop')
+    def stop_measurement(self):
+        self.UHF_thread.stop()
+
+    def plot_data(self, t, r):
+        plt.plot(t,r)
+        plt.show()
+        self.sendProgress.emit(100)
+        

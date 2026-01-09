@@ -27,7 +27,7 @@ from drivers.ThorlabsPM100D import ThorlabsPM100D
 from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
-    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, THzAcquire
+    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, ScanPlotter 
 
 from drivers.PI863 import PI863
 from drivers.PI863Demo import PI863Demo
@@ -120,7 +120,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.view_button = self.findChild(QtWidgets.QPushButton, 'view_pushButton')
         self.run_button = self.findChild(QtWidgets.QPushButton, 'run_pushButton')
         self.stop_button = self.findChild(QtWidgets.QPushButton, 'stop_pushButton')
-        self.THz_acquire_button = self.findChild(QtWidgets.QPushButton, 'THz_acquire_pushButton')
+        self.Scope_view_button = self.findChild(QtWidgets.QPushButton, 'Scope_view_pushButton')
         self.save_folder_button = self.findChild(QtWidgets.QPushButton, 'folder_pushButton')
         self.save_button = self.findChild(QtWidgets.QPushButton, 'save_pushButton')
         self.comments_edit = self.findChild(QtWidgets.QTextEdit, 'comments_textEdit')
@@ -229,7 +229,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.view_button.clicked.connect(self.view_measurement)
         self.run_button.clicked.connect(self.run_measurement)
         self.stop_button.clicked.connect(self.stop_measurement)
-        self.THz_acquire_button.clicked.connect(self.Acquire_THz)
+        self.Scope_view_button.clicked.connect(self.Acquire_THz)
         self.filename_edit.editingFinished.connect(self.change_filename)
         self.save_button.clicked.connect(self.save_data)
         self.save_folder_button.clicked.connect(self.change_folder)
@@ -461,15 +461,17 @@ class MainInterface(QtWidgets.QMainWindow):
     def Acquire_THz(self):
         self.measurement_busy = True
         self.DataHandling.clear_data()
-        self.measurement = THzAcquire(self.devices)
+        self.measurement = ScanPlotter(self.devices)
         self.measurement.sendProgress.connect(self.set_progress)
         self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
         self.measurement.run()
 
+
     # This code executes when closing the main window to appropriately disconnect the translation stage.
-    def closeEvent(self):
+    def closeEvent(self, event):
         self.tstage.pidevice.CloseConnection()
         print("Translation stage disconnected")
+        event.accept()
 
 class UpdateWorker(QtCore.QThread):
 
