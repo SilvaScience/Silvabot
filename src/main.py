@@ -27,7 +27,7 @@ from drivers.ThorlabsPM100D import ThorlabsPM100D
 from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
-    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, ScanPlotter 
+    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, ScanPlotter, ScopeView
 
 from drivers.PI863 import PI863
 from drivers.PI863Demo import PI863Demo
@@ -120,6 +120,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.view_button = self.findChild(QtWidgets.QPushButton, 'view_pushButton')
         self.run_button = self.findChild(QtWidgets.QPushButton, 'run_pushButton')
         self.stop_button = self.findChild(QtWidgets.QPushButton, 'stop_pushButton')
+        self.Plotter_scan_button = self.findChild(QtWidgets.QPushButton, 'Plotter_Scan_pushButton')
         self.Scope_view_button = self.findChild(QtWidgets.QPushButton, 'Scope_view_pushButton')
         self.save_folder_button = self.findChild(QtWidgets.QPushButton, 'folder_pushButton')
         self.save_button = self.findChild(QtWidgets.QPushButton, 'save_pushButton')
@@ -229,7 +230,8 @@ class MainInterface(QtWidgets.QMainWindow):
         self.view_button.clicked.connect(self.view_measurement)
         self.run_button.clicked.connect(self.run_measurement)
         self.stop_button.clicked.connect(self.stop_measurement)
-        self.Scope_view_button.clicked.connect(self.Acquire_THz)
+        self.Plotter_scan_button.clicked.connect(self.Plotter_scan)
+        self.Scope_view_button.clicked.connect(self.Scope_view)
         self.filename_edit.editingFinished.connect(self.change_filename)
         self.save_button.clicked.connect(self.save_data)
         self.save_folder_button.clicked.connect(self.change_folder)
@@ -458,17 +460,34 @@ class MainInterface(QtWidgets.QMainWindow):
         self.measurement.stop()
         self.measurement_busy = False
 
-    def Acquire_THz(self):
-        self.measurement_busy = True
-        self.DataHandling.clear_data()
-        self.measurement = ScanPlotter(self.devices)
-        self.measurement.sendProgress.connect(self.set_progress)
-        self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-        self.measurement.run()
+    def Plotter_scan(self):
+        # This function plots the amplitude R of the demodulated signal from the UHF lock-in amplifier (acts like the Plotter in LabOne)
+        # while scanning the translation stage from 0 to 50 mm.
+        if not self.measurement_busy:
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+            self.measurement = ScanPlotter(self.devices)
+            self.measurement.sendProgress.connect(self.set_progress)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.run()
+        else:
+            print('Measurement not started, devices are busy')
+    
+    def Scope_view(self):
+        # This function plots scope data from the UHF lock-in amplifier and plots it (acts like the Scope in LabOne)
+        if not self.measurement_busy:
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+            self.measurement = ScopeView(self.devices)
+            self.measurement.sendProgress.connect(self.set_progress)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.clearPlot.connect(self.SpectrometerPlot.clear_plot)
+            self.measurement.start()
+        else:
+            print('Measurement not started, devices are busy')
 
-
-    # This code executes when closing the main window to appropriately disconnect the translation stage.
     def closeEvent(self, event):
+        # Function that executes when the GUI is closed to appropriately disconect the translation stage (Other disconections may be added)
         self.tstage.pidevice.CloseConnection()
         print("Translation stage disconnected")
         event.accept()

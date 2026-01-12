@@ -420,9 +420,9 @@ class TSeriesMeasurement(QtCore.QThread):
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
 
-# Measurement to coordinate translation stage scan and UHF data acquisition (like plotter in LabOne) for a back and forth scan of the stage
+# Measurement of coordinate translation stage scan and UHF data acquisition (like plotter in LabOne) for a back and forth scan of the stage
 class ScanPlotter(QtCore.QThread):
-    # set used signal types, destination is set in main script
+    # Define used signals
     sendProgress = QtCore.pyqtSignal(float)
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
 
@@ -431,19 +431,44 @@ class ScanPlotter(QtCore.QThread):
         self.tstage_thread = ScanWorker(devices['tstage'])
         self.UHF_thread = PlotterWorker(devices['lock_in'])
 
-        self.tstage_thread.finished_scan.connect(self.stop_measurement)
-        self.UHF_thread.scan_data.connect(self.plot_data)
-
+        self.tstage_thread.finished_scan.connect(self.stop_measurement) # Connect signal to stop UHF thread when scan is finished
+        self.UHF_thread.scan_data.connect(self.plot_data) # Connect signal to plot data
+    
     def run(self):
         self.sendProgress.emit(50)
-        self.UHF_thread.start()
-        self.tstage_thread.start()
+        self.UHF_thread.start() # Start UHF data acquisition thread
+        self.tstage_thread.start() # Start translation stage scan thread
 
     def stop_measurement(self):
-        self.UHF_thread.stop()
+        self.UHF_thread.stop()  # Stop UHF data acquisition thread when scan is finished
 
     def plot_data(self, t, r):
-        plt.plot(t,r)
+        plt.plot(t, r * 1e6) 
+        plt.xlabel('Time (s)')
+        plt.ylabel('Amplitude R (µV)')
         plt.show()
         self.sendProgress.emit(100)
         
+class ScopeView(QtCore.QThread):
+    # Define used signals
+    sendProgress = QtCore.pyqtSignal(float)
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    clearPlot = QtCore.pyqtSignal()
+
+    def __init__(self, devices):
+        super(ScopeView, self).__init__()
+        self.lock_in = devices['lock_in']
+        self.terminate = False
+
+    def run(self):
+        self.sendProgress.emit(50)
+        while not self.terminate:
+            t, wave = self.lock_in.Scope_acquire() # Acquire scope data from UHF
+            self.clearPlot.emit() # Clear previous plot
+            self.sendSpectrum.emit(t, wave) # Send new data to plot
+            time.sleep(0.01) # Small buffer time
+            
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
+        self.sendProgress.emit(100)

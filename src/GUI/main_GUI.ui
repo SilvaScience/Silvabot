@@ -282,10 +282,23 @@ p, li { white-space: pre-wrap; }
           <string>Stop</string>
          </property>
         </widget>
-        <widget class="QPushButton" name="Scope_view_pushButton">
+        <widget class="QPushButton" name="Plotter_Scan_pushButton">
          <property name="geometry">
           <rect>
            <x>330</x>
+           <y>20</y>
+           <width>100</width>
+           <height>23</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>Plotter scan</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="Scope_view_pushButton">
+         <property name="geometry">
+          <rect>
+           <x>435</x>
            <y>20</y>
            <width>100</width>
            <height>23</height>

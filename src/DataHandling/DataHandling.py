@@ -149,6 +149,35 @@ class DataHandling(QtCore.QThread):
         self.maximum[0] = curr_time
         self.sendMaximum.emit(self.maximum)
 
+    def replace_data(self, wls, spec):
+        """ This function replaces the current data with new data, keeping only the latest acquisition.
+        Used for real-time scope viewing where only the most recent measurement should be displayed. """
+        # add data to data array
+        self.update_array_size(spec)
+        curr_time = time.time() - self.starttime
+        self.wls = wls
+        if self.data_dim == 1:
+            self.spec = np.c_[np.empty([len(spec), 0]), spec]
+        else:
+            self.spec = np.empty([0,len(spec[0]),len(spec[1])])
+            self.spec = np.concatenate([self.spec, spec[np.newaxis,...]])
+        for idx, param in enumerate(self.parameter_queue.keys()):
+            self.param_from_deque[idx] = self.parameter_queue[param][-1]
+        self.parameter_measured = np.zeros([len(self.parameter) + 2, 0])
+        self.parameter_measured = np.c_[self.parameter_measured, self.param_from_deque]
+        self.parameter_measured[0, -1] = curr_time
+        self.parameter_measured[1, -1] = time.time()
+        self.sendSpectrum.emit(wls, spec)
+
+        # Extract maxima of data to display them in SpectrumViewer
+        self.maximum[1] = np.amax(spec)
+        if self.data_dim == 1:
+            self.maximum[2] = wls[np.argmax(spec)]
+        else:
+            self.maximum[2] = wls[np.unravel_index(spec.argmax(), spec.shape)[1]]
+        self.maximum[0] = curr_time
+        self.sendMaximum.emit(self.maximum)
+
     # save data to temp file and clear data in memory
     def save_buffer(self):
         """ Saves data to a temporary file and populates it each time more than 100 spectra have been acquired.
@@ -281,7 +310,8 @@ class BufferWorker(QtCore.QObject):
                     hf.create_dataset("spectra", data=spec, compression="gzip", chunks=True, maxshape=(None,np.shape(spec)[1],np.shape(spec)[2]),dtype='float16')
                 hf["spectra"].attrs["xaxis"] = wls
                 hf.create_dataset("parameter", data=parameter_measured, compression="gzip", chunks=True, maxshape=(np.shape(parameter_measured)[0],None))
-                hf["parameter"].attrs["parameter_keys"] = list(parameter_queue.keys())
+                # Store parameter keys as a comma-separated string to avoid attribute size issues
+                hf["parameter"].attrs["parameter_keys"] = ','.join(list(parameter_queue.keys()))
             print('First buffer saved')
             self.firstbuffer = False
         else:

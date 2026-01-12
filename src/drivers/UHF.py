@@ -47,45 +47,39 @@ class UHF():
             self.parameter_dict[key] = self.parameter_display_dict[key]['val']
 
         # Connect to the UHF device
-        self.session = Session("localhost")
-        self.device = self.session.connect_device("DEV2037")
-        print('Connection established with the Lock-In')
+        self.session = Session("localhost")                     # Create a session with the Data Server
+        self.device = self.session.connect_device("DEV2037")    # Connect to the UHF device (ID DEV2037)
+        print('Connection established with the Lock-In')    
 
         # Configure the signal input
-        self.device.sigins[0].range(1.5)
-        self.device.sigins[0].ac(False)
-        self.device.sigins[0].imp50(True)
+        self.device.sigins[0].range(1.5)  # Set input range to 1.5 V
+        self.device.sigins[0].ac(False)   # Set the device to DC coupling
+        self.device.sigins[0].imp50(True) # Set the input impedance to 50 Ohm
 
         # Configure the demodulation
-        self.device.demods[0].rate(self.parameter_dict['sampling_rate'])
-        self.device.demods[0].enable(True)
-        self.device.demods[0].order(self.parameter_dict['filter_order'])
-        self.device.demods[0].timeconstant(self.parameter_dict['time_constant'])
-        self.device.demods[3].adcselect(3)
+        self.device.demods[0].rate(self.parameter_dict['sampling_rate'])           # Set the sampling rate
+        self.device.demods[0].enable(True)                                         # Enable the demodulator
+        self.device.demods[0].order(self.parameter_dict['filter_order'])           # Set the filter order
+        self.device.demods[0].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
+        self.device.demods[0].oscselect(0)                                         # Set the oscillator to use
+        self.device.demods[0].sinc(1)                                              # Enable sinc filter
+        self.device.extrefs[0].enable(1)                                           # Enable external reference
+        self.device.demods[3].adcselect(2)                                         # Select the input channel to use for the reference
+
 
         # Configure the scope parameters
-        self.scope_module = self.session.modules.scope
-        self.scope_module.mode(1)                    # Time-domain, triggered
-        self.scope_module.historylength(5)
-
-        self.wave_node = self.device.scopes[0].wave
-        self.scope_module.subscribe(self.wave_node)
+        self.scope_module = self.session.modules.scope # Create scope module
+        self.scope_module.mode(1)                      # Select the mode of operation (1 = time domain and triggered acquisition)
+        self.wave_node = self.device.scopes[0].wave    # Define node to acquire data from
+        self.scope_module.subscribe(self.wave_node)    # Subscribe to the scope wave node
         with self.device.set_transaction():
-            self.device.scopes[0].trigenable(True)
+            self.device.scopes[0].trigenable(True)   # Enable the scope trigger
             self.device.scopes[0].trigchannel(3)     # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 1: ref trigger 1, 2: ref trigger 2)
-            self.device.scopes[0].trigrising(1)
-            self.device.scopes[0].trigfalling(0)
-            self.device.scopes[0].triglevel(0.0)
-            self.device.scopes[0].trighysteresis.mode(1)
-            self.device.scopes[0].trighysteresis.relative(0.1)
-            self.device.scopes[0].trigholdoffmode(0)
-            self.device.scopes[0].trigholdoff(0.050)
-            self.device.scopes[0].trigreference(0.25)
-            self.device.scopes[0].trigdelay(0.0)
-            self.device.scopes[0].triggate.enable(0)
+            self.device.scopes[0].trigrising(1)      # Trigger on rising edge
+            self.device.scopes[0].triglevel(0.0)     # Trigger level in V
 
         # Get the internal clock frequency of the device
-        self.clockbase = self.device.clockbase()
+        self.clockbase = self.device.clockbase()     # Definition of the internal clock frequency
 
         print('Configuration of the Lock-In completed')
 
@@ -113,34 +107,26 @@ class UHF():
         print(f'Time constant set to {time_constant} s')
 
     def Scope_acquire(self):
-
         while True:
-            self.scope_module.execute()
-            self.device.scopes[0].enable(True)
-            self.session.sync()
+            self.scope_module.execute()         # Start the scope acquisition
+            self.device.scopes[0].enable(True)  # Enable the scope
+            self.session.sync()                 # Sync the session
 
             # Wait until at least one record is available
             while self.scope_module.records() == 0:
-                time.sleep(0.05)
+                time.sleep(0.05) 
 
-            data = self.scope_module.read()
-            self.device.scopes[0].enable(False)
-            self.scope_module.finish()
-
-            self.records = data[self.wave_node]
-
-            # Use the most recent record
-            self.record = self.records[-1][0]
-
-            self.wave = self.record["wave"][0, :]
-            self.totalsamples = self.record["totalsamples"]
-            self.dt = self.record["dt"]
-            self.timestamp = self.record["timestamp"]
-            self.triggertimestamp = self.record["triggertimestamp"]
-
-            t = np.arange(-self.totalsamples, 0) * self.dt + (self.timestamp - self.triggertimestamp) / float(self.clockbase)
-            t_us = 1e6 * t
-
+            data = self.scope_module.read()       # Read the scope data
+            self.device.scopes[0].enable(False)   # Disable the scope
+            self.scope_module.finish()            # Finish the scope acquisition
+            self.records = data[self.wave_node]   # Get the records from the wave node
+            self.record = self.records[-1][0]                    # Get the most recent record
+            self.wave = self.record["wave"][0, :]                # Extract the waveform data
+            self.totalsamples = self.record["totalsamples"]      # Extract the total number of samples
+            self.dt = self.record["dt"]                          # Extract the time step
+            self.timestamp = self.record["timestamp"]            # Extract the timestamp
+            self.triggertimestamp = self.record["triggertimestamp"]  # Extract the trigger timestamp
+            t_us = 1e6 * np.arange(-self.totalsamples, 0) * self.dt + (self.timestamp - self.triggertimestamp) / float(self.clockbase) # Create time array            
             return t_us, self.wave
 
     def FFT_acquire(self, terminate):
@@ -170,17 +156,11 @@ class PlotterWorker(QtCore.QThread):
         
         # Start polling loop
         while self.is_running:
-            # poll() returns all data received since the last call (0.05 = timeout in [ms])
-            data = self.session.poll(0.05)
-            
+            data = self.session.poll(0.1)   # Poll for new data from the Data Server
             if sample_node in data:
-                samples = data[sample_node]
-                x = samples["x"]
-                y = samples["y"]
-                R = np.sqrt(x**2 + y**2)
-                
-                # Convert timestamps to seconds
-                ts = (samples["timestamp"] - samples["timestamp"][0]) / self.clockbase
+                samples = data[sample_node]                    # Get samples from the node
+                R = np.sqrt(samples["x"]**2 + samples["y"]**2) # Compute amplitude R from x and y
+                ts = (samples["timestamp"] - samples["timestamp"][0]) / self.clockbase # Convert timestamps to seconds
                 
                 # Append the data to the storage arrays
                 R_array.extend(R)
