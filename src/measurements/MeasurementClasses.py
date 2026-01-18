@@ -426,10 +426,11 @@ class ScanPlotter(QtCore.QThread):
     sendProgress = QtCore.pyqtSignal(float)
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
 
-    def __init__(self, devices):
+    def __init__(self, devices, plot_widget=None):
         super(ScanPlotter, self).__init__()
         self.tstage_thread = ScanWorker(devices['tstage'])
         self.UHF_thread = PlotterWorker(devices['lock_in'])
+        self.plot_widget = plot_widget
 
         self.tstage_thread.finished_scan.connect(self.stop_measurement) # Connect signal to stop UHF thread when scan is finished
         self.UHF_thread.scan_data.connect(self.plot_data) # Connect signal to plot data
@@ -443,10 +444,12 @@ class ScanPlotter(QtCore.QThread):
         self.UHF_thread.stop()  # Stop UHF data acquisition thread when scan is finished
 
     def plot_data(self, t, r):
-        plt.plot(t, r * 1e6) 
-        plt.xlabel('Time (s)')
-        plt.ylabel('Amplitude R (µV)')
-        plt.show()
+        if self.plot_widget is not None:
+            # Plot in the provided plot widget
+            self.plot_widget.clear()
+            self.plot_widget.plot(t, r * 1e6, pen='b')
+            self.plot_widget.setLabel('bottom', 'Time (s)')
+            self.plot_widget.setLabel('left', 'Amplitude R (µV)')
         self.sendProgress.emit(100)
         
 class ScopeView(QtCore.QThread):

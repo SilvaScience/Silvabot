@@ -282,23 +282,10 @@ p, li { white-space: pre-wrap; }
           <string>Stop</string>
          </property>
         </widget>
-        <widget class="QPushButton" name="Plotter_Scan_pushButton">
-         <property name="geometry">
-          <rect>
-           <x>330</x>
-           <y>20</y>
-           <width>100</width>
-           <height>23</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>Plotter scan</string>
-         </property>
-        </widget>
         <widget class="QPushButton" name="Scope_view_pushButton">
          <property name="geometry">
           <rect>
-           <x>435</x>
+           <x>330</x>
            <y>20</y>
            <width>100</width>
            <height>23</height>
@@ -363,6 +350,64 @@ p, li { white-space: pre-wrap; }
          <attribute name="title">
           <string>Parameter View</string>
          </attribute>
+        </widget>
+        <widget class="QWidget" name="thz_tab">
+         <attribute name="title">
+          <string>THz</string>
+         </attribute>
+         <layout class="QVBoxLayout" name="thz_layout">
+          <item>
+           <widget class="QGroupBox" name="thz_buttons_group">
+            <property name="title">
+             <string>Controls</string>
+            </property>
+            <layout class="QHBoxLayout" name="thz_buttons_layout">
+             <item>
+              <widget class="QPushButton" name="thz_plotter_scan">
+               <property name="text">
+                <string>Plotter Scan</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="thz_acquisition">
+               <property name="text">
+                <string>THz Acquisition</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QPushButton" name="thz_clear">
+               <property name="text">
+                <string>Clear</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="horizontalSpacer">
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>40</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="thz_plot_group">
+            <property name="title">
+             <string>Plot Display</string>
+            </property>
+            <layout class="QVBoxLayout" name="thz_plot_layout"/>
+           </widget>
+          </item>
+         </layout>
         </widget>
         <widget class="QWidget" name="tab">
          <attribute name="title">

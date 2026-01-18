@@ -116,11 +116,15 @@ class MainInterface(QtWidgets.QMainWindow):
         self.parameter_tree = self.findChild(QtWidgets.QTreeWidget, 'parameters_treeWidget')
         self.spectro_tab = self.findChild(QtWidgets.QWidget, 'spectro_tab')
         self.parameter_tab = self.findChild(QtWidgets.QWidget, 'parameter_tab')
+        self.thz_tab = self.findChild(QtWidgets.QWidget, 'thz_tab')
+        self.thz_plotter_scan = self.findChild(QtWidgets.QPushButton, 'thz_plotter_scan')
+        self.thz_acquisition = self.findChild(QtWidgets.QPushButton, 'thz_acquisition')
+        self.thz_clear = self.findChild(QtWidgets.QPushButton, 'thz_clear')
+        self.thz_plot_group = self.findChild(QtWidgets.QGroupBox, 'thz_plot_group')
         self.acquire_button = self.findChild(QtWidgets.QPushButton, 'acquire_pushButton')
         self.view_button = self.findChild(QtWidgets.QPushButton, 'view_pushButton')
         self.run_button = self.findChild(QtWidgets.QPushButton, 'run_pushButton')
         self.stop_button = self.findChild(QtWidgets.QPushButton, 'stop_pushButton')
-        self.Plotter_scan_button = self.findChild(QtWidgets.QPushButton, 'Plotter_Scan_pushButton')
         self.Scope_view_button = self.findChild(QtWidgets.QPushButton, 'Scope_view_pushButton')
         self.save_folder_button = self.findChild(QtWidgets.QPushButton, 'folder_pushButton')
         self.save_button = self.findChild(QtWidgets.QPushButton, 'save_pushButton')
@@ -170,6 +174,17 @@ class MainInterface(QtWidgets.QMainWindow):
         if hasattr(self, 'SLM'):
             vbox.addWidget(self.SLM)
         self.SLM_tab.setLayout(vbox)
+
+        # Initialize THz tab with plot widget
+        import pyqtgraph as pg
+        self.thz_plot_widget = pg.PlotWidget(title="THz Plot")
+        self.thz_plot_widget.setLabel('left', 'Intensity')
+        self.thz_plot_widget.setLabel('bottom', 'Frequency')
+        thz_plot_layout = self.thz_plot_group.layout()
+        if thz_plot_layout is None:
+            thz_plot_layout = QtWidgets.QVBoxLayout()
+            self.thz_plot_group.setLayout(thz_plot_layout)
+        thz_plot_layout.addWidget(self.thz_plot_widget)
 
         """ This initializes the parameter tree. It is constructed based on the device dict, 
         that includes parameter information of each device """
@@ -230,7 +245,6 @@ class MainInterface(QtWidgets.QMainWindow):
         self.view_button.clicked.connect(self.view_measurement)
         self.run_button.clicked.connect(self.run_measurement)
         self.stop_button.clicked.connect(self.stop_measurement)
-        self.Plotter_scan_button.clicked.connect(self.Plotter_scan)
         self.Scope_view_button.clicked.connect(self.Scope_view)
         self.filename_edit.editingFinished.connect(self.change_filename)
         self.save_button.clicked.connect(self.save_data)
@@ -244,6 +258,11 @@ class MainInterface(QtWidgets.QMainWindow):
         self.kinetic_run_button.clicked.connect(self.kinetic_measurement)
         self.Tseries_lineEdit.editingFinished.connect(self.change_Tseries)
         self.Tseries_run_button.clicked.connect(self.Tseries_measurement)
+        
+        # THz tab button connections
+        self.thz_plotter_scan.clicked.connect(self.thz_plotter_scan_clicked)
+        self.thz_acquisition.clicked.connect(self.thz_acquisition_clicked)
+        self.thz_clear.clicked.connect(self.thz_clear_clicked)
 
         # run some functions once to define default values
         self.change_filename()
@@ -466,7 +485,7 @@ class MainInterface(QtWidgets.QMainWindow):
         if not self.measurement_busy:
             self.measurement_busy = True
             self.DataHandling.clear_data()
-            self.measurement = ScanPlotter(self.devices)
+            self.measurement = ScanPlotter(self.devices, self.thz_plot_widget)
             self.measurement.sendProgress.connect(self.set_progress)
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
             self.measurement.run()
@@ -485,6 +504,26 @@ class MainInterface(QtWidgets.QMainWindow):
             self.measurement.start()
         else:
             print('Measurement not started, devices are busy')
+
+    ##### THz Tab Methods #####
+    
+    def thz_plotter_scan_clicked(self):
+        # Call the existing Plotter_scan method
+        self.Plotter_scan()
+    
+    def thz_acquisition_clicked(self):
+        """Handler for THz Acquisition Button"""
+        print('THz Acquisition started')
+        # Add your custom THz acquisition code here
+        x_data = np.linspace(0, 10, 100)
+        y_data = np.sin(x_data)
+        self.thz_plot_widget.plot(x_data, y_data, pen='b')
+    
+    def thz_clear_clicked(self):
+        """Handler for Clear Button"""
+        print('THz Plot cleared')
+        # Clear the plot
+        self.thz_plot_widget.clear()
 
     def closeEvent(self, event):
         # Function that executes when the GUI is closed to appropriately disconect the translation stage (Other disconections may be added)

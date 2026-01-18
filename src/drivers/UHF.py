@@ -211,9 +211,8 @@ class PlotterWorker(QtCore.QThread):
         t4 = np.concatenate([(b.time + (b.header['createdtimestamp'][0] / self.clockbase) - ts0) for b in d4_bursts])   # Concatenate time values for Demod 4
 
         # Calculate the difference in R values and plot it
-        # R_diff = r0 - r4
-        # plt.plot(t0, R_diff)
-        # plt.show()
-
+        R_diff = r0 - r4
+        self.scan_data.emit(t0, R_diff)
+        
     def stop(self):
         self.is_running = False
