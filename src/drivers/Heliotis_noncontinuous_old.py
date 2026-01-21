@@ -138,15 +138,15 @@ class Heliotis(QtCore.QThread):
         print('Heliotis initialized')
 
         # initialize camera
+        #self.worker = CameraWorker(self.camera)
+        #self.worker.sendSpectrum.connect(self.update_spectrum) # connect where signals of worker go to.
+        #self.worker.start()
         self.thread = QtCore.QThread()
         self.worker = CameraWorker(self.camera)
-
         self.worker.moveToThread(self.thread)
-
         self.worker.sendSpectrum.connect(self.update_spectrum)
-        #self.worker.finished.connect(self.thread.quit)
-
-        self.thread.start()
+        #self.thread.started.connect(self.worker.run)
+        #self.thread.start()
         #"""
         self.correct_bg_checkbox = False
         self.ref_filename = None
@@ -295,18 +295,13 @@ class Heliotis(QtCore.QThread):
         """ Gets the intensity. The example include the possibility of averaging several spectra and to
         perform a binning. Such functionalities might also be given by the camera.
         This function will be accessible from MeasurementClasses."""
-        self.new_spectrum = False
-        QtCore.QMetaObject.invokeMethod(
-            self.worker,
-            "acquire_spectrum",
-            QtCore.Qt.QueuedConnection,
-            QtCore.Q_ARG(bool, self.take_average),
-            QtCore.Q_ARG(object, self.wavelength)
-        )
-        while not self.new_spectrum:
-            time.sleep(0.05)
-            print('Acquiring spectrum')
-        return self.spectrum
+        #if not self.worker.acquiring:
+        spectrum = self.worker.run(self.take_average,self.wavelength) # self.wavelength needs to be removed in final version
+        #else:
+        #    print('Worker is busy')
+        #    dummy_spectrum = np.zeros((self.num_frames,512,542))
+        #    spectrum = dummy_spectrum
+        return spectrum
 
     def write_command(self, cmd):
         """ Command to write to serial handles timeout by blocking serial commands
@@ -438,14 +433,14 @@ class Heliotis(QtCore.QThread):
 
 
 
-class CameraWorker(QtCore.QObject):
+class CameraWorker(QtCore.QThread):
     """ This is a DemoWorker for the spectrometer.
     It continously acquires spectra and emits them to the Interface.
     It interrupts data acquisition if an int_time change is requested. Its important because most
     hardware can only handle one command at a time, acquiring or changeing settings.  """
     # These are signals that allow to send data from a child thread to the parent hierarchy.
     sendSpectrum = QtCore.pyqtSignal(np.ndarray)
-    finished = QtCore.pyqtSignal()
+    sendTemperature = QtCore.pyqtSignal(float)
 
     def __init__(self,camera):
         super(CameraWorker, self).__init__() # Elevates this thread to be independent.
@@ -463,8 +458,7 @@ class CameraWorker(QtCore.QObject):
         self.background_I = np.zeros((542,512))
         self.background_Q = np.zeros((542,512))
 
-    @QtCore.pyqtSlot(bool, object)
-    def acquire_spectrum(self, take_average, wavelength):
+    def run(self, take_average, wavelength):
         """" Continuous tasks of the Worker are defined here.
         If loops check for requested changes in settings prior each acquisition. """
 
@@ -510,10 +504,7 @@ class CameraWorker(QtCore.QObject):
             print(timestamp + " Raw data acquired")
         self.acquiring = False
         print('Worker closes')
-        spectrum = np.mean(amp, axis=0)
-        self.sendSpectrum.emit(spectrum)
-        self.finished.emit()
-        #return spectrum
+        return np.mean(amp, axis=0)
 
     def change_background(self,filename):
         with h5py.File(os.path.join(filename), 'r') as f:

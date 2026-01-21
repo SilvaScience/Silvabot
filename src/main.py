@@ -69,8 +69,10 @@ class MainInterface(QtWidgets.QMainWindow):
         #self.spectrometer = Pixis()
         #print('Pixis camera connected')
         #except:
-        self.spectrometer = ThorlabsCCS200()
-        print('Pixis connection failed, use DEMO')
+        self.spectrometer = Heliotis()
+        self.spectrometer.request_file.connect(self.open_file_dialog)
+        #self.spectrometer = ThorlabsCCS200()
+        #print('Pixis connection failed, use DEMO')
         #self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
@@ -96,9 +98,9 @@ class MainInterface(QtWidgets.QMainWindow):
             #self.devices['arduino'] = self.arduino
 
         # initialize Bigfoot
-        self.bigfoot = Bigfoot()
-        self.devices['bigfoot'] = self.bigfoot
-        print('Bigfoot connected')
+        #self.bigfoot = Bigfoot()
+        #self.devices['bigfoot'] = self.bigfoot
+        #print('Bigfoot connected')
         # initialize SLMDemo
         #self.SLM = SLMDemo()
         #self.devices['SLM'] = self.SLM
@@ -161,11 +163,41 @@ class MainInterface(QtWidgets.QMainWindow):
         self.Tseries_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_lineEdit')
         self.Tseries_int_time_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_int_time_lineEdit')
         self.Tseries_filter_pos_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_filter_pos_lineEdit')
+        self.menu_device_settings = self.findChild(QtWidgets.QMenu, 'menuDevice_settings')
+        self.menu_bar = self.findChild(QtWidgets.QMenuBar, 'menubar')
 
         # initial parameter values, retrieved from devices
         self.parameter_dic = defaultdict(lambda: defaultdict(dict))
         for device in self.devices.keys():
             self.parameter_dic[device] = self.devices[device].parameter_display_dict
+
+        # construct device settings menu
+        self.device_settings_menu = dict()
+        self.device_setting_functions = dict()
+        for device in self.devices.keys():
+            qmenu = QtWidgets.QMenu(device)
+            self.menu_device_settings.addMenu(qmenu)
+            self.device_settings_menu[device] = qmenu
+            if hasattr(self.devices[device], "device_setting_function"):
+                for function in self.devices[device].device_setting_function.keys():
+                    button_type = self.devices[device].device_setting_function[function][0]
+                    if button_type == 'Action':
+                        button = QtWidgets.QAction(function)
+                        qmenu.addAction(button)
+                        button.triggered.connect(self.devices[device].device_setting_function[function][1])
+                    elif button_type == 'Checkbox':
+                        button = QtWidgets.QAction(function)
+                        button.setCheckable(True)
+                        button.setChecked(False)
+                        qmenu.addAction(button)
+                        button.toggled.connect(partial(self.devices[device].device_setting_function[function][1], button.isChecked()))
+                    else:
+                        raise NotImplementedError
+                    self.device_setting_functions[function] = button
+
+
+
+
 
         # create parameter array for easy access
         self.create_parameter_array()
@@ -238,6 +270,7 @@ class MainInterface(QtWidgets.QMainWindow):
         #a default data folder is always required and it would be good to keep it seperated from the code.
         #can everyone simply create a C:/Data/test' path on their device? # Not sure how to handle different OS here.
         self.filename = r'C:/TEMP/test'
+        self.ref_filename = r'C:/TEMP/ref'
         self.power_calib_array = []
 
         # set connect events
@@ -339,6 +372,18 @@ class MainInterface(QtWidgets.QMainWindow):
 
     def update_check_bg(self):
         self.DataHandling.correct_background = self.bg_check_box.isChecked()
+
+    def open_file_dialog(self):
+        '''
+        File dialog to pass filename to spectrometer
+        Returns ref_filename to spectrometer worker.
+        '''
+        self.ref_filename, _ = QtWidgets.QFileDialog.getOpenFileName(self,"Select data")
+        if hasattr(self.devices['spectrometer'], 'ref_filename'):
+            self.devices['spectrometer'].ref_filename = self.ref_filename
+
+    def get_ref_filename(self):
+        return self.ref_filename
 
     def change_kinetic_interval(self):
         # generate timing array for time resolved measurement

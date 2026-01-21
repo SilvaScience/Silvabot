@@ -1008,8 +1008,21 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
     <addaction name="separator"/>
     <addaction name="menuDisplay_mode"/>
    </widget>
+   <widget class="QMenu" name="menuDevice_settings">
+    <property name="title">
+     <string>Device settings</string>
+    </property>
+    <widget class="QMenu" name="menutest_2">
+     <property name="title">
+      <string>test</string>
+     </property>
+     <addaction name="actiontest_4"/>
+    </widget>
+    <addaction name="menutest_2"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuTransmission"/>
+   <addaction name="menuDevice_settings"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionMeasure_absorption">
@@ -1071,6 +1084,16 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
   <action name="actionChoose_reference_spectrum">
    <property name="text">
     <string>Choose reference spectrum</string>
+   </property>
+  </action>
+  <action name="actiontest_2">
+   <property name="text">
+    <string>test</string>
+   </property>
+  </action>
+  <action name="actiontest_4">
+   <property name="text">
+    <string>test</string>
    </property>
   </action>
  </widget>

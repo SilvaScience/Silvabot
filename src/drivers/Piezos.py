@@ -74,8 +74,8 @@ class Piezos(QtCore.QThread):
         self.parameter_display_dict['position_z'] = {}
         self.parameter_display_dict['position_z']['val'] = 0
         self.parameter_display_dict['position_z']['unit'] = ' um'
-        self.parameter_display_dict['position_z']['max'] = 2000
-        self.parameter_display_dict['position_z']['min'] = -2000
+        self.parameter_display_dict['position_z']['max'] = 5000
+        self.parameter_display_dict['position_z']['min'] = -5000
         self.parameter_display_dict['position_z']['read'] = False
 
         #This function stores the parameters in a dictionary

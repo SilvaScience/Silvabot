@@ -13,6 +13,13 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
         # create Widgets for plot
         self.graphWidget = pg.PlotWidget()
+        self.hist = pg.HistogramLUTItem()
+        hist_view = pg.GraphicsLayoutWidget()
+        hist_view.addItem(self.hist)
+        hist_view.setMaximumWidth(80)
+        graph_box = QtWidgets.QHBoxLayout()
+        graph_box.addWidget(self.graphWidget)
+        graph_box.addWidget(hist_view)
         self.clear_button = QtWidgets.QPushButton('Clear')
         self.bg_button = QtWidgets.QPushButton('Select Background')
         self.checkbox_bg = QtWidgets.QCheckBox()
@@ -36,7 +43,10 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         #widget.setLayout(self.construct_ROI_input)
 
 
-        vbox.addWidget(self.graphWidget)
+        #vbox.addWidget(self.graphWidget)
+        graph_widget = QtWidgets.QWidget()
+        graph_widget.setLayout(graph_box)
+        vbox.addWidget(graph_widget)
         widget = QtWidgets.QWidget()
         widget.setLayout(vbox)
         self.setCentralWidget(widget)
@@ -196,6 +206,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
                 tr.translate(np.min(wls), 0)  # move 3x3 image to locate center at axis origin
                 tr.scale(wls_span / len(wls), 1)
                 img.setTransform(tr)
+                self.hist.setImageItem(img)
                 self.graphWidget.clear()
                 self.graphWidget.addItem(img)
                 if self.checkbox_limits.isChecked():
