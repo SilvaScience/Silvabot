@@ -300,6 +300,10 @@ class MainInterface(QtWidgets.QMainWindow):
         # show GUI, to be executed at the end of init.
         self.show()
 
+        print(
+            "Main thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
+        )
+
     ##### General functions #####
 
     def create_parameter_array(self):

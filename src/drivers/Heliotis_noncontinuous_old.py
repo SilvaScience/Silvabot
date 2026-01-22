@@ -504,6 +504,7 @@ class CameraWorker(QtCore.QThread):
             print(timestamp + " Raw data acquired")
         self.acquiring = False
         print('Worker closes')
+        print()
         return np.mean(amp, axis=0)
 
     def change_background(self,filename):

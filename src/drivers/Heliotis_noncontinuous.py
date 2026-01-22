@@ -178,6 +178,9 @@ class Heliotis(QtCore.QThread):
             self.parameter_dict['grating'] = value
             self.grating = value
         elif parameter == 'num_frames':
+            print(
+                "Num frames thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
+            )
             self.parameter_dict['num_frames'] = value
             self.num_frames = int(value)
             self.worker.acquiring = False
@@ -295,6 +298,9 @@ class Heliotis(QtCore.QThread):
         """ Gets the intensity. The example include the possibility of averaging several spectra and to
         perform a binning. Such functionalities might also be given by the camera.
         This function will be accessible from MeasurementClasses."""
+        print(
+            "Current thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
+        )
         self.new_spectrum = False
         QtCore.QMetaObject.invokeMethod(
             self.worker,
@@ -303,9 +309,13 @@ class Heliotis(QtCore.QThread):
             QtCore.Q_ARG(bool, self.take_average),
             QtCore.Q_ARG(object, self.wavelength)
         )
-        while not self.new_spectrum:
-            time.sleep(0.05)
-            print('Acquiring spectrum')
+        print(
+            "Current thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
+        )
+        self.spectrum = np.zeros((542,512))
+        #while not self.new_spectrum:
+        #    time.sleep(0.05)
+            #print('Acquiring spectrum')
         return self.spectrum
 
     def write_command(self, cmd):
@@ -468,6 +478,10 @@ class CameraWorker(QtCore.QObject):
         """" Continuous tasks of the Worker are defined here.
         If loops check for requested changes in settings prior each acquisition. """
 
+        print(
+            "Heliotis worker thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
+        )
+
         print(time.strftime("%H_%M_%S", time.localtime(time.time())) + ' Heliotis worker started')
         initial_time = time.time()
         frame_rate = self.camera.remote_device.node_map.FrameRate.value
@@ -509,7 +523,7 @@ class CameraWorker(QtCore.QObject):
                     f['rawI'].attrs["xaxis"] = wavelength
             print(timestamp + " Raw data acquired")
         self.acquiring = False
-        print('Worker closes')
+        print(time.strftime("%H_%M_%S", time.localtime(time.time())) + 'Worker closes')
         spectrum = np.mean(amp, axis=0)
         self.sendSpectrum.emit(spectrum)
         self.finished.emit()
@@ -531,6 +545,7 @@ class CameraWorker(QtCore.QObject):
         outputShape = self.getOutputShape()
 
         self.camera.start()
+        print(print("Object thread:", self.camera.thread()))
         self.camera.remote_device.node_map.TriggerSelector.value = 'FrameStart'
         self.camera.remote_device.node_map.TriggerSoftware.execute()
 
