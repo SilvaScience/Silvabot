@@ -46,12 +46,6 @@ class MainInterface(QtWidgets.QMainWindow):
         project_folder = Path(__file__).parent.resolve()
         uic.loadUi(Path(project_folder,r'GUI/main_GUI.ui'), self)
 
-        self.gui_timer = QtCore.QTimer(self)
-        self.gui_timer.timeout.connect(
-            lambda: print("GUI tick", time.monotonic(), "GUI GIL thread:", threading.get_ident())
-        )
-        self.gui_timer.start(1000)
-
         # fancy name
         self.setWindowTitle('Silvabot')
 
@@ -578,10 +572,10 @@ class UpdateWorker(QtCore.QThread):
             time.sleep(self.update_interval)
 
 # Execute app
-app = QtWidgets.QApplication(sys.argv)
-window = MainInterface()
-app.exec_()
-
+if __name__ == "__main__":
+    app = QtWidgets.QApplication(sys.argv)
+    window = MainInterface()
+    app.exec()
 
 
 

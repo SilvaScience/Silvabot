@@ -14,12 +14,15 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         # create Widgets for plot
         self.graphWidget = pg.PlotWidget()
         self.hist = pg.HistogramLUTItem()
+        self.img = pg.ImageItem()
         hist_view = pg.GraphicsLayoutWidget()
         hist_view.addItem(self.hist)
         hist_view.setMaximumWidth(80)
         graph_box = QtWidgets.QHBoxLayout()
         graph_box.addWidget(self.graphWidget)
         graph_box.addWidget(hist_view)
+        self.graphWidget.addItem(self.img)
+        self.hist.setImageItem(self.img)
         self.clear_button = QtWidgets.QPushButton('Clear')
         self.bg_button = QtWidgets.QPushButton('Select Background')
         self.checkbox_bg = QtWidgets.QCheckBox()
@@ -173,6 +176,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         # restore crosshair
         self.graphWidget.addItem(self.crosshair_v, ignoreBounds=True)
         self.graphWidget.addItem(self.crosshair_h, ignoreBounds=True)
+        self.graphWidget.addItem(self.img)
         self.plotcounter = 0
 
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
@@ -201,14 +205,16 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             except SyntaxError:
                 print('Incorrect expression, syntax error')
             if not self.checkbox_image.isChecked():
-                img =pg.ImageItem(np.transpose(spec))
+                #img =pg.ImageItem(np.transpose(spec))
+                levels = self.hist.getLevels()
+                self.img.setImage(np.transpose(spec), autoLevels=False, levels=levels)
                 tr = QtGui.QTransform()  # prepare ImageItem transformation:
                 tr.translate(np.min(wls), 0)  # move 3x3 image to locate center at axis origin
                 tr.scale(wls_span / len(wls), 1)
-                img.setTransform(tr)
-                self.hist.setImageItem(img)
-                self.graphWidget.clear()
-                self.graphWidget.addItem(img)
+                self.img.setTransform(tr)
+                #self.hist.setImageItem(self.img)
+                #self.graphWidget.clear()
+                #self.graphWidget.addItem(self.img)
                 if self.checkbox_limits.isChecked():
                     for i in range(4):
                         y1 = self.roi_controls[i][0].value()
@@ -262,8 +268,11 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             self.crosshair_h.setPos(mousePoint.y())
         calibration_mode = True
         if calibration_mode:
-            pixel = np.argmin(abs(self.wls - mousePoint.x()))
-            self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts {pixel:.0f} pixel")
+            try:
+                pixel = np.argmin(abs(self.wls - mousePoint.x()))
+                self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts {pixel:.0f} pixel")
+            except TypeError:
+                print('Cursor deactivated, waiting for first data.')
         else:
             self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts")
 

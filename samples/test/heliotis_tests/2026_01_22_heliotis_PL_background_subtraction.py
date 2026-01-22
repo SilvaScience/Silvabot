@@ -21,8 +21,8 @@ h_c = 1239.841984 #h * c in eV/nm
 # %%
 # input 
 date = '2026-01-22' # '2025-07-24' # 
-data_name =  'raw_data11_03_39' # 'GaAs_QW_2501_16_08_00' #
-bg_name =  'avg_data10_59_21' # 'avg_data17_11_58' # # load background  ;  CHANGE THIS IF TAU CHANGES THE 
+data_name =  'raw_data18_34_28' # 'GaAs_QW_2501_16_08_00' #
+bg_name =  'avg_data18_06_44' # 'avg_data17_11_58' # # load background  ;  CHANGE THIS IF TAU CHANGES THE 
 path = r"D:\DATA\BIGFOOT"
 title_id = os.path.join(date,data_name)
 
@@ -56,19 +56,19 @@ with h5py.File(filepath, 'r') as f:
     
     raw_image = f['rawQ'][5,:,:]
     
-    rawI = np.flip(f['rawI'][:, :, :])  # shape: (n_avg, x)
-    rawQ = np.flip(f['rawQ'][:, :, :]) 
+    rawI_t = np.flip(f['rawI'][:, :, :])  # shape: (n_avg, x)
+    rawQ_t = np.flip(f['rawQ'][:, :, :]) 
     #amp_row = np.sqrt((rawI_row-bg_rawI_row) ** 2 + (rawQ_row-bg_rawQ_row) ** 2)
     
     wl = f['rawI'].attrs['xaxis']
-    plt.imshow(raw_image)
+    #plt.imshow(raw_image)
     
     external_background = True
     if external_background:
         rawI_row = rawI_row-bg_rawI_row # average over all frames. 
         rawQ_row = rawQ_row-bg_rawQ_row
-        rawI = rawI-bg_rawI
-        rawQ = rawQ-bg_rawQ
+        rawI = rawI_t-bg_rawI
+        rawQ = rawQ_t-bg_rawQ
     else:
         rawI_row = rawI_row-np.average(rawI_row,axis=0) # average over all frames. 
         rawQ_row = rawQ_row-np.average(rawQ_row,axis=0)
@@ -84,44 +84,41 @@ with h5py.File(filepath, 'r') as f:
 time_axis = np.linspace(0,np.shape(amp_row)[0],np.shape(amp_row)[0])/fps*1E3
 approx_x_axis = np.flip(1240/wl*1E3)
 
-f, plts = plt.subplots(3, figsize =(4,8),gridspec_kw={'height_ratios': [1, 1.1,2]})
-plts[0].plot(approx_x_axis,mean_amp_row)
+
+plot_row_average = False
+if plot_row_average:
+    f, plts = plt.subplots(3, figsize =(4,8),gridspec_kw={'height_ratios': [1, 1.1,2]})
+    plts[0].plot(approx_x_axis,mean_amp_row)
+    
+    pc = plts[1].pcolor(approx_x_axis,time_axis,amp_row)
+    
+    clean_phase = np.zeros(np.shape(phase_row))
+    for i in range(np.shape(phase_row)[1]): 
+        window = 2
+        clean_phase[:,i] = np.convolve(phase_row[:,i], np.ones(window)/window, mode='same')
+        #clean_phase[:,i] = savgol_filter(phase_row[:,i],3,1)
+    pc = plts[2].pcolor(approx_x_axis,time_axis,np.cos(clean_phase))
+    #pc.set_clim(-1,1)
+    plts[2].set_xlabel('Energy (meV)')
+    plts[1].set_ylabel('$(Q^2+I^2)^{(1/2)}$ \n Time (ms)')
+    plts[2].set_ylabel('$arctan2(Q,I)$ \n Time (ms)')
+    #plts[1].set_ylim(0,700)
+    #plts[2].set_ylim(0,700)
+    plts[0].set_ylabel('Intensity')
+    plts[0].set_xticks([])
+    plts[1].set_xticks([])
+    plts[0].set_title(f'{title_id}')
+    if plot_external: plts[0].set_title(f'Single scan Ref=1kHz Demod=1kHz \n {title_id}')
+    
+    f.colorbar(pc, orientation='horizontal', pad =0.2, shrink=0.9)
+    #for i in range(3): plts[i].set_xlim(1540,1570)
+    f.subplots_adjust(wspace =0,hspace =0)
+    plt.show()
+  
 
 
-#plts[0].plot(approx_x_axis,np.average(amp_row/np.cos(phase_row),axis=0))
-#plts[0].set_ylim(0,800)
-pc = plts[1].pcolor(approx_x_axis,time_axis,amp_row)
-#pc = plts[1].pcolor(approx_x_axis,time_axis,rawI_row)
-#pc = plts[1].pcolor(approx_x_axis,np.linspace(1,np.shape(amp_row)[0],np.shape(amp_row)[0]),np.cos(phase_row))
-#pc.set_clim(14,18)
-#pc.set_clim(14,600)
-clean_phase = np.zeros(np.shape(phase_row))
-for i in range(np.shape(phase_row)[1]): 
-    window = 2
-    clean_phase[:,i] = np.convolve(phase_row[:,i], np.ones(window)/window, mode='same')
-    #clean_phase[:,i] = savgol_filter(phase_row[:,i],3,1)
-pc = plts[2].pcolor(approx_x_axis,time_axis,np.cos(clean_phase))
-#pc.set_clim(-1,1)
-plts[2].set_xlabel('Energy (meV)')
-plts[1].set_ylabel('$(Q^2+I^2)^{(1/2)}$ \n Time (ms)')
-plts[2].set_ylabel('$arctan2(Q,I)$ \n Time (ms)')
-#plts[1].set_ylim(0,700)
-#plts[2].set_ylim(0,700)
-plts[0].set_ylabel('Intensity')
-plts[0].set_xticks([])
-plts[1].set_xticks([])
-plts[0].set_title(f'{title_id}')
-if plot_external: plts[0].set_title(f'Single scan Ref=1kHz Demod=1kHz \n {title_id}')
-
-
-
-f.colorbar(pc, orientation='horizontal', pad =0.2, shrink=0.9)
-#for i in range(3): plts[i].set_xlim(1540,1570)  
-
-f.subplots_adjust(wspace =0,hspace =0)
-plt.show()
 # % plot time evolution  
-plot_evolution = True 
+plot_evolution = False 
 if plot_evolution:
     f, plts = plt.subplots(4, figsize =(4,6))
     #plt.plot(np.average(amp_row[:,218:279],1))
@@ -145,10 +142,20 @@ if plot_evolution:
 # %% Plot amplitude map
 pixel = np.r_[1:543]
 plt.pcolor(approx_x_axis,pixel,np.flipud(mean_amp))
-plt.clim(6,150)
+plt.clim(6,100)
 plt.title(f'{title_id}')
 plt.xlabel('Energy (meV)')
 plt.ylabel('Pixel')
 #plt.ylim(140,200)
 plt.colorbar()
 plt.show()
+
+print('mean_amp',np.max(mean_amp))
+print('bg_I',np.max(bg_rawI))
+print('bg_Q',np.max(bg_rawQ))
+print('rawI',np.max(rawI_t))
+print('rawQ',np.max(rawQ_t))
+print('twoD_avgI',np.max(rawI))
+print('twoD_avgQ',np.max(rawQ))
+print('twoD_avgI',np.max(rawI**2))
+print('twoD_avgQ',np.max(rawQ**2))

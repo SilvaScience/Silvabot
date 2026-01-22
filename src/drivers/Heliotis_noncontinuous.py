@@ -8,12 +8,11 @@ parameter_display_dict (set Spinbox options and read/write)
 set_parameter function (assign set functions)
 
 NOTE:
-Communication with Pixis is kind of slow (150ms), such that in the current interface a new image is acquired every 150ms
-at the fastest. If ever a faster acquisition is required, transfer of multiple frames per communication (eg. with
-cam.grab - see manual or pylablib homepage) can be implemented. For the current planned experiments an acquistion rate of
-150ms was judged to be sufficient.
-To install driver, picam needs to be installed on the PC. It is freely available at:
-https://www.teledynevisionsolutions.com/products/pi_max4/?vertical=tvs-princeton-instruments&segment=tvs&aQ=Picam&aPage=1&dlQ=picam&dlPage=1
+This driver deals with heavy data and computations. It uses multithreading (NOT QT) to have truly independent workers and independent GIL.
+Communication with the worker process needs to be simple (cannot include QT objects), but heavy tasks can easily be outsourced
+to the worker.
+
+This driver has device_setting_function implemented, allowing to interact directly from the GUI to the driver.
 
 """
 
@@ -22,16 +21,18 @@ import os
 from harvesters.core import Harvester
 from collections import defaultdict
 from PyQt5 import QtCore, QtWidgets
-from pylablib.devices import PrincetonInstruments
 import time
-from scipy.optimize import curve_fit
 import serial
-from joblib import Parallel, delayed
-import matplotlib.pyplot as plt
 import re
 import h5py
-from scipy.optimize import minimize
-import threading
+from multiprocessing import Process, Queue
+
+
+def camera_worker(cmd_q, res_q):
+    # Function to initialize the camera worker. It needs to be implemented globally
+    # (not within a class) as multiprocessing needs to pickle the worker around.
+    w = CameraWorker(cmd_q, res_q)
+    w.run()
 
 class Heliotis(QtCore.QObject):
 
@@ -42,14 +43,11 @@ class Heliotis(QtCore.QObject):
     def __init__(self):
         super(Heliotis, self).__init__()
 
-        #self.camera.start()
         self.wavelength =  np.linspace(200,1000,512) # get property from Worker
         self.px0 = np.linspace(1,512,512)
         self.spec_length = (542,512) # # pixis length is (xx, 542, 512), xx is acquired frames
-        self.image = np.zeros(self.spec_length)
 
         # Parameters. Defines parameters that are required for by the interface
-        self.binned_spec = np.zeros(self.spec_length)
         self.new_spectrum = False
 
         # set up spectrograph
@@ -68,14 +66,9 @@ class Heliotis(QtCore.QObject):
             self.grating_densities[i] = numbers[i*3 + 1]
             self.grating_blazes[i] = numbers[i * 3 + 2]
         self.center_wl = float(self.write_command('?NM')[0])
-        print(f"Current wl: {float(self.write_command('?NM')[0])}" )
         self.num_gratings = 3
         self.grating_densities = [1, 1200, 600]
         self.grating_blazes =[1, 500, 500]
-        print(self.center_wl)
-        print(self.grating_densities)
-        print(self.grating_blazes)
-        print(self.grating)
 
         #initial heliotis settings
         self.num_frames = 100
@@ -127,16 +120,24 @@ class Heliotis(QtCore.QObject):
         print('Heliotis initialized')
 
         # initialize camera
-        self.thread = QtCore.QThread()
-        self.worker = CameraWorker()
+        self.cmd_q = Queue()
+        self.res_q = Queue()
 
-        self.worker.moveToThread(self.thread)
+        self.worker = Process(
+            target=camera_worker,
+            args=(self.cmd_q, self.res_q),
+            daemon=True
+        )
+        self.worker.start()
+        self.cmd_q.put({
+            "type": "PARAMETERS",
+            "parameter_list": [self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq]
+        })
 
-        self.worker.sendSpectrum.connect(self.update_spectrum)
-        #self.worker.finished.connect(self.thread.quit)
-
-        self.thread.start()
-        #"""
+        # Timer to check whether new spectrum is available for get_intensities
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.check_results)
+        self.timer.start(200)
         self.correct_bg_checkbox = False
         self.ref_filename = None
 
@@ -146,12 +147,18 @@ class Heliotis(QtCore.QObject):
 
     def correct_bg_checkbox_toggle(self, checked):
         self.correct_bg_checkbox = checked
-        self.worker.correct_bg_checkbox = checked
+        self.cmd_q.put({
+            "type": "BG_CHECKED",
+            "argument": checked
+        })
 
     def load_bg(self):
         self.request_file.emit()
         print(f'Loading background image {self.ref_filename}')
-        self.worker.change_background(self.ref_filename)
+        self.cmd_q.put({
+            "type": "BG_FILENAME",
+            "argument": self.ref_filename
+        })
 
     def set_parameter(self, parameter, value):
         """REQUIRED. This function defines how changes in the parameter tree are handled.
@@ -167,16 +174,12 @@ class Heliotis(QtCore.QObject):
             self.parameter_dict['grating'] = value
             self.grating = value
         elif parameter == 'num_frames':
-            print(
-                "Num frames thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
-            )
             self.parameter_dict['num_frames'] = value
             self.num_frames = int(value)
-            self.worker.acquiring = False
-            time.sleep(0.1)
-            self.worker.cameraConfig()
-            time.sleep(0.1)
-            self.worker.acquiring = True
+            self.cmd_q.put({
+                "type": "PARAMETERS",
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq]
+            })
         elif parameter == 'take_average':
             self.parameter_dict['take_average'] = value
             if value == 100:
@@ -186,24 +189,24 @@ class Heliotis(QtCore.QObject):
         elif parameter == 'sensitivity':
             self.parameter_dict['sensitivity'] = value
             self.sensitivity = value
-            self.worker.acquiring = False
-            time.sleep(0.1)
-            self.worker.cameraConfig()
-            time.sleep(0.1)
+            self.cmd_q.put({
+                "type": "PARAMETER",
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq]
+            })
         elif parameter == 'N_Periods':
             self.parameter_dict['N_Periods'] = value
             self.N_Periods = int(value)
-            self.worker.acquiring = False
-            time.sleep(0.1)
-            self.worker.cameraConfig()
-            time.sleep(0.1)
+            self.cmd_q.put({
+                "type": "PARAMETER",
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq]
+            })
         elif parameter == 'ref_freq':
             self.parameter_dict['ref_freq'] = value
             self.ref_freq = int(value)
-            self.worker.acquiring = False
-            time.sleep(0.1)
-            self.worker.cameraConfig()
-            time.sleep(0.1)
+            self.cmd_q.put({
+                "type": "PARAMETER",
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq]
+            })
 
     def update_spectrum(self, spec):
         """REQUIRED. This is the slot function for the sendSpectrum pyqt.signal from the worker.
@@ -211,6 +214,11 @@ class Heliotis(QtCore.QObject):
         to allow to emit the treated signal from the spectrometer."""
         self.spectrum = spec
         self.new_spectrum = True
+
+    def check_results(self):
+        while not self.res_q.empty():
+            self.spectrum = self.res_q.get()
+            self.new_spectrum = True
 
 
     def get_wavelength(self):
@@ -231,11 +239,6 @@ class Heliotis(QtCore.QObject):
         """
         calibrated = True
         if calibrated:
-            pixel_size_mm = 24 / 1E3  # specs of Heliotis
-            focal_length_mm = 203  # specs of Isoplane
-            num_pixels = 512  # specs of Heliotis
-
-            #
 
             wl_center = center_wavelength_nm
             m_order = 1
@@ -248,17 +251,9 @@ class Heliotis(QtCore.QObject):
                 f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(1197096958.9926493), np.float64(-18.68106438263782), np.float64(-1.6871589585359328), np.float64(238.25), 0, 4926.108374384236, 24000.0, np.float64(-6.663483223202162e-06)]
             else:
                 print('WARNING: GRATING NOT CALIBRATED. Use calib of grating3 ')
-                f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(24739656.496170387),
-                                                                                     np.float64(4.763915731068521),
-                                                                                     np.float64(1.4300129817768625),
-                                                                                     np.float64(243.0), 0,
-                                                                                     4926.108374384236, 24000.0,
-                                                                                     np.float64(-0.0001681610550643024)]
+                f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(24739656.496170387), np.float64(4.763915731068521), np.float64(1.4300129817768625), np.float64(243.0), 0,  4926.108374384236, 24000.0, np.float64(-0.0001681610550643024)]
 
             n = px - (n0 + offset_adjust * wl_center)
-
-            # print('psi top', m_order* wl_center)
-            # print('psi bottom', (2*d_grating*np.cos(gamma/2)) )
 
             psi = np.arcsin(m_order * wl_center / (2 * d_grating * np.cos(gamma / 2)))
             eta = np.arctan(n * x_pixel * np.cos(delta) / (f + n * x_pixel * np.sin(delta)))
@@ -291,20 +286,10 @@ class Heliotis(QtCore.QObject):
             "Current thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
         )
         self.new_spectrum = False
-        QtCore.QMetaObject.invokeMethod(
-            self.worker,
-            "acquire_spectrum",
-            QtCore.Qt.QueuedConnection,
-            QtCore.Q_ARG(bool, self.take_average),
-            QtCore.Q_ARG(object, self.wavelength)
-        )
-        print(
-            "Current thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
-        )
-        self.spectrum = np.zeros((542,512))
-        #while not self.new_spectrum:
-        #    time.sleep(0.05)
-            #print('Acquiring spectrum')
+        self.cmd_q.put({"type": "ACQUIRE","take_average": self.take_average,"wavelength": self.wavelength,"save": True,"folder": r"D:\DATA\BIGFOOT"})
+        while not self.new_spectrum:
+            time.sleep(0.05)
+        print(time.strftime("%H_%M_%S", time.localtime(time.time())) + ' Spectrum acquired')
         return self.spectrum
 
     def write_command(self, cmd):
@@ -331,23 +316,18 @@ class Heliotis(QtCore.QObject):
         self.serial_busy = False
         return re.findall(r'\d+', out.decode().strip())
 
-class CameraWorker(QtCore.QObject):
+class CameraWorker:
     """ This is a DemoWorker for the spectrometer.
     It continously acquires spectra and emits them to the Interface.
     It interrupts data acquisition if an int_time change is requested. Its important because most
     hardware can only handle one command at a time, acquiring or changeing settings.  """
-    # These are signals that allow to send data from a child thread to the parent hierarchy.
-    sendSpectrum = QtCore.pyqtSignal(np.ndarray)
-    finished = QtCore.pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, command_queue, result_queue):
         super(CameraWorker, self).__init__() # Elevates this thread to be independent.
 
-        print("Worker GIL thread:", threading.get_ident())
         # definition of some parameters
         #self.camera = camera
         self.spec_length = (252,1024)
-        self.change_int_time = False
         self.spectrum = np.zeros(self.spec_length)
         self.terminate = False
         self.paused = False
@@ -364,8 +344,9 @@ class CameraWorker(QtCore.QObject):
         self.N_Periods = 100 #95
         self.ref_freq =  1000 # 29790  # # 71531.2#26662#53325
 
-
-
+        self.cmd_q = command_queue
+        self.res_q = result_queue
+        self.running = True
 
         print('Initialize Heliotis')
         h = Harvester()
@@ -373,94 +354,102 @@ class CameraWorker(QtCore.QObject):
         ctiFile = os.environ['DIAPHUS_GENTL64_FILE']
         print(ctiFile)
         h.add_file(ctiFile)
-        # """  De-comment to run without camera
-        # create camera object for interaction
         self.camera = self.selectDevice(h)
 
         # configure camera
-        self.cameraConfig()
+        self.cameraConfig(self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq)
 
-    @QtCore.pyqtSlot(bool, object)
-    def acquire_spectrum(self, take_average, wavelength):
-        """" Continuous tasks of the Worker are defined here.
-        If loops check for requested changes in settings prior each acquisition. """
-
-        print(
-            "Heliotis worker thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
-        )
-
+    def run(self):
         print(time.strftime("%H_%M_%S", time.localtime(time.time())) + ' Heliotis worker started')
-        initial_time = time.time()
-        frame_rate = self.camera.remote_device.node_map.FrameRate.value
-        print('######### -->> framerate :', frame_rate)
+        while self.running:
+            try:
+                cmd = self.cmd_q.get(timeout=0.1)
+            except Exception:
+                continue
 
-        #if not self.acquiring:
-        self.acquiring = True
-        t0 = time.time()
-        rawI, rawQ = self.acquire()
-        print("Acquistion Duration:", time.time() - t0)
-        if self.correct_bg_checkbox:
-            twoD_avgI = rawI - self.background_I
-            twoD_avgQ = rawQ - self.background_Q
-        else:
-            twoD_avgI = rawI -np.mean(rawI, axis=0)
-            twoD_avgQ = rawQ -np.mean(rawQ, axis=0)
-        amp = np.sqrt((twoD_avgI)**2 + (twoD_avgQ)**2)
-        ty_res = time.localtime(time.time())
-        timestamp = time.strftime("%H_%M_%S", ty_res)
-        datestamp = time.strftime("20%y-%m-%d", ty_res)
-        folder = os.path.join(r"D:\DATA\BIGFOOT",datestamp)
-        save_every_spectrum = True
-        if take_average:
-            filename = os.path.join(folder,"avg_data" + timestamp + '.h5')
-            if save_every_spectrum:
-                with h5py.File(filename, 'w') as f:
-                    #f.create_dataset('averaged_rawI', data=twoD_avgI)
-                    #f.create_dataset('averaged_rawQ', data=twoD_avgQ)
-                    f.create_dataset('averaged_rawI', data=np.mean(rawI, axis=0))
-                    f.create_dataset('averaged_rawQ', data=np.mean(rawQ, axis=0))
-                    f['averaged_rawI'].attrs["xaxis"] = wavelength
-            print(time.strftime("%H_%M_%S", time.localtime(time.time())) + " Average data acquired")
-        else:
-            filename = os.path.join(folder,"raw_data" + timestamp + '.h5')
-            if save_every_spectrum:
-                with h5py.File(filename, 'w') as f:
-                    f.create_dataset('rawI', data=rawI)
-                    f.create_dataset('rawQ', data=rawQ)
-                    f['rawI'].attrs["xaxis"] = wavelength
-            print(timestamp + " Raw data acquired")
-        self.acquiring = False
-        print(time.strftime("%H_%M_%S", time.localtime(time.time())) + 'Worker closes')
-        spectrum = np.mean(amp, axis=0)
-        self.sendSpectrum.emit(spectrum)
-        self.finished.emit()
-        #return spectrum
+            if cmd == "STOP":
+                self.running = False
+                break
+
+            if cmd["type"] == "PARAMETERS":
+                print('Get parameters')
+                self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq = cmd["parameter_list"]
+                self.cameraConfig(self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq)
+
+            if cmd["type"] == 'BG_FILENAME':
+                self.change_background(cmd["argument"])
+
+            if cmd["type"] == 'BG_CHECKED':
+                self.correct_bg_checkbox = cmd["argument"]
+
+            if cmd["type"] == "ACQUIRE":
+                take_avg = cmd["take_average"]
+                wavelength = cmd["wavelength"]
+                print(time.strftime("%H_%M_%S", time.localtime(time.time())) + ' Acquire started')
+                t0 = time.time()
+                rawI, rawQ = self.acquire()
+                print("Acquistion Duration:", time.time() - t0)
+                if self.correct_bg_checkbox:
+                    twoD_avgI = rawI - self.background_I
+                    twoD_avgQ = rawQ - self.background_Q
+                else:
+                    twoD_avgI = rawI - np.mean(rawI, axis=0)
+                    twoD_avgQ = rawQ - np.mean(rawQ, axis=0)
+                amp = np.sqrt((twoD_avgI) ** 2 + (twoD_avgQ) ** 2)
+                ty_res = time.localtime(time.time())
+                timestamp = time.strftime("%H_%M_%S", ty_res)
+                datestamp = time.strftime("20%y-%m-%d", ty_res)
+                folder = os.path.join(r"D:\DATA\BIGFOOT", datestamp)
+                save_every_spectrum = True
+                if take_avg:
+                    filename = os.path.join(folder, "avg_data" + timestamp + '.h5')
+                    if save_every_spectrum:
+                        with h5py.File(filename, 'w') as f:
+                            f.create_dataset('averaged_rawI', data=np.mean(rawI, axis=0))
+                            f.create_dataset('averaged_rawQ', data=np.mean(rawQ, axis=0))
+                            f['averaged_rawI'].attrs["xaxis"] = wavelength
+                    print(time.strftime("%H_%M_%S", time.localtime(time.time())) + " Average data acquired")
+                else:
+                    filename = os.path.join(folder, "raw_data" + timestamp + '.h5')
+                    if save_every_spectrum:
+                        with h5py.File(filename, 'w') as f:
+                            f.create_dataset('rawI', data=rawI)
+                            f.create_dataset('rawQ', data=rawQ)
+                            f['rawI'].attrs["xaxis"] = wavelength
+                    print(timestamp + " Raw data acquired")
+
+                # send back result
+                spectrum = np.mean(amp, axis=0)
+                print('mean_amp',np.max(spectrum))
+                print('bg_I',np.max(self.background_I))
+                print('bg_Q',np.max(self.background_Q))
+                print('raw_I',np.max(rawI))
+                print('raw_Q',np.max(rawQ))
+                print('twoD_avgI',np.max(twoD_avgI))
+                print('twoD_avgQ',np.max(twoD_avgQ))
+                print('twoD_avgI2',np.max((twoD_avgI) ** 2))
+                print('twoD_avgQ2',np.max((twoD_avgQ) ** 2))
+                (twoD_avgI) ** 2
+                self.res_q.put(spectrum)
 
     def change_background(self,filename):
         with h5py.File(os.path.join(filename), 'r') as f:
-            self.background_I = f['averaged_rawI'][()]
-            self.background_Q = f['averaged_rawQ'][()]
+            try:
+                self.background_I = f['averaged_rawI'][:,:]
+                self.background_Q = f['averaged_rawQ'][:,:]
+            except KeyError:
+                print("WARNING Background file has incorrect data structure")
 
-    def acquire(self, timeout=10000):
-        """
-        Initiate a measurement and retrieve lock-in data.
-        \param h harvester object
-        \param t float
-        \return numpy array [IRaw,QRaw]
-        """
-
+    def acquire(self):
         outputShape = self.getOutputShape()
-
         self.camera.start()
-        #print(print("Object thread:", self.camera.thread()))
         self.camera.remote_device.node_map.TriggerSelector.value = 'FrameStart'
         self.camera.remote_device.node_map.TriggerSoftware.execute()
 
-        with self.camera.fetch(timeout=timeout) as buffer:
+        with self.camera.fetch(timeout=10000) as buffer:
             data = np.array([img.data % 2 ** 15 // 4 for img in buffer.payload.components]).reshape(outputShape)
 
         self.camera.stop()
-
         return data
 
     def getOutputShape(self):
@@ -475,44 +464,28 @@ class CameraWorker(QtCore.QObject):
 
         return 2, NFrames, height, width
 
-    def cameraConfig(self):
+    def cameraConfig(self, num_frames,sensitivity,Nperiods,ref_freq):
         """
-        simple configuration example of heliCam C4 using internal reference
+        simple configuration  of heliCam C4 using internal reference
         \param camera harvesters camera object
         """
-
         # Experiment Parameters
-
-        # Lock-In Amplification (LIA)
-
         # Sensor sensitivity in %/100, 0.5 for C4-S40, 0.2 for C4-S40U, 0.05 for C4-S41U and 0.25 for C4M
-        sensitivity = self.sensitivity # 0.5
+        sensitivity = sensitivity # 0.5
         # Number of intergration periods
-        NPeriods = self.N_Periods #49
+        NPeriods = Nperiods #49
         # Background suppression on/off switch, 'AC' or 'DC'
         coupling = 'DC'
         # Reference frequency in Hz
-        refFrequency = self.ref_freq # 44700.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
+        refFrequency = ref_freq # 44700.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
         # Source of reference signal, 'Internal' or 'External'
         refSource = 'External' # 'External'
         # Expected frequency deviation of external reference input in %
         expFrequencyDev = 1
         # Number of frames to be recorded
-        NFrames = self.num_frames
-
-        # Illumination Driving Signal
-
-        # Signal generator DC offset in % of full range
-        sgnOffset = 50.0
-        # Signal generator peak-to-peak amplitude in % of full range
-        sgnAmplitude = 50.0
-        # Signal generator frequency in Hz
-        sgnFrequency = 29796.0
+        NFrames = num_frames
 
         # Configuration
-
-        # Trigger
-
         self.camera.remote_device.node_map.TriggerSelector.value = "RecordingStart"
         self.camera.remote_device.node_map.TriggerMode.value = "Off"
         self.camera.remote_device.node_map.TriggerSelector.value = "FrameStart"
@@ -538,18 +511,7 @@ class CameraWorker(QtCore.QObject):
         self.camera.remote_device.node_map.LockInReferenceSourceSignal.value = "FI2"
 
         # Illumination
-
-        #self.camera.remote_device.node_map.SignalGeneratorOffset.value = sgnOffset
-        #self.camera.remote_device.node_map.SignalGeneratorAmplitude.value = sgnAmplitude
-        #self.camera.remote_device.node_map.LightControllerSelector.value = "LightController0"
-        #self.camera.remote_device.node_map.SignalGeneratorModulationMode.value = "On"
-        #self.camera.remote_device.node_map.SignalGeneratorFrequency.value = sgnFrequency
-        #self.camera.remote_device.node_map.LightControllerSource.value = "SignalGenerator"
         self.camera.remote_device.node_map.LightControllerSource.value = 'Off'
-
-        # See ref. for troubleshooting
-        #self.camera.remote_device.node_map.LineSelector.value = "RTIO3"
-        #self.camera.remote_device.node_map.LineSource.value = "LockInReference"
 
     def selectDevice(self,h):
         """
@@ -583,3 +545,4 @@ class CameraWorker(QtCore.QObject):
 
     def resume(self):
         self.paused = False
+        
