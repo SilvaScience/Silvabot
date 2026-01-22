@@ -36,6 +36,7 @@ from drivers.ArduinoDemo import ArduinoDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement, RunMeasurement, BackgroundMeasurement, \
     ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement, HelicamBackgroundMeasurement
+import threading
 
 
 class MainInterface(QtWidgets.QMainWindow):
@@ -44,6 +45,12 @@ class MainInterface(QtWidgets.QMainWindow):
         super(MainInterface, self).__init__()
         project_folder = Path(__file__).parent.resolve()
         uic.loadUi(Path(project_folder,r'GUI/main_GUI.ui'), self)
+
+        self.gui_timer = QtCore.QTimer(self)
+        self.gui_timer.timeout.connect(
+            lambda: print("GUI tick", time.monotonic(), "GUI GIL thread:", threading.get_ident())
+        )
+        self.gui_timer.start(1000)
 
         # fancy name
         self.setWindowTitle('Silvabot')

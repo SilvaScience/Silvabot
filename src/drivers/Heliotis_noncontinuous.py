@@ -31,8 +31,9 @@ import matplotlib.pyplot as plt
 import re
 import h5py
 from scipy.optimize import minimize
+import threading
 
-class Heliotis(QtCore.QThread):
+class Heliotis(QtCore.QObject):
 
     name = 'Heliotis'
 
@@ -123,23 +124,11 @@ class Heliotis(QtCore.QThread):
             self.parameter_dict[key] = self.parameter_display_dict[key]['val']
 
         # initialize camera interface
-        print('Initialize Heliotis')
-        h = Harvester()
-        # read heliotis *.CTI path from environment variable
-        ctiFile = os.environ['DIAPHUS_GENTL64_FILE']
-        print(ctiFile)
-        h.add_file(ctiFile)
-        #"""  De-comment to run without camera
-        # create camera object for interaction
-        self.camera = self.selectDevice(h)
-
-        # configure camera
-        self.cameraConfig()
         print('Heliotis initialized')
 
         # initialize camera
         self.thread = QtCore.QThread()
-        self.worker = CameraWorker(self.camera)
+        self.worker = CameraWorker()
 
         self.worker.moveToThread(self.thread)
 
@@ -185,7 +174,7 @@ class Heliotis(QtCore.QThread):
             self.num_frames = int(value)
             self.worker.acquiring = False
             time.sleep(0.1)
-            self.cameraConfig()
+            self.worker.cameraConfig()
             time.sleep(0.1)
             self.worker.acquiring = True
         elif parameter == 'take_average':
@@ -199,21 +188,21 @@ class Heliotis(QtCore.QThread):
             self.sensitivity = value
             self.worker.acquiring = False
             time.sleep(0.1)
-            self.cameraConfig()
+            self.worker.cameraConfig()
             time.sleep(0.1)
         elif parameter == 'N_Periods':
             self.parameter_dict['N_Periods'] = value
             self.N_Periods = int(value)
             self.worker.acquiring = False
             time.sleep(0.1)
-            self.cameraConfig()
+            self.worker.cameraConfig()
             time.sleep(0.1)
         elif parameter == 'ref_freq':
             self.parameter_dict['ref_freq'] = value
             self.ref_freq = int(value)
             self.worker.acquiring = False
             time.sleep(0.1)
-            self.cameraConfig()
+            self.worker.cameraConfig()
             time.sleep(0.1)
 
     def update_spectrum(self, spec):
@@ -342,32 +331,149 @@ class Heliotis(QtCore.QThread):
         self.serial_busy = False
         return re.findall(r'\d+', out.decode().strip())
 
-    def selectDevice(self,h):
-        """
-        Scan for available devices and print device list
-        let the user select one and open the connection to the device
-        if just one device available, open it without user interaction
-        \param h harvester object
-        \return harvesters camera object
-        """
+class CameraWorker(QtCore.QObject):
+    """ This is a DemoWorker for the spectrometer.
+    It continously acquires spectra and emits them to the Interface.
+    It interrupts data acquisition if an int_time change is requested. Its important because most
+    hardware can only handle one command at a time, acquiring or changeing settings.  """
+    # These are signals that allow to send data from a child thread to the parent hierarchy.
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray)
+    finished = QtCore.pyqtSignal()
 
-        h.update()
-        NDevices = len(h.device_info_list)
-        print("{} device(s) detected on the Network:\n".format(NDevices))
-        for i, dev in enumerate(h.device_info_list):
-            print("{}) {} ({})".format(i + 1, dev.id_, dev.serial_number))
+    def __init__(self):
+        super(CameraWorker, self).__init__() # Elevates this thread to be independent.
 
-        if NDevices == 1:
-            selectionInt = 1
+        print("Worker GIL thread:", threading.get_ident())
+        # definition of some parameters
+        #self.camera = camera
+        self.spec_length = (252,1024)
+        self.change_int_time = False
+        self.spectrum = np.zeros(self.spec_length)
+        self.terminate = False
+        self.paused = False
+        self.processing = False
+        self.acquiring = False
+        self.correct_bg_checkbox = False
+        self.background_I = np.zeros((542,512))
+        self.background_Q = np.zeros((542,512))
+
+        #initial heliotis settings
+        self.num_frames = 100
+        self.take_average = False
+        self.sensitivity = 1
+        self.N_Periods = 100 #95
+        self.ref_freq =  1000 # 29790  # # 71531.2#26662#53325
+
+
+
+
+        print('Initialize Heliotis')
+        h = Harvester()
+        # read heliotis *.CTI path from environment variable
+        ctiFile = os.environ['DIAPHUS_GENTL64_FILE']
+        print(ctiFile)
+        h.add_file(ctiFile)
+        # """  De-comment to run without camera
+        # create camera object for interaction
+        self.camera = self.selectDevice(h)
+
+        # configure camera
+        self.cameraConfig()
+
+    @QtCore.pyqtSlot(bool, object)
+    def acquire_spectrum(self, take_average, wavelength):
+        """" Continuous tasks of the Worker are defined here.
+        If loops check for requested changes in settings prior each acquisition. """
+
+        print(
+            "Heliotis worker thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
+        )
+
+        print(time.strftime("%H_%M_%S", time.localtime(time.time())) + ' Heliotis worker started')
+        initial_time = time.time()
+        frame_rate = self.camera.remote_device.node_map.FrameRate.value
+        print('######### -->> framerate :', frame_rate)
+
+        #if not self.acquiring:
+        self.acquiring = True
+        t0 = time.time()
+        rawI, rawQ = self.acquire()
+        print("Acquistion Duration:", time.time() - t0)
+        if self.correct_bg_checkbox:
+            twoD_avgI = rawI - self.background_I
+            twoD_avgQ = rawQ - self.background_Q
         else:
-            selectionStr = input("Select a device (0=exit): ")
-            selectionInt = int(selectionStr)
-            if ((selectionInt <= 0) or (selectionInt > NDevices)):
-                exit('No device selected - exit script')
+            twoD_avgI = rawI -np.mean(rawI, axis=0)
+            twoD_avgQ = rawQ -np.mean(rawQ, axis=0)
+        amp = np.sqrt((twoD_avgI)**2 + (twoD_avgQ)**2)
+        ty_res = time.localtime(time.time())
+        timestamp = time.strftime("%H_%M_%S", ty_res)
+        datestamp = time.strftime("20%y-%m-%d", ty_res)
+        folder = os.path.join(r"D:\DATA\BIGFOOT",datestamp)
+        save_every_spectrum = True
+        if take_average:
+            filename = os.path.join(folder,"avg_data" + timestamp + '.h5')
+            if save_every_spectrum:
+                with h5py.File(filename, 'w') as f:
+                    #f.create_dataset('averaged_rawI', data=twoD_avgI)
+                    #f.create_dataset('averaged_rawQ', data=twoD_avgQ)
+                    f.create_dataset('averaged_rawI', data=np.mean(rawI, axis=0))
+                    f.create_dataset('averaged_rawQ', data=np.mean(rawQ, axis=0))
+                    f['averaged_rawI'].attrs["xaxis"] = wavelength
+            print(time.strftime("%H_%M_%S", time.localtime(time.time())) + " Average data acquired")
+        else:
+            filename = os.path.join(folder,"raw_data" + timestamp + '.h5')
+            if save_every_spectrum:
+                with h5py.File(filename, 'w') as f:
+                    f.create_dataset('rawI', data=rawI)
+                    f.create_dataset('rawQ', data=rawQ)
+                    f['rawI'].attrs["xaxis"] = wavelength
+            print(timestamp + " Raw data acquired")
+        self.acquiring = False
+        print(time.strftime("%H_%M_%S", time.localtime(time.time())) + 'Worker closes')
+        spectrum = np.mean(amp, axis=0)
+        self.sendSpectrum.emit(spectrum)
+        self.finished.emit()
+        #return spectrum
 
-        deviceID = h.device_info_list[selectionInt - 1].id_
-        print('selected device:', deviceID, '\n')
-        return h.create(selectionInt - 1)
+    def change_background(self,filename):
+        with h5py.File(os.path.join(filename), 'r') as f:
+            self.background_I = f['averaged_rawI'][()]
+            self.background_Q = f['averaged_rawQ'][()]
+
+    def acquire(self, timeout=10000):
+        """
+        Initiate a measurement and retrieve lock-in data.
+        \param h harvester object
+        \param t float
+        \return numpy array [IRaw,QRaw]
+        """
+
+        outputShape = self.getOutputShape()
+
+        self.camera.start()
+        #print(print("Object thread:", self.camera.thread()))
+        self.camera.remote_device.node_map.TriggerSelector.value = 'FrameStart'
+        self.camera.remote_device.node_map.TriggerSoftware.execute()
+
+        with self.camera.fetch(timeout=timeout) as buffer:
+            data = np.array([img.data % 2 ** 15 // 4 for img in buffer.payload.components]).reshape(outputShape)
+
+        self.camera.stop()
+
+        return data
+
+    def getOutputShape(self):
+        """
+        Get shape of measurement's in-phase/quadrature lock-in output.
+        \param h harvester object
+        \return tuple (NChannels,Nframes,height,width)
+        """
+        NFrames = self.camera.remote_device.node_map.AcquisitionBurstFrameCount.value
+        height = self.camera.remote_device.node_map.Height.value
+        width = self.camera.remote_device.node_map.Width.value
+
+        return 2, NFrames, height, width
 
     def cameraConfig(self):
         """
@@ -445,128 +551,32 @@ class Heliotis(QtCore.QThread):
         #self.camera.remote_device.node_map.LineSelector.value = "RTIO3"
         #self.camera.remote_device.node_map.LineSource.value = "LockInReference"
 
-
-
-
-class CameraWorker(QtCore.QObject):
-    """ This is a DemoWorker for the spectrometer.
-    It continously acquires spectra and emits them to the Interface.
-    It interrupts data acquisition if an int_time change is requested. Its important because most
-    hardware can only handle one command at a time, acquiring or changeing settings.  """
-    # These are signals that allow to send data from a child thread to the parent hierarchy.
-    sendSpectrum = QtCore.pyqtSignal(np.ndarray)
-    finished = QtCore.pyqtSignal()
-
-    def __init__(self,camera):
-        super(CameraWorker, self).__init__() # Elevates this thread to be independent.
-
-        # definition of some parameters
-        self.camera = camera
-        self.spec_length = (252,1024)
-        self.change_int_time = False
-        self.spectrum = np.zeros(self.spec_length)
-        self.terminate = False
-        self.paused = False
-        self.processing = False
-        self.acquiring = False
-        self.correct_bg_checkbox = False
-        self.background_I = np.zeros((542,512))
-        self.background_Q = np.zeros((542,512))
-
-    @QtCore.pyqtSlot(bool, object)
-    def acquire_spectrum(self, take_average, wavelength):
-        """" Continuous tasks of the Worker are defined here.
-        If loops check for requested changes in settings prior each acquisition. """
-
-        print(
-            "Heliotis worker thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
-        )
-
-        print(time.strftime("%H_%M_%S", time.localtime(time.time())) + ' Heliotis worker started')
-        initial_time = time.time()
-        frame_rate = self.camera.remote_device.node_map.FrameRate.value
-        print('######### -->> framerate :', frame_rate)
-
-        #if not self.acquiring:
-        self.acquiring = True
-        t0 = time.time()
-        rawI, rawQ = self.acquire()
-        print("Acquistion Duration:", time.time() - t0)
-        if self.correct_bg_checkbox:
-            twoD_avgI = rawI - self.background_I
-            twoD_avgQ = rawQ - self.background_Q
-        else:
-            twoD_avgI = rawI -np.mean(rawI, axis=0)
-            twoD_avgQ = rawQ -np.mean(rawQ, axis=0)
-        amp = np.sqrt((twoD_avgI)**2 + (twoD_avgQ)**2)
-        ty_res = time.localtime(time.time())
-        timestamp = time.strftime("%H_%M_%S", ty_res)
-        datestamp = time.strftime("20%y-%m-%d", ty_res)
-        folder = os.path.join(r"D:\DATA\BIGFOOT",datestamp)
-        save_every_spectrum = True
-        if take_average:
-            filename = os.path.join(folder,"avg_data" + timestamp + '.h5')
-            if save_every_spectrum:
-                with h5py.File(filename, 'w') as f:
-                    #f.create_dataset('averaged_rawI', data=twoD_avgI)
-                    #f.create_dataset('averaged_rawQ', data=twoD_avgQ)
-                    f.create_dataset('averaged_rawI', data=np.mean(rawI, axis=0))
-                    f.create_dataset('averaged_rawQ', data=np.mean(rawQ, axis=0))
-                    f['averaged_rawI'].attrs["xaxis"] = wavelength
-            print(time.strftime("%H_%M_%S", time.localtime(time.time())) + " Average data acquired")
-        else:
-            filename = os.path.join(folder,"raw_data" + timestamp + '.h5')
-            if save_every_spectrum:
-                with h5py.File(filename, 'w') as f:
-                    f.create_dataset('rawI', data=rawI)
-                    f.create_dataset('rawQ', data=rawQ)
-                    f['rawI'].attrs["xaxis"] = wavelength
-            print(timestamp + " Raw data acquired")
-        self.acquiring = False
-        print(time.strftime("%H_%M_%S", time.localtime(time.time())) + 'Worker closes')
-        spectrum = np.mean(amp, axis=0)
-        self.sendSpectrum.emit(spectrum)
-        self.finished.emit()
-        #return spectrum
-
-    def change_background(self,filename):
-        with h5py.File(os.path.join(filename), 'r') as f:
-            self.background_I = f['averaged_rawI'][()]
-            self.background_Q = f['averaged_rawQ'][()]
-
-    def acquire(self, timeout=10000):
+    def selectDevice(self,h):
         """
-        Initiate a measurement and retrieve lock-in data.
+        Scan for available devices and print device list
+        let the user select one and open the connection to the device
+        if just one device available, open it without user interaction
         \param h harvester object
-        \param t float
-        \return numpy array [IRaw,QRaw]
+        \return harvesters camera object
         """
 
-        outputShape = self.getOutputShape()
+        h.update()
+        NDevices = len(h.device_info_list)
+        print("{} device(s) detected on the Network:\n".format(NDevices))
+        for i, dev in enumerate(h.device_info_list):
+            print("{}) {} ({})".format(i + 1, dev.id_, dev.serial_number))
 
-        self.camera.start()
-        print(print("Object thread:", self.camera.thread()))
-        self.camera.remote_device.node_map.TriggerSelector.value = 'FrameStart'
-        self.camera.remote_device.node_map.TriggerSoftware.execute()
+        if NDevices == 1:
+            selectionInt = 1
+        else:
+            selectionStr = input("Select a device (0=exit): ")
+            selectionInt = int(selectionStr)
+            if ((selectionInt <= 0) or (selectionInt > NDevices)):
+                exit('No device selected - exit script')
 
-        with self.camera.fetch(timeout=timeout) as buffer:
-            data = np.array([img.data % 2 ** 15 // 4 for img in buffer.payload.components]).reshape(outputShape)
-
-        self.camera.stop()
-
-        return data
-
-    def getOutputShape(self):
-        """
-        Get shape of measurement's in-phase/quadrature lock-in output.
-        \param h harvester object
-        \return tuple (NChannels,Nframes,height,width)
-        """
-        NFrames = self.camera.remote_device.node_map.AcquisitionBurstFrameCount.value
-        height = self.camera.remote_device.node_map.Height.value
-        width = self.camera.remote_device.node_map.Width.value
-
-        return 2, NFrames, height, width
+        deviceID = h.device_info_list[selectionInt - 1].id_
+        print('selected device:', deviceID, '\n')
+        return h.create(selectionInt - 1)
 
     def pause(self):
         self.paused = True
