@@ -128,6 +128,7 @@ class MainInterface(QtWidgets.QMainWindow):
         print('Lakeshore connected')
 
         # find items to complement in GUI
+        self.test_button = self.findChild(QtWidgets.QPushButton, 'test_pushButton')
         self.parameter_tree = self.findChild(QtWidgets.QTreeWidget, 'parameters_treeWidget')
         self.spectro_tab = self.findChild(QtWidgets.QWidget, 'spectro_tab')
         self.parameter_tab = self.findChild(QtWidgets.QWidget, 'parameter_tab')
@@ -186,15 +187,18 @@ class MainInterface(QtWidgets.QMainWindow):
                         button = QtWidgets.QAction(function)
                         qmenu.addAction(button)
                         button.triggered.connect(self.devices[device].device_setting_function[function][1])
+                        self.device_setting_functions[function] = button
                     elif button_type == 'Checkbox':
                         button = QtWidgets.QAction(function)
                         button.setCheckable(True)
                         button.setChecked(False)
                         qmenu.addAction(button)
-                        button.toggled.connect(partial(self.devices[device].device_setting_function[function][1], button.isChecked()))
+                        self.device_setting_functions[function] = button
+                        self.device_setting_functions[function].toggled.connect(partial(self.devices[device].device_setting_function[function][1], self.device_setting_functions[function].isChecked()))
+                        # ATTENTION the toggle of checkboxes currently dont work properly.
                     else:
                         raise NotImplementedError
-                    self.device_setting_functions[function] = button
+
 
 
 
@@ -275,6 +279,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.power_calib_array = []
 
         # set connect events
+        self.test_button.clicked.connect(self.test_button_clicked)
         self.acquire_button.clicked.connect(self.acquire_measurement)
         self.view_button.clicked.connect(self.view_measurement)
         self.run_button.clicked.connect(self.run_measurement)
@@ -338,9 +343,10 @@ class MainInterface(QtWidgets.QMainWindow):
                 # change parameter in DataHandling
                 self.parameter[new_parameter] = value
 
-    def test(self):
+    def test_button_clicked(self):
         # test function to test anything
         print('I am testing')
+        print(self.device_setting_functions["correct_bg"].isChecked())
 
     def set_progress(self, progress):
         # set progress bar and define whether a measurement is running. When progess ne 100, no new measurement starts

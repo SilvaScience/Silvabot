@@ -14,6 +14,10 @@ to the worker.
 
 This driver has device_setting_function implemented, allowing to interact directly from the GUI to the driver.
 
+TO DO
+
+- Background correct button is currently hardcorded and changes its status upon toggle. Should be synced to actual GUI status of button.
+
 """
 
 import numpy as np
@@ -146,10 +150,13 @@ class Heliotis(QtCore.QObject):
         self.device_setting_function['correct_bg'] = ('Checkbox', self.correct_bg_checkbox_toggle)
 
     def correct_bg_checkbox_toggle(self, checked):
-        self.correct_bg_checkbox = checked
+        if self.correct_bg_checkbox:
+            self.correct_bg_checkbox = False
+        else:
+            self.correct_bg_checkbox = True
         self.cmd_q.put({
             "type": "BG_CHECKED",
-            "argument": checked
+            "argument": self.correct_bg_checkbox
         })
 
     def load_bg(self):
@@ -392,6 +399,7 @@ class CameraWorker:
                 if self.correct_bg_checkbox:
                     twoD_avgI = rawI - self.background_I
                     twoD_avgQ = rawQ - self.background_Q
+                    print('External background correction done')
                 else:
                     twoD_avgI = rawI - np.mean(rawI, axis=0)
                     twoD_avgQ = rawQ - np.mean(rawQ, axis=0)
@@ -420,25 +428,18 @@ class CameraWorker:
 
                 # send back result
                 spectrum = np.mean(amp, axis=0)
-                print('mean_amp',np.max(spectrum))
-                print('bg_I',np.max(self.background_I))
-                print('bg_Q',np.max(self.background_Q))
-                print('raw_I',np.max(rawI))
-                print('raw_Q',np.max(rawQ))
-                print('twoD_avgI',np.max(twoD_avgI))
-                print('twoD_avgQ',np.max(twoD_avgQ))
-                print('twoD_avgI2',np.max((twoD_avgI) ** 2))
-                print('twoD_avgQ2',np.max((twoD_avgQ) ** 2))
-                (twoD_avgI) ** 2
                 self.res_q.put(spectrum)
 
     def change_background(self,filename):
-        with h5py.File(os.path.join(filename), 'r') as f:
-            try:
-                self.background_I = f['averaged_rawI'][:,:]
-                self.background_Q = f['averaged_rawQ'][:,:]
-            except KeyError:
-                print("WARNING Background file has incorrect data structure")
+        if os.path.exists(filename):
+            with h5py.File(os.path.join(filename), 'r') as f:
+                try:
+                    self.background_I = f['averaged_rawI'][:,:]
+                    self.background_Q = f['averaged_rawQ'][:,:]
+                except KeyError:
+                    print("WARNING Background file has incorrect data structure")
+        else:
+            print('Background file does not exist')
 
     def acquire(self):
         outputShape = self.getOutputShape()
