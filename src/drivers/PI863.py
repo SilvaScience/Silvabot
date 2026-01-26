@@ -24,7 +24,7 @@ class PI863():
         self.parameter_dict['set_target_position'] = 0
         self.parameter_dict['position'] = 0
         
-        self.parameter_display_dict['set_speed']['val'] = 10
+        self.parameter_display_dict['set_speed']['val'] = 1
         self.parameter_display_dict['set_speed']['unit'] = ' mm/s'
         self.parameter_display_dict['set_speed']['max'] = 20
         self.parameter_display_dict['set_speed']['read'] = False
@@ -47,8 +47,9 @@ class PI863():
         # initialize translation stage
         self.pidevice = GCSDevice('C-863.11')
         self.pidevice.ConnectUSB(serialnum='0025550268')
-        print('connected: {}'.format(self.pidevice.qIDN().strip()))
         pitools.startup(self.pidevice, stages='62309120', refmodes='FNL')
+        print('connected: {}'.format(self.pidevice.qIDN().strip()))
+        self.pidevice.VEL(1, self.parameter_dict['set_speed'])  # set initial speed to the value in parameter dict
 
         # start updating position
         self.UpdateWorker_Position = UpdateWorker_Position(self.pidevice)
