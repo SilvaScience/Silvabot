@@ -137,6 +137,7 @@ class UHF():
 
     def update_time_constant(self, time_constant):
         self.device.demods[0].timeconstant(time_constant)
+        self.device.demods[4].timeconstant(time_constant)
         print(f'Time constant set to {time_constant} s')
 
     def update_displayed_signal_input(self, displayed_signal_input):

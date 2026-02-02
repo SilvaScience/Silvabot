@@ -109,7 +109,7 @@ class ScanWorker(QtCore.QThread):
 
     def run(self):
         self.pidevice.MOV(1, 50)   # Moves the stage to its maximum position
-        pitools.waitontarget(self.pidevice, 1) # Waits until the stage reaches the target position
+        pitools.waitontarget(self.pidevice, 1, timeout=10000) # Waits until the stage reaches the target position or until timeout is reached
         self.pidevice.MOV(1, 0)    # Moves the stage to its initial position
-        pitools.waitontarget(self.pidevice, 1) # Waits until the stage reaches the target position
+        pitools.waitontarget(self.pidevice, 1, timeout=10000) # Waits until the stage reaches the target position or until timeout is reached
         self.finished_scan.emit()
