@@ -416,3 +416,44 @@ class TSeriesMeasurement(QtCore.QThread):
     def stop(self):
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+class AcquireSpectrum(QtCore.QThread):
+    # set used signal types, destination is set in main script
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendProgress = QtCore.pyqtSignal(float)
+
+    def __init__(self, devices, parameter):
+        super(AcquireSpectrum, self).__init__()
+        self.spectrometer = devices['spectrometer']
+        self.wls = []  # preallocate wls array
+        self.spec = []  # preallocate spec array
+        self.terminate = False
+        self.acquire_measurement = True
+        self.start_wl = self.spectrometer.parameter_dict['start_wl']['val']
+        self.end_wl = self.spectrometer.parameter_dict['end_wl']['val']
+
+    def run(self):
+        print(self.spectrometer.parameter_dict['start_wl']['val'])
+        if not self.terminate:
+            self.sendProgress.emit(50)
+            while self.wls[-1] <= self.end_wl:
+                # move grating to select wavelength range
+                if len(self.wls) == 0:
+                    center_wl = self.start_wl + 125
+                else:
+                    center_wl = self.wls[-1] + 125
+                self.sendParameter.emit('center_wl', center_wl)
+
+                # acquire spectrum
+                if hasattr(self.spectrometer, 'shutter'):
+                    self.spectrometer.start_acquisition()
+                self.wls.append(np.array(self.spectrometer.get_wavelength()))
+                self.spec.append(np.array(self.spectrometer.get_intensities()))
+                if hasattr(self.spectrometer, 'shutter'):
+                    self.spectrometer.stop_acquisition()
+            self.sendSpectrum.emit(self.wls, self.spec)
+            self.sendProgress.emit(100)
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')

@@ -28,7 +28,7 @@ from drivers.ThorlabsPM100D import ThorlabsPM100D
 from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
-    ViewMeasurement, KineticMeasurement, TSeriesMeasurement
+    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, AcquireSpectrum
 
 
 class MainInterface(QtWidgets.QMainWindow):
@@ -47,23 +47,23 @@ class MainInterface(QtWidgets.QMainWindow):
         # initialize cryostat
         #self.cryostat = CryoPasqal()
         try:
-            try:
-                self.cryostat = CryoPasqal()
-            except:
-                self.cryostat = Cryocore()
-                print('Connected to Montana CryoCore')
+            #try:
+            self.cryostat = CryoPasqal()
+            # except:
+            #     self.cryostat = Cryocore()
+            #     print('Connected to Montana CryoCore')
         except:
             self.cryostat = CryoDemo()
             print('WARNING you are using a DEMO version of the cryostat')
         self.devices['cryostat'] = self.cryostat
             
         # initialize Spectrometer
-        try:
-            self.spectrometer = Pixis()
-            print('Pixis camera connected')
-        except:
-            self.spectrometer = PixisDemo()
-            print('Pixis connection failed, use DEMO')
+        # try:
+        #     self.spectrometer = Pixis()
+        #     print('Pixis camera connected')
+        # except:
+        self.spectrometer = PixisDemo()
+        print('WARNING you are using a DEMO version of the Pixis')
         #self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
@@ -102,6 +102,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.stop_button = self.findChild(QtWidgets.QPushButton, 'stop_pushButton')
         self.save_folder_button = self.findChild(QtWidgets.QPushButton, 'folder_pushButton')
         self.save_button = self.findChild(QtWidgets.QPushButton, 'save_pushButton')
+        self.spectrum_acquire_button = self.findChild(QtWidgets.QPushButton, 'spectrum_acquire_pushButton')
         self.comments_edit = self.findChild(QtWidgets.QTextEdit, 'comments_textEdit')
         self.filename_edit = self.findChild(QtWidgets.QLineEdit, 'filename_lineEdit')
         self.progress_bar = self.findChild(QtWidgets.QProgressBar, 'progressBar')
@@ -208,6 +209,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.view_button.clicked.connect(self.view_measurement)
         self.run_button.clicked.connect(self.run_measurement)
         self.stop_button.clicked.connect(self.stop_measurement)
+        self.spectrum_acquire_button.clicked.connect(self.acquire_spectrum)
         self.filename_edit.editingFinished.connect(self.change_filename)
         self.save_button.clicked.connect(self.save_data)
         self.save_folder_button.clicked.connect(self.change_folder)
@@ -435,6 +437,18 @@ class MainInterface(QtWidgets.QMainWindow):
         # stop measurement
         self.measurement.stop()
         self.measurement_busy = False
+
+    def acquire_spectrum(self):
+        print('button clicked')
+        if not self.measurement_busy:
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+            self.measurement = AcquireSpectrum(self.devices, self.parameter)
+            self.measurement.sendProgress.connect(self.set_progress)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.start()
+        else:
+            print('Measurement not started, devices are busy')
 
 
 class UpdateWorker(QtCore.QThread):

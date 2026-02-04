@@ -93,6 +93,14 @@ class Pixis(QtCore.QThread):
         self.parameter_display_dict['grating']['unit'] = ' grat'
         self.parameter_display_dict['grating']['max'] = 3
         self.parameter_display_dict['grating']['read'] = False
+        self.parameter_display_dict['start_wl']['val'] = 400
+        self.parameter_display_dict['start_wl']['unit'] = 'nm'
+        self.parameter_display_dict['start_wl']['max'] = 1200
+        self.parameter_display_dict['start_wl']['read'] = False
+        self.parameter_display_dict['end_wl']['val'] = 800
+        self.parameter_display_dict['end_wl']['unit'] = 'nm'
+        self.parameter_display_dict['end_wl']['max'] = 1200
+        self.parameter_display_dict['end_wl']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
