@@ -504,25 +504,18 @@ class MainInterface(QtWidgets.QMainWindow):
             self.measurement.start()
         else:
             print('Measurement not started, devices are busy')
-
-    ##### THz Tab Methods #####
     
     def thz_plotter_scan_clicked(self):
-        # Call the existing Plotter_scan method
         self.Plotter_scan()
     
     def thz_acquisition_clicked(self):
         """Handler for THz Acquisition Button"""
         print('THz Acquisition started')
-        # Add your custom THz acquisition code here
         x_data = np.linspace(0, 10, 100)
         y_data = np.sin(x_data)
         self.thz_plot_widget.plot(x_data, y_data, pen='b')
     
     def thz_clear_clicked(self):
-        """Handler for Clear Button"""
-        print('THz Plot cleared')
-        # Clear the plot
         self.thz_plot_widget.clear()
 
     def closeEvent(self, event):
