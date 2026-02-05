@@ -80,6 +80,7 @@ class Heliotis(QtCore.QObject):
         self.sensitivity = 1
         self.N_Periods = 100 #95
         self.ref_freq =  1000 # 29790  # # 71531.2#26662#53325
+        self.freq_dev = 5  # 29790  # # 71531.2#26662#53325
 
         # set parameter dict
         self.parameter_dict = defaultdict()
@@ -88,7 +89,8 @@ class Heliotis(QtCore.QObject):
         self.parameter_display_dict = defaultdict(dict)
         self.parameter_display_dict['num_frames']['val'] = self.num_frames
         self.parameter_display_dict['num_frames']['unit'] = ' frames'
-        self.parameter_display_dict['num_frames']['max'] = 10000
+        self.parameter_display_dict['num_frames']['min'] = 4
+        self.parameter_display_dict['num_frames']['max'] = 910 # 910 is heliotis max
         self.parameter_display_dict['num_frames']['read'] = False
         self.parameter_display_dict['center_wl']['val'] = self.center_wl
         self.parameter_display_dict['center_wl']['unit'] = ' nm'
@@ -100,7 +102,7 @@ class Heliotis(QtCore.QObject):
         self.parameter_display_dict['grating']['read'] = False
         self.parameter_display_dict['take_average']['val'] = 0
         self.parameter_display_dict['take_average']['unit'] = ' per'
-        self.parameter_display_dict['take_average']['max'] = 100
+        self.parameter_display_dict['take_average']['max'] = 100 # 100 is heliotis max
         self.parameter_display_dict['take_average']['read'] = False
         self.parameter_display_dict['sensitivity']['val'] = self.sensitivity
         self.parameter_display_dict['sensitivity']['unit'] = ' '
@@ -114,6 +116,10 @@ class Heliotis(QtCore.QObject):
         self.parameter_display_dict['ref_freq']['unit'] = ' Hz'
         self.parameter_display_dict['ref_freq']['max'] = 150000 # 44700 29796
         self.parameter_display_dict['ref_freq']['read'] = False
+        self.parameter_display_dict['freq_dev']['val'] = self.freq_dev
+        self.parameter_display_dict['freq_dev']['unit'] = ' per'
+        self.parameter_display_dict['freq_dev']['max'] = 100 # 44700 29796
+        self.parameter_display_dict['freq_dev']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
@@ -135,7 +141,7 @@ class Heliotis(QtCore.QObject):
         self.worker.start()
         self.cmd_q.put({
             "type": "PARAMETERS",
-            "parameter_list": [self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq]
+            "parameter_list": [self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev],
         })
 
         # Timer to check whether new spectrum is available for get_intensities
@@ -185,7 +191,7 @@ class Heliotis(QtCore.QObject):
             self.num_frames = int(value)
             self.cmd_q.put({
                 "type": "PARAMETERS",
-                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq]
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev]
             })
         elif parameter == 'take_average':
             self.parameter_dict['take_average'] = value
@@ -198,21 +204,28 @@ class Heliotis(QtCore.QObject):
             self.sensitivity = value
             self.cmd_q.put({
                 "type": "PARAMETER",
-                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq]
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev]
             })
         elif parameter == 'N_Periods':
             self.parameter_dict['N_Periods'] = value
             self.N_Periods = int(value)
             self.cmd_q.put({
                 "type": "PARAMETER",
-                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq]
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev]
             })
         elif parameter == 'ref_freq':
             self.parameter_dict['ref_freq'] = value
             self.ref_freq = int(value)
             self.cmd_q.put({
                 "type": "PARAMETER",
-                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq]
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev]
+            })
+        elif parameter == 'freq_dev':
+            self.parameter_dict['freq_dev'] = value
+            self.freq_dev = int(value)
+            self.cmd_q.put({
+                "type": "PARAMETER",
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev]
             })
 
     def update_spectrum(self, spec):
@@ -350,6 +363,7 @@ class CameraWorker:
         self.sensitivity = 1
         self.N_Periods = 100 #95
         self.ref_freq =  1000 # 29790  # # 71531.2#26662#53325
+        self.freq_dev = 5
 
         self.cmd_q = command_queue
         self.res_q = result_queue
@@ -364,7 +378,7 @@ class CameraWorker:
         self.camera = self.selectDevice(h)
 
         # configure camera
-        self.cameraConfig(self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq)
+        self.cameraConfig(self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev)
 
     def run(self):
         print(time.strftime("%H_%M_%S", time.localtime(time.time())) + ' Heliotis worker started')
@@ -380,8 +394,8 @@ class CameraWorker:
 
             if cmd["type"] == "PARAMETERS":
                 print('Get parameters')
-                self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq = cmd["parameter_list"]
-                self.cameraConfig(self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq)
+                self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev = cmd["parameter_list"]
+                self.cameraConfig(self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev)
 
             if cmd["type"] == 'BG_FILENAME':
                 self.change_background(cmd["argument"])
@@ -403,7 +417,7 @@ class CameraWorker:
                 else:
                     twoD_avgI = rawI - np.mean(rawI, axis=0)
                     twoD_avgQ = rawQ - np.mean(rawQ, axis=0)
-                amp = np.sqrt((twoD_avgI) ** 2 + (twoD_avgQ) ** 2)
+                amp = np.sqrt((np.mean(twoD_avgI,axis=0)) ** 2 + (np.mean(twoD_avgQ,axis=0)) ** 2)
                 ty_res = time.localtime(time.time())
                 timestamp = time.strftime("%H_%M_%S", ty_res)
                 datestamp = time.strftime("20%y-%m-%d", ty_res)
@@ -427,8 +441,8 @@ class CameraWorker:
                     print(timestamp + " Raw data acquired")
 
                 # send back result
-                spectrum = np.mean(amp, axis=0)
-                self.res_q.put(spectrum)
+                #spectrum = np.mean(amp, axis=0)
+                self.res_q.put(amp)
 
     def change_background(self,filename):
         if os.path.exists(filename):
@@ -465,7 +479,7 @@ class CameraWorker:
 
         return 2, NFrames, height, width
 
-    def cameraConfig(self, num_frames,sensitivity,Nperiods,ref_freq):
+    def cameraConfig(self, num_frames,sensitivity,Nperiods,ref_freq, freq_dev):
         """
         simple configuration  of heliCam C4 using internal reference
         \param camera harvesters camera object
@@ -476,22 +490,23 @@ class CameraWorker:
         # Number of intergration periods
         NPeriods = Nperiods #49
         # Background suppression on/off switch, 'AC' or 'DC'
-        coupling = 'DC'
+        coupling = 'DC' # DC before
         # Reference frequency in Hz
         refFrequency = ref_freq # 44700.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
         # Source of reference signal, 'Internal' or 'External'
         refSource = 'External' # 'External'
         # Expected frequency deviation of external reference input in %
-        expFrequencyDev = 1
+        #expFrequencyDev = 1
         # Number of frames to be recorded
         NFrames = num_frames
 
         # Configuration
         self.camera.remote_device.node_map.TriggerSelector.value = "RecordingStart"
         self.camera.remote_device.node_map.TriggerMode.value = "Off"
+        #self.camera.remote_device.node_map.TriggerSource.value = "FI3"
         self.camera.remote_device.node_map.TriggerSelector.value = "FrameStart"
         self.camera.remote_device.node_map.TriggerMode.value = "On"
-        self.camera.remote_device.node_map.TriggerSource.value = "Software"
+        self.camera.remote_device.node_map.TriggerSource.value = "Software" # "Software"
 
         # LIA
 
@@ -501,14 +516,14 @@ class CameraWorker:
         self.camera.remote_device.node_map.LockInSensitivity.value = sensitivity
         self.camera.remote_device.node_map.LockInTargetTimeConstantNPeriods.value = NPeriods
         self.camera.remote_device.node_map.LockInCoupling.value = coupling
-        self.camera.remote_device.node_map.LockInExpectedFrequencyDeviation.value = expFrequencyDev
+        self.camera.remote_device.node_map.LockInExpectedFrequencyDeviation.value = freq_dev
         self.camera.remote_device.node_map.LockInTargetReferenceFrequency.value = refFrequency
         self.camera.remote_device.node_map.AcquisitionBurstFrameCount.value = NFrames
 
         self.camera.remote_device.node_map.LockInReferenceSourceType.value = refSource
 
         # For external reference signal only
-        self.camera.remote_device.node_map.LockInReferenceFrequencyScaler.value = "Off" #"DivideBy8" # 8 #"DivideBy2"  # or "Off", "DivideBy2" etc
+        self.camera.remote_device.node_map.LockInReferenceFrequencyScaler.value = "DivideBy4" # "Off" "DivideBy8" # 8 #"DivideBy2"  # or "Off", "DivideBy2" etc
         self.camera.remote_device.node_map.LockInReferenceSourceSignal.value = "FI2"
 
         # Illumination
