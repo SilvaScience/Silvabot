@@ -81,6 +81,7 @@ class Heliotis(QtCore.QObject):
         self.N_Periods = 100 #95
         self.ref_freq =  1000 # 29790  # # 71531.2#26662#53325
         self.freq_dev = 5  # 29790  # # 71531.2#26662#53325
+        self.ac_coupling = 0
 
         # set parameter dict
         self.parameter_dict = defaultdict()
@@ -120,6 +121,10 @@ class Heliotis(QtCore.QObject):
         self.parameter_display_dict['freq_dev']['unit'] = ' per'
         self.parameter_display_dict['freq_dev']['max'] = 100 # 44700 29796
         self.parameter_display_dict['freq_dev']['read'] = False
+        self.parameter_display_dict['AC_coupling']['val'] = self.ac_coupling
+        self.parameter_display_dict['AC_coupling']['unit'] = ' per'
+        self.parameter_display_dict['AC_coupling']['max'] = 100 # 44700 29796
+        self.parameter_display_dict['AC_coupling']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
@@ -141,7 +146,7 @@ class Heliotis(QtCore.QObject):
         self.worker.start()
         self.cmd_q.put({
             "type": "PARAMETERS",
-            "parameter_list": [self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev],
+            "parameter_list": [self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev,self.ac_coupling],
         })
 
         # Timer to check whether new spectrum is available for get_intensities
@@ -191,7 +196,7 @@ class Heliotis(QtCore.QObject):
             self.num_frames = int(value)
             self.cmd_q.put({
                 "type": "PARAMETERS",
-                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev]
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev,self.ac_coupling]
             })
         elif parameter == 'take_average':
             self.parameter_dict['take_average'] = value
@@ -204,28 +209,35 @@ class Heliotis(QtCore.QObject):
             self.sensitivity = value
             self.cmd_q.put({
                 "type": "PARAMETER",
-                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev]
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev,self.ac_coupling]
             })
         elif parameter == 'N_Periods':
             self.parameter_dict['N_Periods'] = value
             self.N_Periods = int(value)
             self.cmd_q.put({
                 "type": "PARAMETER",
-                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev]
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev,self.ac_coupling]
             })
         elif parameter == 'ref_freq':
             self.parameter_dict['ref_freq'] = value
             self.ref_freq = int(value)
             self.cmd_q.put({
                 "type": "PARAMETER",
-                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev]
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev,self.ac_coupling]
             })
         elif parameter == 'freq_dev':
             self.parameter_dict['freq_dev'] = value
             self.freq_dev = int(value)
             self.cmd_q.put({
                 "type": "PARAMETER",
-                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev]
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev,self.ac_coupling]
+            })
+        elif parameter == 'AC_coupling':
+            self.parameter_dict['AC_coupling'] = value
+            self.freq_dev = int(value)
+            self.cmd_q.put({
+                "type": "PARAMETER",
+                "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev,self.ac_coupling]
             })
 
     def update_spectrum(self, spec):
@@ -364,6 +376,7 @@ class CameraWorker:
         self.N_Periods = 100 #95
         self.ref_freq =  1000 # 29790  # # 71531.2#26662#53325
         self.freq_dev = 5
+        self.ac_coupling = 0
 
         self.cmd_q = command_queue
         self.res_q = result_queue
@@ -378,7 +391,7 @@ class CameraWorker:
         self.camera = self.selectDevice(h)
 
         # configure camera
-        self.cameraConfig(self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev)
+        self.cameraConfig(self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev, self.ac_coupling)
 
     def run(self):
         print(time.strftime("%H_%M_%S", time.localtime(time.time())) + ' Heliotis worker started')
@@ -394,8 +407,8 @@ class CameraWorker:
 
             if cmd["type"] == "PARAMETERS":
                 print('Get parameters')
-                self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev = cmd["parameter_list"]
-                self.cameraConfig(self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev)
+                self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev, self.ac_coupling = cmd["parameter_list"]
+                self.cameraConfig(self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev,self.ac_coupling)
 
             if cmd["type"] == 'BG_FILENAME':
                 self.change_background(cmd["argument"])
@@ -479,7 +492,7 @@ class CameraWorker:
 
         return 2, NFrames, height, width
 
-    def cameraConfig(self, num_frames,sensitivity,Nperiods,ref_freq, freq_dev):
+    def cameraConfig(self, num_frames,sensitivity,Nperiods,ref_freq, freq_dev, ac_coupling):
         """
         simple configuration  of heliCam C4 using internal reference
         \param camera harvesters camera object
@@ -490,7 +503,10 @@ class CameraWorker:
         # Number of intergration periods
         NPeriods = Nperiods #49
         # Background suppression on/off switch, 'AC' or 'DC'
-        coupling = 'DC' # DC before
+        if ac_coupling == 100:
+            coupling = 'AC'  # DC before
+        else:
+            coupling = 'DC' # DC before
         # Reference frequency in Hz
         refFrequency = ref_freq # 44700.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
         # Source of reference signal, 'Internal' or 'External'
