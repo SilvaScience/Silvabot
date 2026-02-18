@@ -93,7 +93,6 @@ class MainInterface(QtWidgets.QMainWindow):
         except:
             print('Orpheus not connected')
 
-
         # initialize Powermeter
         try:
             self.powermeter = ThorlabsPM100D()
