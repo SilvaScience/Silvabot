@@ -314,9 +314,9 @@ class Heliotis(QtCore.QObject):
         """ Gets the intensity. The example include the possibility of averaging several spectra and to
         perform a binning. Such functionalities might also be given by the camera.
         This function will be accessible from MeasurementClasses."""
-        print(
-            "Current thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
-        )
+        #print(
+        #    "Current thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
+        #)
         self.new_spectrum = False
         self.cmd_q.put({"type": "ACQUIRE","take_average": self.take_average,"wavelength": self.wavelength,"save": True,"folder": r"D:\DATA\BIGFOOT"})
         while not self.new_spectrum:
@@ -435,9 +435,12 @@ class CameraWorker:
                 timestamp = time.strftime("%H_%M_%S", ty_res)
                 datestamp = time.strftime("20%y-%m-%d", ty_res)
                 folder = os.path.join(r"D:\DATA\BIGFOOT", datestamp)
+                os.makedirs(folder, exist_ok=True)
+                folder_raw = os.path.join(folder, 'raw')
+                os.makedirs(folder_raw, exist_ok=True)
                 save_every_spectrum = True
                 if take_avg:
-                    filename = os.path.join(folder, "avg_data" + timestamp + '.h5')
+                    filename = os.path.join(folder_raw, "avg_data" + timestamp + '.h5')
                     if save_every_spectrum:
                         with h5py.File(filename, 'w') as f:
                             f.create_dataset('averaged_rawI', data=np.mean(rawI, axis=0))
@@ -445,7 +448,7 @@ class CameraWorker:
                             f['averaged_rawI'].attrs["xaxis"] = wavelength
                     print(time.strftime("%H_%M_%S", time.localtime(time.time())) + " Average data acquired")
                 else:
-                    filename = os.path.join(folder, "raw_data" + timestamp + '.h5')
+                    filename = os.path.join(folder_raw, "raw_data" + timestamp + '.h5')
                     if save_every_spectrum:
                         with h5py.File(filename, 'w') as f:
                             f.create_dataset('rawI', data=rawI)

@@ -306,9 +306,9 @@ class MainInterface(QtWidgets.QMainWindow):
         # show GUI, to be executed at the end of init.
         self.show()
 
-        print(
-            "Main thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
-        )
+        #print(
+        #    "Main thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
+        #)
 
     ##### General functions #####
 

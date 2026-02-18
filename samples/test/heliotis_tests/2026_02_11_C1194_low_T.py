@@ -21,10 +21,10 @@ h_c = 1239.841984 #h * c in eV/nm
 #lv.connect()
 # %%
 # input 
-date = '2026-02-05' # '2025-07-24' # 
-bg_name =  'avg_data14_55_29' # 1999Hz: avg_data15_55_19, 499Hz: avg_data15_32_59, 1999 Hz+AC: avg_data16_55_37
+date = '2026-02-11' # '2025-07-24' # 
+bg_name =  'avg_data11_40_07' # 1999Hz: avg_data15_55_19, 499Hz: avg_data15_32_59, 1999 Hz+AC: avg_data16_55_37
 N_period = 100
-freq = 25000
+freq = 499
 path = r"D:\DATA\BIGFOOT"
 
 # %% plot individual spectrum
@@ -63,7 +63,7 @@ def load_n_correct_bg(data_name):
     return energy_axis,mean_amp,rawI,rawQ,amp
 
 # %% stich several maps
-filenames=['raw_data16_06_46', 'raw_data16_06_52', 'raw_data16_06_57', 'raw_data16_07_03', 'raw_data16_07_09'] # 50 53 57  # 1999Hz : raw_data15_56_53, 499Hz: raw_data15_34_30, 1999 Hz+AC: raw_data16_56_03
+filenames=['raw_data19_07_54'] # 50 53 57  # 1999Hz : raw_data15_56_53, 499Hz: raw_data15_34_30, 1999 Hz+AC: raw_data16_56_03
 maps = {}
 rawI = {}
 rawQ = {}
@@ -73,6 +73,43 @@ wl_axis = {}
 for f in filenames:
     energy_axis[f],maps[f],rawI[f],rawQ[f],amp[f] = load_n_correct_bg(f)
     wl_axis[f] = 1240/energy_axis[f]*1E3
+    
+# % Plot amplitude map
+plot_amp_map = True
+if plot_amp_map:
+    pixel = np.r_[1:543]
+    for f in filenames:
+        Z =maps[f]
+        log_norm = colors.LogNorm(vmin=2, vmax=np.nanmax(Z))
+        plt.pcolor(wl_axis[f],pixel,Z) #,norm=log_norm 
+        plt.clim(15,30)
+    plt.title(f'{date}\n{filenames[0]}'.replace('raw_data',''))
+    plt.xlabel('Wavelength (nm)')
+    plt.ylabel('Pixel')
+    #plt.xlim(-13,12)
+    #plt.ylim(190,210)
+    plt.colorbar()
+    plt.show()
+    
+# %%  
+file = filenames[0]
+I= rawI[file]
+Q= rawQ[file]
+mean_I = np.mean(I, axis=0)
+mean_Q = np.mean(Q,axis=0)
+avg_amp = np.sqrt(mean_I ** 2 + mean_Q ** 2)
+
+Z =avg_amp
+log_norm = colors.LogNorm(vmin=2, vmax=np.nanmax(Z))
+plt.pcolor(wl_axis[f],pixel,Z) #,norm=log_norm 
+plt.clim(15,30)
+plt.title(f'{date}\n{filenames[0]}'.replace('raw_data',''))
+plt.xlabel('Wavelength (nm)')
+plt.ylabel('Pixel')
+#plt.xlim(-13,12)
+#plt.ylim(190,210)
+plt.colorbar()
+plt.show()
 
 # %% Plot vs energy
 file = filenames[0]
@@ -85,23 +122,25 @@ limits_pixel_bg = np.r_[40:60]
 pixel = np.r_[1:543]
 plot_vs_energy = True
 if plot_vs_energy:
-    plt.pcolor(pixel,energy_axis[file],np.transpose(maps[file]))
-    plt.vlines(x0s,1587,1663,linestyle ='--', color = 'grey')
-    #plt.clim(50,140)
+    Z = np.array(maps[file], dtype=float)   
+    Z[Z <= 0] = 0.0001 # Mask non-positive values
+    log_norm = colors.LogNorm(vmin=np.min(Z), vmax=np.max(Z))
+    plt.pcolormesh(pixel,energy_axis[file],np.transpose(Z),norm=log_norm )
+    plt.clim(3,175)
     plt.title(f'{date}\n{filenames[0]}'.replace('raw_data',''))
     plt.ylabel('Energy (meV)')
     plt.xlabel('Pixel')
-    #plt.xlim(120,480)
-    #plt.ylim(100,490)
+    plt.xlim(140,390)
+    plt.ylim(1615,1635)
     plt.colorbar()
     
     # add rectangle
     #plt.figure()
-    rect = Rectangle((limits_pixel[0],energy_axis[file][limits_energy[0]]), limits_pixel[-1] - limits_pixel[0], energy_axis[file][limits_energy[0]] - energy_axis[file][limits_energy[-1]],
-                     fill=False, edgecolor='red', linewidth=2)
+    #rect = Rectangle((limits_pixel[0],energy_axis[file][limits_energy[0]]), limits_pixel[-1] - limits_pixel[0], energy_axis[file][limits_energy[0]] - energy_axis[file][limits_energy[-1]],
+    #                 fill=False, edgecolor='red', linewidth=2)
     #plt.gca().add_patch(rect)
-    rect = Rectangle((limits_pixel_bg[0],energy_axis[file][limits_energy[0]]), limits_pixel_bg[-1] - limits_pixel_bg[0], energy_axis[file][limits_energy[0]] - energy_axis[file][limits_energy[-1]],
-                     fill=False, edgecolor='grey', linewidth=2)
+    #rect = Rectangle((limits_pixel_bg[0],energy_axis[file][limits_energy[0]]), limits_pixel_bg[-1] - limits_pixel_bg[0], energy_axis[file][limits_energy[0]] - energy_axis[file][limits_energy[-1]],
+    #                 fill=False, edgecolor='grey', linewidth=2)
     #plt.gca().add_patch(rect)
     
     plt.show()
@@ -119,31 +158,7 @@ bg_value_I = np.average(np.average(I[:,limits_pixel_bg,:],1)[:,limits_energy],1)
 bg_value_Q = np.average(np.average(Q[:,limits_pixel_bg,:],1)[:,limits_energy],1)
 time_axis = np.linspace(0,np.shape(I)[0],np.shape(I)[0])/fps*1E3
 phase_row = np.arctan2(Q,I)  
-
-# %% Cross section
-z = np.zeros(np.shape(maps[file]))
-x = energy_axis[file]
-for file in filenames:
-    z = z + maps[file]
-
-
-x0s = np.array([120,200,280]) # ,360,440
-dx = 5 
-colors = plt.cm.viridis(np.linspace(0, 1, len(x0s)))
-plt.figure()
-plt.gca().set_prop_cycle(color=colors)
-for x0 in x0s:
-    cross_section = np.mean(z[x0 - dx: x0 + dx,:], axis = 0)
-    plt.plot(x, cross_section, label =f'{x0} pixel')
-plt.legend()
-plt.title(f'{date}' +' d$_{lens}$=3cm' + f'\n{filenames}'.replace('raw_data',''))
-plt.xlabel('Energy (meV)')
-plt.ylabel('Reflectance (arb. u.)')
-plt.show()
-
-
-# %% Plot evolution of ROIs 
-plot_evolution = False  
+plot_evolution = False 
 if plot_evolution :
     f, plts = plt.subplots(4, figsize =(4,6))
     #plt.plot(np.average(amp_row[:,218:279],1))
@@ -172,6 +187,67 @@ if plot_evolution :
     f.subplots_adjust(wspace =0,hspace =0)
     plt.show()
     print(f'amp average ={np.average(np.average(np.average(a[:,limits_pixel,:],1)[:,limits_energy],1))}')
+
+# %% perform background correction
+perform_bg = False
+if perform_bg:
+    a_t = a
+    bg_value = np.average(np.average(I[:,limits_pixel_bg,:],1)[:,limits_energy],1)
+    bg_I = bg_value[:, None, None] * np.ones((542, 512))
+    bg_value = np.average(np.average(Q[:,limits_pixel_bg,:],1)[:,limits_energy],1)
+    bg_Q = bg_value[:, None, None] * np.ones((542, 512))
+    
+    I= rawI[file]
+    Q= rawQ[file]
+    
+    amp_corr = np.sqrt((I-bg_Q) ** 2 + (I-bg_Q) ** 2)
+    mean_amp = np.mean(amp_corr, axis=0)
+    
+    
+    plt.pcolor(pixel,energy_axis[file],np.transpose(mean_amp))
+    plt.clim(6,7)
+    plt.title(f'{date}\n{filenames[0]}'.replace('raw_data',''))
+    plt.ylabel('Energy (meV)')
+    plt.xlabel('Pixel')
+    #plt.xlim(120,480)
+    #plt.ylim(100,490)
+    plt.colorbar()
+    
+# %% plot different backgrounds
+
+#1999Hz: avg_data15_55_19, 499Hz: avg_data15_32_59, 1999 Hz+AC: avg_data16_55_37
+bg_file = 'avg_data10_04_21'
+
+with h5py.File(os.path.join(path,date,bg_file + '.h5'), 'r') as f:
+    bg_rawI = f['averaged_rawI'][:,:] # 264:268
+    bg_rawQ = f['averaged_rawQ'][:,:]
+
+bg_file2 = 'avg_data10_05_01'
+
+with h5py.File(os.path.join(path,date,bg_file2 + '.h5'), 'r') as f:
+    bg_rawI2 = f['averaged_rawI'][:,:] # 264:268
+    bg_rawQ2 = f['averaged_rawQ'][:,:]
+
+#plt.pcolor(pixel,energy_axis[file],np.transpose(bg_rawI))
+#plt.clim(50,140)
+#plt.title(f'{date}\n{bg_file}'.replace('raw_data',''))
+#plt.ylabel('Energy (meV)')
+#plt.xlabel('Pixel')
+#plt.colorbar()
+
+# %%
+f, plts = plt.subplots(2, figsize =(4,6))
+plts[0].hist(bg_rawI-bg_rawI2, edgecolor='black')
+plts[1].hist(bg_rawQ-bg_rawQ2, edgecolor='black')
+plts[0].set_title(f'{date} {bg_file}'.replace('raw_data',''))
+plts[0].set_ylabel('$\Delta$bg I')
+plts[1].set_ylabel('$\Delta$bg Q')
+plts[1].set_xlabel('Intensity')
+for i in range(2): plts[i].set_xlim(-10,10)
+f.subplots_adjust(wspace =0,hspace =0)
+plt.show()
+
+print(f'Sum Deviation I: {np.sum(np.abs(bg_rawI-bg_rawI2)):.0f} Sum Deviation Q: {np.sum(np.abs(bg_rawQ-bg_rawQ2)):.0f}')
 
 
 
