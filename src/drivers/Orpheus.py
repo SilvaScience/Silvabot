@@ -17,7 +17,7 @@ import sys
 import json
 import requests
 import random
-from Hardware.Topas4Locator import Topas4Locator
+from src.drivers.Topas4Locator import Topas4Locator
 import numpy as np
 
 
@@ -28,10 +28,11 @@ class Orpheus(QtCore.QThread):
         super(Orpheus, self).__init__()
 
         # initialize connection to ORPHEUS
-        serialNumber = "P20423"
+        serialNumber = "P24909"
         locator = Topas4Locator()
         availableDevices = locator.locate()
         self.match = next((obj for obj in availableDevices if obj['SerialNumber'] == serialNumber), None)
+        print(self.match)
         if self.match is None:
             print('Device with serial number %s not found' % serialNumber)
         else:
@@ -71,7 +72,10 @@ class Orpheus(QtCore.QThread):
         self.ignore_user_actions = False
 
     def put(self, url, data):
+        print(self.baseAddress + url, data)
         r = requests.put(self.baseAddress + url, json=data)
+        print(r.text)
+
 
     def get(self, url):
         return requests.get(self.baseAddress + url)
