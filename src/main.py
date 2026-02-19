@@ -270,6 +270,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.progress_bar.setValue(int(progress))
         if progress == 100.:
             self.measurement_busy = False
+            self.DataHandling.spec_length = self.spec_length #needed to reset DataHandling preallocation after measurements with large spectra
 
     def change_folder(self):
         # select folder to save data
@@ -442,11 +443,12 @@ class MainInterface(QtWidgets.QMainWindow):
         print('button clicked')
         if not self.measurement_busy:
             self.measurement_busy = True
-            self.DataHandling.clear_data()
             self.measurement = AcquireSpectrum(self.devices, self.parameter)
             self.measurement.sendProgress.connect(self.set_progress)
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
             self.measurement.sendParameter.connect(self.change_parameter)
+            self.DataHandling.spec_length = self.measurement.spec_length
+            self.DataHandling.clear_data()
             self.measurement.start()
         else:
             print('Measurement not started, devices are busy')
