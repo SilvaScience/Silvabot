@@ -27,7 +27,7 @@ class Arduino(QtCore.QThread):
     def __init__(self, port):
         self.port = port
         super(Arduino, self).__init__()
-        self.ser = serial.Serial(self.port, 28800)
+        self.ser = serial.Serial(self.port, 115200)
         time.sleep(1.75)
         self.parameter_dict = defaultdict()
 
@@ -72,16 +72,16 @@ class Arduino(QtCore.QThread):
             self.update_shutter(1,steps_to_move)
             self.parameter_dict['filter_wheel_1'] = value
         elif parameter == 'filter_wheel_2':
-            change_in_angle = self.parameter_dict['filter_wheel_1'] -value
+            change_in_angle = self.parameter_dict['filter_wheel_2'] -value
             steps_to_move = round(change_in_angle*2048/360)
             self.update_shutter(2, steps_to_move)
-            self.parameter_dict['filter_wheel_1'] = value
+            self.parameter_dict['filter_wheel_2'] = value
 
         elif parameter == 'filter_wheel_3':
-            change_in_angle = self.parameter_dict['filter_wheel_1'] -value
+            change_in_angle = self.parameter_dict['filter_wheel_3'] -value
             steps_to_move = round(change_in_angle*2048/360)
             self.update_shutter(3,steps_to_move)
-            self.parameter_dict['filter_wheel_1'] = value
+            self.parameter_dict['filter_wheel_3'] = value
 
 
     def update_shutter(self,shutter, set_angle):

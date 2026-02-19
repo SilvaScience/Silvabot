@@ -8,13 +8,15 @@ int rpm = 10;
 
 // initialize stepper library on pins 8 - 11
 // pin order IN1, IN3, IN2, IN4
-Stepper SRV1 (SPR, 8, 10, 9, 11);
-Stepper SRV2 (SPR, 4, 5, 6, 7);
-Stepper SRV3 (SPR, 0, 1, 2, 3);
+Stepper SRV1 (SPR, 8, 10, 9, 11); // 8, 10, 9, 11
+Stepper SRV2 (SPR, 4, 6, 5, 7); // 4, 5, 6, 7
+Stepper SRV3 (SPR, 0, 2, 1, 3);
 
 void setup() {
-  Serial.begin(28800);
+  Serial.begin(115200);
   SRV1.setSpeed(rpm);
+  SRV2.setSpeed(rpm);
+  SRV3.setSpeed(rpm);
 }
 
 void processCommand(String command){
