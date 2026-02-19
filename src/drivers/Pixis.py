@@ -49,7 +49,7 @@ class Pixis(QtCore.QThread):
 
         # set up spectrograph
         self.serial_busy = False
-        port = 'COM5'
+        port = 'COM6'
         self.ser = serial.Serial(port=port, baudrate=9600, bytesize=8, parity='N',
                                  stopbits=1, xonxoff=0, rtscts=0, timeout=0.02)
         # get startup values

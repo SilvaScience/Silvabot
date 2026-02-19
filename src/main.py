@@ -46,24 +46,24 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize cryostat
         #self.cryostat = CryoPasqal()
-        try:
+        #try:
             #try:
-            self.cryostat = CryoPasqal()
+            #self.cryostat = CryoPasqal()
             # except:
             #     self.cryostat = Cryocore()
             #     print('Connected to Montana CryoCore')
-        except:
-            self.cryostat = CryoDemo()
-            print('WARNING you are using a DEMO version of the cryostat')
-        self.devices['cryostat'] = self.cryostat
+        #except:
+        #    self.cryostat = CryoDemo()
+        #    print('WARNING you are using a DEMO version of the cryostat')
+        #self.devices['cryostat'] = self.cryostat
             
         # initialize Spectrometer
-        # try:
-        #     self.spectrometer = Pixis()
-        #     print('Pixis camera connected')
-        # except:
-        self.spectrometer = PixisDemo()
-        print('WARNING you are using a DEMO version of the Pixis')
+         #try:
+        self.spectrometer = Pixis()
+        print('Pixis camera connected')
+         #except:
+        #self.spectrometer = PixisDemo()
+        #print('WARNING you are using a DEMO version of the Pixis')
         #self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
@@ -446,6 +446,7 @@ class MainInterface(QtWidgets.QMainWindow):
             self.measurement = AcquireSpectrum(self.devices, self.parameter)
             self.measurement.sendProgress.connect(self.set_progress)
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.sendParameter.connect(self.change_parameter)
             self.measurement.start()
         else:
             print('Measurement not started, devices are busy')

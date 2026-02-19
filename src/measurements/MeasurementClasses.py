@@ -421,37 +421,55 @@ class AcquireSpectrum(QtCore.QThread):
     # set used signal types, destination is set in main script
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     sendProgress = QtCore.pyqtSignal(float)
+    sendParameter = QtCore.pyqtSignal(str, float)
 
     def __init__(self, devices, parameter):
         super(AcquireSpectrum, self).__init__()
         self.spectrometer = devices['spectrometer']
         self.wls = []  # preallocate wls array
-        self.spec = []  # preallocate spec array
+        self.spec = [] # preallocate spec array
         self.terminate = False
         self.acquire_measurement = True
-        self.start_wl = self.spectrometer.parameter_dict['start_wl']['val']
-        self.end_wl = self.spectrometer.parameter_dict['end_wl']['val']
+        self.start_wl = self.spectrometer.parameter_dict['start_wl']
+        self.end_wl = self.spectrometer.parameter_dict['end_wl']
 
     def run(self):
-        print(self.spectrometer.parameter_dict['start_wl']['val'])
+        print(self.spectrometer.parameter_dict['start_wl'])
         if not self.terminate:
             self.sendProgress.emit(50)
-            while self.wls[-1] <= self.end_wl:
+            nb_iter = 0
+            while self.wls[-1][-1] <= self.end_wl:
+                print(nb_iter)
                 # move grating to select wavelength range
-                if len(self.wls) == 0:
-                    center_wl = self.start_wl + 125
+                if nb_iter == 0:
+                    self.sendParameter.emit('center_wl', self.start_wl)
+                    wl_range = self.spectrometer.get_wavelength()
+                    center_wl = self.start_wl + (wl_range[-1] - wl_range[0]) / 2
                 else:
-                    center_wl = self.wls[-1] + 125
+                    wl_range = self.spectrometer.get_wavelength()
+                    center_wl = self.wls[-1] + (wl_range[-1] - wl_range[0]) / 2
                 self.sendParameter.emit('center_wl', center_wl)
+                print(center_wl)
+                time.sleep(5)
+                print(self.spectrometer.get_wavelength())
 
                 # acquire spectrum
                 if hasattr(self.spectrometer, 'shutter'):
                     self.spectrometer.start_acquisition()
-                self.wls.append(np.array(self.spectrometer.get_wavelength()))
-                self.spec.append(np.array(self.spectrometer.get_intensities()))
+                new_wls = np.array(self.spectrometer.get_wavelength())
+                print(np.shape(self.wls))
+                print(np.shape(new_wls))
+                self.wls = np.concatenate((self.wls, new_wls), axis=0)
+                if nb_iter == 0:
+                    self.wls = self.wls[-1]
+                new_spec = np.array(self.spectrometer.get_intensities()).reshape(252, -1)
+                self.spec = np.concatenate((self.spec, new_spec), axis = 1)
                 if hasattr(self.spectrometer, 'shutter'):
                     self.spectrometer.stop_acquisition()
-            self.sendSpectrum.emit(self.wls, self.spec)
+                nb_iter += 1
+                print(np.shape(self.wls))
+                print(np.shape(self.spec))
+            self.sendSpectrum.emit(np.array(self.wls), np.array(self.spec))
             self.sendProgress.emit(100)
 
     def stop(self):
