@@ -25,15 +25,15 @@ mode = pecamerapy.OpenMode.USB3
 print(mode)
 # Find index, serial
 index = -1
-#try:
-#    index, serial = cam.find_first(mode)
-#    print(f"Camera {serial} available at index {index} with mode {mode}")
-#except Exception as e:
-#    print(f"Error during connection: {e}")
-#    exit(-1)
+try:
+    index, serial = cam.find_first(mode)
+    print(f"Camera {serial} available at index {index} with mode {mode}")
+except Exception as e:
+    print(f"Error during connection: {e}")
+    exit(-1)
 
 # Open the connection
-index = 11
+#index = 11
 try:
     cam.open(index, mode)
 except pecamerapy.CommOpenError as e:
