@@ -288,7 +288,7 @@ class TSeriesMeasurement(QtCore.QThread):
     def __init__(self, devices, parameter, T_series, T_stab_time, two_sources, ref_power, int_time_WL, int_time_orpheus,
                  spectra_avg, power_dep, filter_pos, int_times):
         super(TSeriesMeasurement, self).__init__()
-        self.Spectrometer = devices['spectrometer']
+        self.spectrometer = devices['spectrometer']
         self.cryostat = devices['cryostat']
         self.T_series = T_series
         self.T_stab_time = T_stab_time
@@ -316,14 +316,18 @@ class TSeriesMeasurement(QtCore.QThread):
     def run(self):
         print(time.strftime('%H:%M:%S') + ' Run T Series Measurement')
         if not self.terminate:
+
+            # initialize T dependent measurement
             self.sendProgress.emit(1)
-            self.wls = np.array(self.Spectrometer.get_wavelength())
+            self.wls = np.array(self.spectrometer.get_wavelength())
             n = 0
+
+            # loop over temperatures
             for temperature in self.T_series:
                 n = n + 1
                 self.sendParameter.emit('set_T', temperature)
 
-                # wait for temperature
+                # wait to reach temperature
                 T_current = self.cryostat.parameter_dict['current_T']
                 while not abs(T_current - temperature) < 0.5:
                     if not self.terminate:
@@ -338,33 +342,37 @@ class TSeriesMeasurement(QtCore.QThread):
 
                 # measure
                 if not self.terminate:
-                    if not self.two_sources:
-                        self.Spectrometer.start_acquisition()
-                        for m in range(self.spectra_avg):
-                            self.spec = np.array(self.Spectrometer.get_intensities())
+                    if not self.two_sources: # case of one single source
+                        if hasattr(self.spectrometer, 'shutter'):
+                            self.spectrometer.start_acquisition()
+                        for m in range(self.spectra_avg): # take several spectra for each acquistion
+                            self.spec = np.array(self.spectrometer.get_intensities())
                             self.sendSpectrum.emit(self.wls, self.spec)
                             print(time.strftime('%H:%M:%S') + ' Spectrum acquired')
-                        self.Spectrometer.stop_acquisition()
+                        if hasattr(self.spectrometer, 'shutter'):
+                            self.spectrometer.stop_acquisition()
 
                         progress = n / len(self.T_series) * 100
                         self.sendProgress.emit(progress)
 
-                    else:
-                        if not self.power_dep:
-                            #self.sendParameter.emit('int_time', self.int_time_orpheus)
-                            #self.sendParameter.emit('shutter1', 100)  # open Orpheus shutter
+                    else: # case of two sources (Orpheus and WL)
+                        if not self.power_dep: # power INdependent case
+                            self.sendParameter.emit('int_time', self.int_time_orpheus)
+                            self.sendParameter.emit('shutter', 100)  # open Orpheus shutter
                             time.sleep(2)
                             for m in range(self.spectra_avg):
-                                self.Spectrometer.start_acquisition()
-                                self.spec = np.array(self.Spectrometer.get_intensities())
+                                if hasattr(self.spectrometer, 'shutter'):
+                                    self.spectrometer.start_acquisition()
+                                self.spec = np.array(self.spectrometer.get_intensities())
                                 self.sendSpectrum.emit(self.wls, self.spec)
-                                self.Spectrometer.stop_acquisition()
+                                if hasattr(self.spectrometer, 'shutter'):
+                                    self.spectrometer.stop_acquisition()
                                 print(time.strftime('%H:%M:%S') + ' PL Spectrum acquired')
 
-                            #self.sendParameter.emit('int_time', self.int_time_WL)
-                            #self.sendParameter.emit('shutter1', 0)  # close Orpheus shutter
-                            #time.sleep(2)
-                        else:
+                            self.sendParameter.emit('int_time', self.int_time_WL)
+                            self.sendParameter.emit('shutter', 0)  # close Orpheus shutter
+                            time.sleep(2)
+                        else: # power dependent case, currently NOT IMPLEMENTED (filter wheel missing)
                             for k in range(len(self.int_times)):
                                 if not self.terminate:
                                     #self.sendParameter.emit('int_time', self.int_times[k])
@@ -372,11 +380,12 @@ class TSeriesMeasurement(QtCore.QThread):
                                     #self.sendParameter.emit('filter_wheel', self.filter_ard_pos[k])
                                     #self.sendParameter.emit('filter_pos', self.filter_thor_pos[k])
                                     # trigger spectrometer to settle to new int time
-                                    self.Spectrometer.start_acquisition()
+                                    if hasattr(self.spectrometer, 'shutter'):
+                                        self.spectrometer.start_acquisition()
                                     if not self.int_time_orpheus == self.int_times[k]:
                                         print(time.strftime('%H:%M:%S') + ' Int time changed, trigger spectrometer and '
                                                                           'wait to stabilize changes')
-                                        self.Spectrometer.get_intensities()
+                                        self.spectrometer.get_intensities()
                                         time.sleep(2)
                                     self.int_time_orpheus = self.int_times[k]
                                     waittime = 1 + self.int_times[k] / 1000
@@ -386,29 +395,31 @@ class TSeriesMeasurement(QtCore.QThread):
                                     #self.sendParameter.emit('shutter1', 100)  # open Orpheus shutter
                                     #time.sleep(2)
                                     for m in range(self.spectra_avg):
-                                        self.spec = np.array(self.Spectrometer.get_intensities())
+                                        self.spec = np.array(self.spectrometer.get_intensities())
                                         self.sendSpectrum.emit(self.wls, self.spec)
                                         print(time.strftime('%H:%M:%S') + ' PL Spectrum acquired')
                                     #self.sendParameter.emit('shutter1', 0)  # close Orpheus shutter
                                     #time.sleep(2)
-                                    self.Spectrometer.stop_acquisition()
+                                    if hasattr(self.spectrometer, 'shutter'):
+                                        self.spectrometer.stop_acquisition()
                             self.sendParameter.emit('int_time', self.int_time_WL)
 
-                        #self.sendParameter.emit('shutter2', 100)  # open WL shutter
-                        #time.sleep(2)
-                        #self.sendParameter.emit('shutter1', 0)  # close Orpheus shutter again
-
-                        self.Spectrometer.start_acquisition()
+                        # take WL measurements
+                        self.sendParameter.emit('filter_wheel_1', 100)  # open WL shutter
                         time.sleep(2)
+                        self.sendParameter.emit('shutter', 0)  # close Orpheus shutter again
 
-                        for m in range(self.spectra_avg):
-                            self.spec = np.array(self.Spectrometer.get_intensities())
+                        if hasattr(self.spectrometer, 'shutter'):
+                            self.spectrometer.start_acquisition()
+                        for m in range(self.spectra_avg): # take several WL measurements
+                            self.spec = np.array(self.spectrometer.get_intensities())
                             self.sendSpectrum.emit(self.wls, self.spec)
                             print(time.strftime('%H:%M:%S') + ' WL Spectrum acquired')
-                        self.Spectrometer.stop_acquisition()
+                        if hasattr(self.spectrometer, 'shutter'):
+                            self.spectrometer.stop_acquisition()
                         progress = n / len(self.T_series) * 100
                         self.sendProgress.emit(progress)
-                        #self.sendParameter.emit('shutter2', 0)  # close WL shutter
+                        self.sendParameter.emit('filter_wheel_1', 0)  # close WL shutter
                         time.sleep(2)
                         if self.terminate:
                             self.sendProgress.emit(100)

@@ -72,9 +72,7 @@ class Orpheus(QtCore.QThread):
         self.ignore_user_actions = False
 
     def put(self, url, data):
-        print(self.baseAddress + url, data)
         r = requests.put(self.baseAddress + url, json=data)
-        print(r.text)
 
 
     def get(self, url):
