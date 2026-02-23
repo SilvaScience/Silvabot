@@ -157,7 +157,7 @@ class Pixis(QtCore.QThread):
         elif parameter == 'start_wl':
             self.parameter_dict['start_wl'] = value
         elif parameter == 'end_wl':
-            self.parameter_dict['end_wl'] = value
+            self.parameter_dict['en d_wl'] = value
 
 
     def update_spectrum(self, spec, int_time):
