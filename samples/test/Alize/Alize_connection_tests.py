@@ -50,12 +50,21 @@ cam.set_trigger_mode(my_mode)  # set initial mode
 try:
     # Capture 3 frames
     cam.capture(3,3)
+    print(cam.get_exposure_time_range())
+    print(cam.get_detector_size())
 
     # Retrieve image + metadata
     img, metadata = cam.get_image(timeout_sec=1)
+    img2, metadata = cam.get_image(timeout_sec=1)
+    img3, metadata = cam.get_image(timeout_sec=1)
+    #img4, metadata = cam.get_image(timeout_sec=1)
 
     # Display image and metadata values
     print(f"Image values: \n {img}")
+    print(np.shape(img), np.max(img), np.min(img))
+    print(np.shape(img2), np.max(img2), np.min(img2))
+    print(np.shape(img3), np.max(img3), np.min(img3))
+    #print(np.shape(img4), np.max(img4), np.min(img4))
     print("Metadata values:")
     print(f"counter: {metadata.counter}")
 

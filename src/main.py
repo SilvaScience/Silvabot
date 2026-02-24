@@ -26,6 +26,7 @@ from drivers.Lakeshore import Lakeshore
 from drivers.Heliotis_noncontinuous import Heliotis
 from drivers.PixisDemo import PixisDemo
 from drivers.Pixis import Pixis
+from drivers.Alize import Alize
 from drivers.Bigfoot import Bigfoot
 from drivers.Cryocore import Cryocore
 from drivers.ThorlabsCCS200 import ThorlabsCCS200
@@ -67,8 +68,10 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize Spectrometer
         #try:
-        self.spectrometer = Pixis()
-        print('Pixis camera connected')
+        #self.spectrometer = Pixis()
+        #print('Pixis camera connected')
+        self.spectrometer = Alize()
+        print('Alize camera connected')
         #except:
         #self.spectrometer = Heliotis()
         #self.spectrometer.request_file.connect(self.open_file_dialog)
@@ -553,6 +556,12 @@ class MainInterface(QtWidgets.QMainWindow):
         # stop measurement
         self.measurement.stop()
         self.measurement_busy = False
+
+    def closeEvent(self, event):
+        for device in self.devices:
+            if hasattr(self.devices[device], 'close_device'):
+                self.devices[device].close_device()
+        event.accept()
 
 
 class UpdateWorker(QtCore.QThread):

@@ -3,17 +3,16 @@
 Created on Mon Apr  28 15:09:53 2025
 
 @author: David Tiede
-Hardware class to control spectrometer. All hardware classes require a definition of
+Hardware class to control the Alize camera. All hardware classes require a definition of
 parameter_display_dict (set Spinbox options and read/write)
 set_parameter function (assign set functions)
 
+REQUIREMENTS:
+Needs PeCamera-SDK-4.14.0 to be installed as a python package. This package is only available locally. It is stored on
+the TRUENAS server.
+
 NOTE:
-Communication with Pixis is kind of slow (150ms), such that in the current interface a new image is acquired every 150ms
-at the fastest. If ever a faster acquisition is required, transfer of multiple frames per communication (eg. with
-cam.grab - see manual or pylablib homepage) can be implemented. For the current planned experiments an acquistion rate of
-150ms was judged to be sufficient.
-To install driver, picam needs to be installed on the PC. It is freely available at:
-https://www.teledynevisionsolutions.com/products/pi_max4/?vertical=tvs-princeton-instruments&segment=tvs&aQ=Picam&aPage=1&dlQ=picam&dlPage=1
+Currently still in testing
 
 """
 
@@ -24,18 +23,19 @@ from pylablib.devices import PrincetonInstruments
 import time
 import serial
 import re
+import pecamerapy
 
-class Pixis(QtCore.QThread):
+class Alize(QtCore.QThread):
 
-    name = 'Pixis'
+    name = 'Alize'
     
     def __init__(self):
-        super(Pixis, self).__init__()
+        super(Alize, self).__init__()
 
         #self.camera.start()
-        self.wavelength =  np.linspace(200,1000,1024) # get property from Worker
-        self.px0 = np.linspace(1,1024,1024)
-        self.spec_length = (252,1024) # get property from Worker
+        self.wavelength =  np.linspace(200,1000,640) # get property from Worker
+        self.px0 = np.linspace(1,640,640)
+        self.spec_length = (512, 640) # get property from Worker
         self.image = np.zeros(self.spec_length)
 
         # Indicate shutter, required to discriminate between different detectors
@@ -48,13 +48,16 @@ class Pixis(QtCore.QThread):
         self.new_spectrum = False
 
         # set up spectrograph
+
         self.serial_busy = False
-        port = 'COM6'
+        port = 'COM12'
         self.ser = serial.Serial(port=port, baudrate=9600, bytesize=8, parity='N',
-                                 stopbits=1, xonxoff=0, rtscts=0, timeout=0.02)
+                                 stopbits=1, xonxoff=0, rtscts=0, timeout=2)
         # get startup values
         self.grating = float(self.write_command('?GRATING')[0])
         numbers = self.write_command('?GRATINGS')
+        numbers = ['1', '600', '1200', '2', '300', '1200', '3', '4', '5', '6', '7', '8'] # HARDED QUICK FIX as communication with SP2150 does not yield grating information.
+        # This communication issue might be related to high COM port number (maybe it has a different cause).
         self.num_gratings = int((len(numbers)-8)/2)
         self.grating_densities = np.zeros(self.num_gratings)
         self.grating_blazes = np.zeros(self.num_gratings)
@@ -62,14 +65,15 @@ class Pixis(QtCore.QThread):
             self.grating_densities[i] = numbers[i*3 + 1]
             self.grating_blazes[i] = numbers[i * 3 + 2]
         self.center_wl = float(self.write_command('?NM')[0])
-        print(self.center_wl)
-        print(self.grating_densities)
-        print(self.grating_blazes)
-        print(self.grating)
         print('SP2150 grating info: ', numbers)
         print('SP2150 grating densities: ',self.grating_densities)
         print('SP2150 grating blazes: ',self.grating_blazes)
         print('SP2150 selected grating: ',self.grating)
+
+        # TEMP
+        #self.grating = 1
+        #self.center_wl = 500
+        #self.grating_densities = [500,500,500]
 
         # set parameter dict
         self.parameter_dict = defaultdict()
@@ -104,19 +108,85 @@ class Pixis(QtCore.QThread):
             self.parameter_dict[key] = self.parameter_display_dict[key]['val']
 
         # initialize camera interface
-        print('Initialize Camera')
-        print(PrincetonInstruments.list_cameras())
-        self.camera = PrincetonInstruments.PicamCamera()
-        print('Camera connected')
+        '''
+        # Define a Camera
+        self.camera = pecamerapy.Camera()
+
+        # Choose the desired connection mode
+        mode = pecamerapy.OpenMode.USB3
+
+        # Find index, serial
+        index = -1
+        try:
+            index, serial_number = self.camera.find_first(mode)
+        except Exception as e:
+            print(f"Error during Alize connection: {e}")
+            exit(-1)
+
+        # Open the connection
+        try:
+            self.camera.open(index, mode)
+        except pecamerapy.CommOpenError as e:
+            print(f"Error during opening: {e}")
+            exit(-1)
+        self.camera.set_trigger_mode(pecamerapy.TRIGGER_FALLING_EDGE)  # set trigger mode
+
+        # Test Getter/Setter
+        my_mode = self.camera.get_trigger_mode()  # should be TRIGGER_NONE (or other specified mode)
+        self.camera.set_trigger_mode(pecamerapy.TRIGGER_FALLING_EDGE)  # set another mode
+        self.camera.get_trigger_mode()  # ensure mode is TRIGGER_FALLING_EDGE
+        self.camera.set_trigger_mode(my_mode)  # set initial mode
+
+        self.camera.capture(3, 3)
+        print(self.camera.get_exposure_time_range())
+        print(self.camera.get_detector_size())
+        print(self.camera.get_exposure_time())
+
+        # Retrieve image + metadata
+        img, metadata = self.camera.get_image(timeout_sec=5)
+        print(img)
 
         # initialize camera
-        self.worker = CameraWorker(self.camera,self.int_time)
+        #self.worker = CameraWorker(self.camera,self.int_time)
+        #self.worker.sendSpectrum.connect(self.update_spectrum) # connect where signals of worker go to.
+        #self.worker.sendTemperature.connect(self.update_temperature)
+        #self.worker.start()
+        '''
+        # Define a Camera
+        self.cam = pecamerapy.Camera()
+
+        # Choose the desired connection mode
+        mode = pecamerapy.OpenMode.USB3
+        # Find index, serial
+        index = -1
+        try:
+            index, serial_num = self.cam.find_first(mode)
+        except Exception as e:
+            print(f"Error during connection: {e}")
+            exit(-1)
+
+        # Open the connection to Alize
+        # index = 11
+        try:
+            self.cam.open(index, mode)
+        except pecamerapy.CommOpenError as e:
+            print(f"Error during opening: {e}")
+            exit(-1)
+
+        # Test Getter/Setter
+        my_mode = self.cam.get_trigger_mode()  # should be TRIGGER_NONE (or other specified mode)
+        #self.cam.set_trigger_mode(pecamerapy.TRIGGER_FALLING_EDGE)  # set another mode
+        #self.cam.get_trigger_mode()  # ensure mode is TRIGGER_FALLING_EDGE
+        self.cam.set_trigger_mode(my_mode)  # set initial mode
+
+        self.worker = CameraWorker(self.cam,self.int_time)
         self.worker.sendSpectrum.connect(self.update_spectrum) # connect where signals of worker go to.
         self.worker.sendTemperature.connect(self.update_temperature)
         self.worker.start()
 
         # set int time once
-        self.camera.set_attribute_value("Exposure Time", int(self.int_time))
+        self.cam.set_exposure_time(self.int_time/1E3)
+        #self.camera.set_attribute_value("Exposure Time", int(self.int_time))
 
     def set_parameter(self, parameter, value):
         """REQUIRED. This function defines how changes in the parameter tree are handled.
@@ -124,12 +194,12 @@ class Pixis(QtCore.QThread):
         if parameter == 'int_time':
             self.parameter_dict['int_time'] = value
             self.worker.int_time = value
-            if self.worker.acquiring: # stops acquisition before changing int time if currently acquiring.
-                self.stop_acquisition()
-                self.camera.set_attribute_value("Exposure Time", int(value))
-                self.start_acquisition()
-            else:
-                self.camera.set_attribute_value("Exposure Time", int(value))
+            #if self.worker.acquiring: # stops acquisition before changing int time if currently acquiring.
+            #    self.stop_acquisition()
+            self.cam.set_exposure_time(value/1E3)
+            #    self.start_acquisition()
+            #else:
+            #    self.camera.set_attribute_value("Exposure Time", int(value))
             self.int_time = value
         elif parameter == 'avg_scan':
             self.parameter_dict['avg_scan'] = value
@@ -146,13 +216,13 @@ class Pixis(QtCore.QThread):
             self.grating = value
 
 
-    def update_spectrum(self, spec, int_time):
+    def update_spectrum(self, spec):
         """REQUIRED. This is the slot function for the sendSpectrum pyqt.signal from the worker.
         It updates the last saved spectrum and changes the self.new_spectrum Boolean to True
         to allow to emit the treated signal from the spectrometer."""
-        if int_time == self.int_time:  # check if spectrum is acquired with desired int conditions
-            self.spectrum = spec
-            self.new_spectrum = True
+        #if int_time == self.int_time:  # check if spectrum is acquired with desired int conditions
+        self.spectrum = spec
+        self.new_spectrum = True
 
     def get_wavelength(self):
         """This simply returns the wavelength. In Colbert this needs to be adapted if the calibration
@@ -170,11 +240,11 @@ class Pixis(QtCore.QThread):
         Returns:
             wavelengths: 1D numpy array of wavelengths (nm)
         """
-        calibrated = True
+        calibrated = False
         if calibrated:
-            pixel_size_mm = 26 / 1E3  # specs of PIXIS
+            pixel_size_mm = 15 / 1E3  # specs of Alize
             focal_length_mm = 150  # specs of SP2150
-            num_pixels = 1024  # specs of PIXIS
+            num_pixels = 640  # specs of Alize
 
             #
 
@@ -197,9 +267,9 @@ class Pixis(QtCore.QThread):
 
             wavelengths = ((d_grating / m_order) * (np.sin(psi - 0.5 * gamma) + np.sin(psi + 0.5 * gamma + eta))) + curvature * n ** 2
         else:
-            pixel_size_mm = 26 / 1E3  # specs of PIXIS
+            pixel_size_mm = 15 / 1E3  # specs of Alize
             focal_length_mm = 150  # specs of SP2150
-            num_pixels = 1024  # specs of PIXIS
+            num_pixels = 640  # specs of Alize
 
             # Calculate linear dispersion (nm/mm)
             dispersion = 1e6 / (focal_length_mm * grating_lines_per_mm)
@@ -217,32 +287,32 @@ class Pixis(QtCore.QThread):
 
     def start_acquisition(self):
         """ Sets camera to continuous acquisition mode. """
-        self.camera.start_acquisition()
-        self.worker.acquiring = True
+        #self.camera.start_acquisition()
+        #self.worker.acquiring = True
 
     def stop_acquisition(self):
         """ Disable continuous acquisition mode of camera. """
-        self.worker.acquiring = False
-        self.camera.stop_acquisition()
+        #self.worker.acquiring = False
+        #self.camera.stop_acquisition()
 
     def get_intensities(self):
         """ Gets the intensity. The example include the possibility of averaging several spectra and to
         perform a binning. Such functionalities might also be given by the camera.
         This function will be accessible from MeasurementClasses."""
-        if self.avg_scan == 1:
-            while not self.new_spectrum:
-                time.sleep(0.01)
-            spectrum = self.spectrum
-            self.new_spectrum = False
-        else:
-            spectrum = self.image
-            for i in range(self.avg_scan):
-                time.sleep(self.int_time / 1000 + 0.01)
-                while not self.new_spectrum:
-                    time.sleep(0.01)
-                spectrum = spectrum + self.spectrum
-                self.new_spectrum = False
-            spectrum = spectrum / self.avg_scan
+        self.worker.acquire(self.avg_scan)
+        while not self.new_spectrum:
+            time.sleep(0.01)
+        spectrum = self.spectrum
+        self.new_spectrum = False
+        #else:
+        #    spectrum = self.image
+        #    for i in range(self.avg_scan):
+        #        time.sleep(self.int_time / 1000 + 0.01)
+        #        while not self.new_spectrum:
+        #            time.sleep(0.01)
+        #        spectrum = spectrum + self.spectrum
+        #        self.new_spectrum = False
+        #    spectrum = spectrum / self.avg_scan
         return spectrum
 
     def update_temperature(self,temperature):
@@ -272,6 +342,10 @@ class Pixis(QtCore.QThread):
         self.serial_busy = False
         return re.findall(r'\d+', out.decode().strip())
 
+    def close_device(self):
+        self.cam.abort()
+        self.cam.close()
+
 
 
 class CameraWorker(QtCore.QThread):
@@ -280,7 +354,7 @@ class CameraWorker(QtCore.QThread):
     It interrupts data acquisition if an int_time change is requested. Its important because most
     hardware can only handle one command at a time, acquiring or changeing settings.  """
     # These are signals that allow to send data from a child thread to the parent hierarchy.
-    sendSpectrum = QtCore.pyqtSignal(np.ndarray, float)
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray)
     sendTemperature = QtCore.pyqtSignal(float)
 
     def __init__(self,camera,int_time):
@@ -288,7 +362,7 @@ class CameraWorker(QtCore.QThread):
 
         # definition of some parameters
         self.camera = camera
-        self.spec_length = (252,1024)
+        self.spec_length = (512, 640)
         self.change_int_time = False
         self.spectrum = np.zeros(self.spec_length)
         self.int_time = int_time
@@ -298,23 +372,25 @@ class CameraWorker(QtCore.QThread):
         self.terminate = False
         self.acquiring = False
 
+    def acquire(self,num_frames):
+        self.camera.capture(num_frames,num_frames)
+        if num_frames >1:
+            self.spectrum = np.zeros(self.spec_length)
+            for i in range(num_frames):
+                img, metadata = self.camera.get_image(timeout_sec=20)
+                self.spectrum += img
+            img = self.spectrum / num_frames
+        else:
+            img, metadata = self.camera.get_image(timeout_sec=20)
+        self.sendSpectrum.emit(np.fliplr(img)) #flip image as camera is mounted upside down.
+
     def run(self):
         """" Continuous tasks of the Worker are defined here.
         If loops check for requested changes in settings prior each acquisition. """
         while not self.terminate: #infinite loop
-            if self.acquiring:
-                image = None
-                timeout_start = time.time()
-                while not type(image) == np.ndarray and not time.time() > timeout_start + self.int_time/1E3 + 0.5:
-                    time.sleep(0.02)
-                    image = self.camera.read_newest_image()
-                try:
-                    self.sendSpectrum.emit(image, self.int_time)
-                except TypeError:
-                    print('WARNING: Spectrum not sent from Worker')
-            else:
-                time.sleep(1)
-            temperature = self.camera.get_attribute_value("Sensor Temperature Reading")
-            self.sendTemperature.emit(temperature)
-        print('Worker closes')
+            time.sleep(0.1)
+            self.sendTemperature.emit(self.camera.get_temperature())
+        self.camera.abort()
+        self.camera.close()
+        print('Alize Worker closes')
         return
