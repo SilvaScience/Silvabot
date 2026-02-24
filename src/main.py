@@ -67,11 +67,11 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize Spectrometer
         #try:
-        #self.spectrometer = Pixis()
-        #print('Pixis camera connected')
+        self.spectrometer = Pixis()
+        print('Pixis camera connected')
         #except:
-        self.spectrometer = Heliotis()
-        self.spectrometer.request_file.connect(self.open_file_dialog)
+        #self.spectrometer = Heliotis()
+        #self.spectrometer.request_file.connect(self.open_file_dialog)
         #self.spectrometer = ThorlabsCCS200()
         #print('Pixis connection failed, use DEMO')
         #self.spectrometer = SpectrometerDemo()

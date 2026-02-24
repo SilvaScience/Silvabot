@@ -35,20 +35,20 @@ class Arduino(QtCore.QThread):
         self.parameter_display_dict = defaultdict(dict)
         self.stop = False
 
-        self.parameter_dict['filter_wheel_1'] = 50
-        self.parameter_display_dict['filter_wheel_1']['val'] = 50
+        self.parameter_dict['filter_wheel_1'] = 0
+        self.parameter_display_dict['filter_wheel_1']['val'] = 0
         self.parameter_display_dict['filter_wheel_1']['unit'] = ' deg'
         self.parameter_display_dict['filter_wheel_1']['max'] = 360
         self.parameter_display_dict['filter_wheel_1']['read'] = False
 
-        self.parameter_dict['filter_wheel_2'] = 50
-        self.parameter_display_dict['filter_wheel_2']['val'] = 50
+        self.parameter_dict['filter_wheel_2'] = 0
+        self.parameter_display_dict['filter_wheel_2']['val'] = 0
         self.parameter_display_dict['filter_wheel_2']['unit'] = ' deg'
         self.parameter_display_dict['filter_wheel_2']['max'] = 360
         self.parameter_display_dict['filter_wheel_2']['read'] = False
 
-        self.parameter_dict['filter_wheel_3'] = 50
-        self.parameter_display_dict['filter_wheel_3']['val'] = 50
+        self.parameter_dict['filter_wheel_3'] = 0
+        self.parameter_display_dict['filter_wheel_3']['val'] = 0
         self.parameter_display_dict['filter_wheel_3']['unit'] = ' deg'
         self.parameter_display_dict['filter_wheel_3']['max'] = 360
         self.parameter_display_dict['filter_wheel_3']['read'] = False

@@ -405,7 +405,7 @@ class TSeriesMeasurement(QtCore.QThread):
                             self.sendParameter.emit('int_time', self.int_time_WL)
 
                         # take WL measurements
-                        self.sendParameter.emit('filter_wheel_1', 100)  # open WL shutter
+                        self.sendParameter.emit('filter_wheel_1', 0)  # open WL shutter
                         time.sleep(2)
                         self.sendParameter.emit('shutter', 0)  # close Orpheus shutter again
 
@@ -419,7 +419,7 @@ class TSeriesMeasurement(QtCore.QThread):
                             self.spectrometer.stop_acquisition()
                         progress = n / len(self.T_series) * 100
                         self.sendProgress.emit(progress)
-                        self.sendParameter.emit('filter_wheel_1', 0)  # close WL shutter
+                        self.sendParameter.emit('filter_wheel_1', 100)  # close WL shutter
                         time.sleep(2)
                         if self.terminate:
                             self.sendProgress.emit(100)
