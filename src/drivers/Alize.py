@@ -240,7 +240,7 @@ class Alize(QtCore.QThread):
         Returns:
             wavelengths: 1D numpy array of wavelengths (nm)
         """
-        calibrated = False
+        calibrated = True
         if calibrated:
             pixel_size_mm = 15 / 1E3  # specs of Alize
             focal_length_mm = 150  # specs of SP2150
@@ -253,8 +253,22 @@ class Alize(QtCore.QThread):
             px = self.px0
 
             # calibration from notebook
-            f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(330605663.74965495), np.float64(-0.20488367116307532), np.float64(2.021864300924973), np.float64(508.0), 0, 6666.666666666667, 26000.0, np.float64(3.1224154313329654e-06)]
-
+            if self.grating == 1:
+                f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(382456483.7755453),
+                                                                                     np.float64(6.3514446357904335),
+                                                                                     np.float64(1.9092120540448625),
+                                                                                     np.float64(273.6666666666667), 0,
+                                                                                     6666.666666666667, 15000.0,
+                                                                                     np.float64(1.1640095515828127e-06)]
+            else:
+                # WARNING, NOT CALIBRATED YET, dummy values from grating 1
+                f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(382456483.7755453),
+                                                                                     np.float64(6.3514446357904335),
+                                                                                     np.float64(1.9092120540448625),
+                                                                                     np.float64(273.6666666666667), 0,
+                                                                                     6666.666666666667, 15000.0,
+                                                                                     np.float64(1.1640095515828127e-06)]
+                print('WARNING: grating 2 is not calibrated! CALIBRATE PRIOR USAGE!')
 
 
             n = px - (n0 + offset_adjust * wl_center)
