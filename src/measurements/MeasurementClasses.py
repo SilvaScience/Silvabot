@@ -100,9 +100,10 @@ class RunMeasurement(QtCore.QThread):
         self.wls = []  # preallocate wls array
         self.spec = []  # preallocate spec array
         self.terminate = False
-        print('emit start time ')
+        print(time.strftime('%H:%M:%S') + 'Run started')
 
     def run(self):
+        self.sendProgress.emit(0)
         if hasattr(self.spectrometer, 'shutter'):
             self.spectrometer.start_acquisition()
         while not self.terminate:  # loop runs until requested stop
