@@ -38,6 +38,21 @@ class PI863():
         self.parameter_display_dict['position']['unit'] = ' mm'
         self.parameter_display_dict['position']['max'] = 50
         self.parameter_display_dict['position']['read'] = True
+        
+        self.parameter_display_dict['autocorrelation_start_pos']['val'] = 0
+        self.parameter_display_dict['autocorrelation_start_pos']['unit'] = ' mm'
+        self.parameter_display_dict['autocorrelation_start_pos']['max'] = 50
+        self.parameter_display_dict['autocorrelation_start_pos']['read'] = False
+
+        self.parameter_display_dict['autocorrelation_stop_pos']['val'] = 0
+        self.parameter_display_dict['autocorrelation_stop_pos']['unit'] = ' mm'
+        self.parameter_display_dict['autocorrelation_stop_pos']['max'] = 50
+        self.parameter_display_dict['autocorrelation_stop_pos']['read'] = False
+
+        self.parameter_display_dict['autocorrelation_interval']['val'] = 0
+        self.parameter_display_dict['autocorrelation_interval']['unit'] = ' mm'
+        self.parameter_display_dict['autocorrelation_interval']['max'] = 50
+        self.parameter_display_dict['autocorrelation_interval']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
@@ -63,6 +78,12 @@ class PI863():
             self.update_set_target_position(value)
         if parameter == 'position':
             self.update_position(value)
+        if parameter == 'autocorrelation_start_pos':
+            self.update_set_autocorrelation_start_pos(value)
+        if parameter == 'autocorrelation_stop_pos':
+            self.update_set_autocorrelation_stop_pos(value)
+        if parameter == 'autocorrelation_interval':
+            self.update_set_autocorrelation_interval(value)
 
     def update_set_speed(self, set_speed):
         self.pidevice.VEL(1, set_speed)
@@ -75,6 +96,15 @@ class PI863():
 
     def update_position(self, new_Position):
         self.parameter_dict['position'] = new_Position
+    
+    def update_set_autocorrelation_start_pos(self, start_pos):
+        self.parameter_dict['autocorrelation_start_pos'] = start_pos
+    
+    def update_set_autocorrelation_stop_pos(self, stop_pos):
+        self.parameter_dict['autocorrelation_stop_pos'] = stop_pos
+
+    def update_set_autocorrelation_interval(self, interval):
+        self.parameter_dict['autocorrelation_interval'] = interval
     
 class UpdateWorker_Position(QtCore.QThread):
     new_Position = QtCore.pyqtSignal(float)

@@ -65,7 +65,7 @@ class ThorlabsPM100D(QtCore.QThread):
         # set range to Auto
         self.pm.set_auto_range(auto=True)
 
-        # start updating temp
+        # start updating power
         self.UpdateWorker = UpdateWorker(self.pm,)
         self.UpdateWorker.new_power.connect(self.update_power)
         self.UpdateWorker.start()
@@ -89,7 +89,7 @@ class UpdateWorker(QtCore.QThread):
         super(UpdateWorker, self).__init__()
         self.pm = pm
         self.avg_time = 2
-        self.wait_time = 0.1
+        self.wait_time = 0.5
         self.stop = False
         self.last_time = time.time()
         self.current_power = 0
@@ -124,8 +124,9 @@ class ThorlabsPM100DInterface(object):
         if debug:
             print('List of resources')
             print(self.visa_resource_manager.list_resources(query='?*'))
-
+               
         self.pm = self.visa_resource_manager.open_resource(port)
+        self.pm.timeout = 10000  # Set timeout to 5 seconds (in milliseconds)
 
         self.idn = self.query("*IDN?")
 

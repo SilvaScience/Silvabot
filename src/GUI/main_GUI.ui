@@ -377,6 +377,13 @@ p, li { white-space: pre-wrap; }
               </widget>
              </item>
              <item>
+              <widget class="QPushButton" name="autocorrelation">
+               <property name="text">
+                <string>Autocorrelation</string>
+               </property>
+              </widget>
+             </item>
+             <item>
               <widget class="QPushButton" name="thz_clear">
                <property name="text">
                 <string>Clear</string>

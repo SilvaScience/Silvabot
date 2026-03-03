@@ -12,6 +12,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from drivers.PI863 import ScanWorker
 from drivers.UHF import PlotterWorker
+# pipython helper used to wait until stage has reached its target position
+from pipython import pitools
 
 
 # Measurement to acquire one spectrum
@@ -475,3 +477,80 @@ class ScopeView(QtCore.QThread):
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
         self.sendProgress.emit(100)
+
+class Autocorrelation(QtCore.QThread):
+    """Performs a position scan of the PI863 stage and records averaged power
+    readings from the Thorlabs PM400.  At each position a fixed number of power
+    measurements are taken (points_per_pos), averaged, and stored.  The resulting average power
+    vs. position data are emitted and plotted on the provided plot_widget.
+    """
+
+    # Define signals
+    sendProgress = QtCore.pyqtSignal(float)
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+
+    def __init__(self, devices, start_pos, stop_pos, interval, points_per_pos = 5, plot_widget=None):
+        super(Autocorrelation, self).__init__()
+        self.tstage = devices['tstage']
+        self.powermeter = devices['powermeter']
+        self.start_pos = start_pos
+        self.stop_pos = stop_pos
+        self.interval = interval
+        self.points_per_pos = points_per_pos
+        self.plot_widget = plot_widget
+        self.terminate = False
+
+    def run(self):
+        # Create the position array for the scan
+        step = self.interval if self.stop_pos >= self.start_pos else -abs(self.interval)
+        positions = np.arange(self.start_pos, self.stop_pos + step / 2, step)
+
+        # Initialize variables
+        avg_data = []
+        total = len(positions)
+
+        # Measurement loop
+        for idx, pos in enumerate(positions):
+            if self.terminate:
+                break
+
+            # Move translation stage and wait for it to reach the target
+            self.tstage.pidevice.MOV(1, pos)
+            pitools.waitontarget(self.tstage.pidevice, 1, timeout=10000)
+
+            # Measure the power at current position multiple times
+            samples = []
+            for i in range(self.points_per_pos):
+                try:
+                    val = self.powermeter.pm.measure_power() * 1e9  # nW
+                    samples.append(val)
+                except Exception as e:
+                    print(f"Power meter read error at position {pos}, sample {i+1}: {type(e).__name__}: {e}")
+                    val = self.powermeter.parameter_dict.get('current_power', 0)
+                    samples.append(val)
+                time.sleep(0.05)
+
+            # Average the power data points for the current position
+            avg = np.mean(samples) if samples else 0
+            avg_data.append(avg)
+
+            # update progress
+            self.sendProgress.emit((idx + 1) / total * 100)
+
+        # Store the positions and averaged data in numpy arrays for plotting
+        self.positions = np.array(positions[: len(avg_data)])
+        self.data = np.array(avg_data)
+
+        # Convert positions (mm) to relative time delays (ps) using speed of light
+        c = 299792458
+        positions_m = self.positions * 1e-3
+        self.times = 2.0 * (positions_m - min(positions_m)) / c * 1e12 # factor of 2 accounts for round trip of light
+
+        # send time array and corresponding averaged data (GUI thread will handle plotting)
+        self.sendSpectrum.emit(self.times, self.data)
+        self.sendProgress.emit(100)
+
+    def stop(self):
+        """Signal the running scan to terminate gracefully."""
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
