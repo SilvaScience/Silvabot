@@ -17,7 +17,7 @@ import sys
 import json
 import requests
 import random
-from src.drivers.Topas4Locator import Topas4Locator
+from drivers.Topas4Locator import Topas4Locator
 import numpy as np
 
 

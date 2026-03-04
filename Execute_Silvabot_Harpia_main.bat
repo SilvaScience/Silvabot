@@ -1,6 +1,7 @@
 @echo off
 echo Starting Silvabot ...
-call ".venv\Scripts\python.exe" src\main_Harpia_PC.py
+call "%~dp0\.venv_new\Scripts\activate.bat" 
+python "%~dp0src\main_Harpia_PC.py"
 
 
 pause

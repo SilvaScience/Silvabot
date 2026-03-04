@@ -39,7 +39,7 @@ from measurements.MeasurementClasses import AcquireMeasurement, RunMeasurement, 
     ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement, HelicamBackgroundMeasurement
 import threading
 
-from src.drivers.OrpheusDemo import OrpheusDemo
+from drivers.OrpheusDemo import OrpheusDemo
 
 
 class MainInterface(QtWidgets.QMainWindow):
@@ -70,14 +70,15 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize Spectrometer
         #try:
-        self.spectrometer = Pixis()
-        print('Pixis camera connected')
+        #    self.spectrometer = Pixis()
+        #    print('Pixis camera connected')
         #except:
+        self.spectrometer = SpectrometerDemo()
+        print('Pixis connection failed, use DEMO')
         #self.spectrometer = Heliotis()
         #self.spectrometer.request_file.connect(self.open_file_dialog)
         #self.spectrometer = ThorlabsCCS200()
-        #print('Pixis connection failed, use DEMO')
-        #self.spectrometer = SpectrometerDemo()
+
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
 

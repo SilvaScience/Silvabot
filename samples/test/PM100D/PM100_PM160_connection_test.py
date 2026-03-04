@@ -9,8 +9,8 @@ print(pyvisa.__version__)
 print(pyvisa.ResourceManager())
 
 
-port="USB0::0x1313::0x8075::P5002302::INSTR"#"ASRL4::INSTR"#  #
-port = "ASRL4::INSTR"
+port="USB0::0x1313::0x807B::250825519::INSTR"#"ASRL4::INSTR"#  #
+#port = "ASRL4::INSTR"
 rm = pyvisa.ResourceManager()
 
 print(rm.list_resources(query='?*'))
