@@ -24,13 +24,6 @@ import time
 import serial
 import re
 import pecamerapy
-from multiprocessing import Process, Queue
-
-def camera_worker(cmd_q, res_q):
-    # Function to initialize the camera worker. It needs to be implemented globally
-    # (not within a class) as multiprocessing needs to pickle the worker around.
-    w = CameraWorker(cmd_q, res_q)
-    w.run()
 
 class Alize(QtCore.QThread):
 
@@ -43,7 +36,6 @@ class Alize(QtCore.QThread):
         self.wavelength =  np.linspace(200,1000,640) # get property from Worker
         self.px0 = np.linspace(1,640,640)
         self.spec_length = (512, 640) # get property from Worker
-        self.spectrum = np.zeros(self.spec_length)
         self.image = np.zeros(self.spec_length)
 
         # Indicate shutter, required to discriminate between different detectors
@@ -78,6 +70,11 @@ class Alize(QtCore.QThread):
         print('SP2150 grating blazes: ',self.grating_blazes)
         print('SP2150 selected grating: ',self.grating)
 
+        # TEMP
+        #self.grating = 1
+        #self.center_wl = 500
+        #self.grating_densities = [500,500,500]
+
         # set parameter dict
         self.parameter_dict = defaultdict()
         """ Set up the parameter dict. 
@@ -110,28 +107,100 @@ class Alize(QtCore.QThread):
         for key in self.parameter_display_dict.keys():
             self.parameter_dict[key] = self.parameter_display_dict[key]['val']
 
-        # initialize camera
-        self.cmd_q = Queue()
-        self.res_q = Queue()
+        # initialize camera interface
+        '''
+        # Define a Camera
+        self.camera = pecamerapy.Camera()
 
-        self.worker = Process(
-            target=camera_worker,
-            args=(self.cmd_q, self.res_q),
-            daemon=True
-        )
+        # Choose the desired connection mode
+        mode = pecamerapy.OpenMode.USB3
+
+        # Find index, serial
+        index = -1
+        try:
+            index, serial_number = self.camera.find_first(mode)
+        except Exception as e:
+            print(f"Error during Alize connection: {e}")
+            exit(-1)
+
+        # Open the connection
+        try:
+            self.camera.open(index, mode)
+        except pecamerapy.CommOpenError as e:
+            print(f"Error during opening: {e}")
+            exit(-1)
+        self.camera.set_trigger_mode(pecamerapy.TRIGGER_FALLING_EDGE)  # set trigger mode
+
+        # Test Getter/Setter
+        my_mode = self.camera.get_trigger_mode()  # should be TRIGGER_NONE (or other specified mode)
+        self.camera.set_trigger_mode(pecamerapy.TRIGGER_FALLING_EDGE)  # set another mode
+        self.camera.get_trigger_mode()  # ensure mode is TRIGGER_FALLING_EDGE
+        self.camera.set_trigger_mode(my_mode)  # set initial mode
+
+        self.camera.capture(3, 3)
+        print(self.camera.get_exposure_time_range())
+        print(self.camera.get_detector_size())
+        print(self.camera.get_exposure_time())
+
+        # Retrieve image + metadata
+        img, metadata = self.camera.get_image(timeout_sec=5)
+        print(img)
+
+        # initialize camera
+        #self.worker = CameraWorker(self.camera,self.int_time)
+        #self.worker.sendSpectrum.connect(self.update_spectrum) # connect where signals of worker go to.
+        #self.worker.sendTemperature.connect(self.update_temperature)
+        #self.worker.start()
+        '''
+        # Define a Camera
+        self.cam = pecamerapy.Camera()
+
+        # Choose the desired connection mode
+        mode = pecamerapy.OpenMode.USB3
+        # Find index, serial
+        index = -1
+        try:
+            index, serial_num = self.cam.find_first(mode)
+        except Exception as e:
+            print(f"Error during connection: {e}")
+            exit(-1)
+
+        # Open the connection to Alize
+        # index = 11
+        try:
+            self.cam.open(index, mode)
+        except pecamerapy.CommOpenError as e:
+            print(f"Error during opening: {e}")
+            exit(-1)
+
+        # Test Getter/Setter
+        my_mode = self.cam.get_trigger_mode()  # should be TRIGGER_NONE (or other specified mode)
+        #self.cam.set_trigger_mode(pecamerapy.TRIGGER_FALLING_EDGE)  # set another mode
+        #self.cam.get_trigger_mode()  # ensure mode is TRIGGER_FALLING_EDGE
+        self.cam.set_trigger_mode(my_mode)  # set initial mode
+
+        self.worker = CameraWorker(self.cam,self.int_time)
+        self.worker.sendSpectrum.connect(self.update_spectrum) # connect where signals of worker go to.
+        self.worker.sendTemperature.connect(self.update_temperature)
         self.worker.start()
 
+        # set int time once
+        self.cam.set_exposure_time(self.int_time/1E3)
+        #self.camera.set_attribute_value("Exposure Time", int(self.int_time))
 
     def set_parameter(self, parameter, value):
         """REQUIRED. This function defines how changes in the parameter tree are handled.
         In devices with workers, a pause of continuous acquisition might be required. """
         if parameter == 'int_time':
             self.parameter_dict['int_time'] = value
+            self.worker.int_time = value
+            #if self.worker.acquiring: # stops acquisition before changing int time if currently acquiring.
+            #    self.stop_acquisition()
+            self.cam.set_exposure_time(value/1E3)
+            #    self.start_acquisition()
+            #else:
+            #    self.camera.set_attribute_value("Exposure Time", int(value))
             self.int_time = value
-            self.cmd_q.put({
-                "type": "change_int_time",
-                "parameter_list": [self.int_time]
-            })
         elif parameter == 'avg_scan':
             self.parameter_dict['avg_scan'] = value
             self.avg_scan = int(value)
@@ -145,6 +214,15 @@ class Alize(QtCore.QThread):
             self.write_command(cmd)
             self.parameter_dict['grating'] = value
             self.grating = value
+
+
+    def update_spectrum(self, spec):
+        """REQUIRED. This is the slot function for the sendSpectrum pyqt.signal from the worker.
+        It updates the last saved spectrum and changes the self.new_spectrum Boolean to True
+        to allow to emit the treated signal from the spectrometer."""
+        #if int_time == self.int_time:  # check if spectrum is acquired with desired int conditions
+        self.spectrum = spec
+        self.new_spectrum = True
 
     def get_wavelength(self):
         """This simply returns the wavelength. In Colbert this needs to be adapted if the calibration
@@ -235,14 +313,26 @@ class Alize(QtCore.QThread):
         """ Gets the intensity. The example include the possibility of averaging several spectra and to
         perform a binning. Such functionalities might also be given by the camera.
         This function will be accessible from MeasurementClasses."""
-        self.new_spectrum = False
-        self.cmd_q.put({"type": "acquire","averages": self.avg_scan})
-        while self.res_q.empty():
+        t1 = time.time()
+        self.worker.request_acquire(self.avg_scan)
+        print('time elaopsed to send acquire', str(time.time()-t1), 'seconds')
+        while not self.new_spectrum:
             time.sleep(0.01)
-        self.spectrum,self.parameter_dict['sensor_T'] = self.res_q.get()
-        self.new_spectrum = True
-        print(time.strftime("%H_%M_%S", time.localtime(time.time())) + ' Spectrum acquired')
-        return self.spectrum
+        spectrum = self.spectrum
+        self.new_spectrum = False
+        #else:
+        #    spectrum = self.image
+        #    for i in range(self.avg_scan):
+        #        time.sleep(self.int_time / 1000 + 0.01)
+        #        while not self.new_spectrum:
+        #            time.sleep(0.01)
+        #        spectrum = spectrum + self.spectrum
+        #        self.new_spectrum = False
+        #    spectrum = spectrum / self.avg_scan
+        return spectrum
+
+    def update_temperature(self,temperature):
+        self.parameter_dict['sensor_T'] = temperature
 
     def write_command(self, cmd):
         """ Command to write to serial handles timeout by blocking serial commands
@@ -269,92 +359,61 @@ class Alize(QtCore.QThread):
         return re.findall(r'\d+', out.decode().strip())
 
     def close_device(self):
-        self.cmd_q.put({"type": "STOP"})
-        self.worker.join()
+        self.cam.abort()
+        self.cam.close()
+
+
 
 class CameraWorker(QtCore.QThread):
     """ This is a DemoWorker for the spectrometer.
     It continously acquires spectra and emits them to the Interface.
     It interrupts data acquisition if an int_time change is requested. Its important because most
     hardware can only handle one command at a time, acquiring or changeing settings.  """
+    # These are signals that allow to send data from a child thread to the parent hierarchy.
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray)
+    sendTemperature = QtCore.pyqtSignal(float)
 
-
-    def __init__(self,command_queue,result_queue):
+    def __init__(self,camera,int_time):
         super(CameraWorker, self).__init__() # Elevates this thread to be independent.
 
         # definition of some parameters
+        self.camera = camera
         self.spec_length = (512, 640)
         self.change_int_time = False
         self.spectrum = np.zeros(self.spec_length)
-        self.int_time = 100
+        self.int_time = int_time
+        self.updated_int_time = int_time
         self.binning = 2
+        self.avg_scans = 1
         self.terminate = False
         self.acquiring = False
-        self.num_frames = 1
-        #
-        self.cmd_q = command_queue
-        self.res_q = result_queue
-        self.running = True
 
-        # Initialize camera
-        self.cam = pecamerapy.Camera()
-
-        # Choose the desired connection mode
-        mode = pecamerapy.OpenMode.USB3
-        # Find index, serial
-        index = -1
-        try:
-            index, serial_num = self.cam.find_first(mode)
-        except Exception as e:
-            print(f"Error during connection: {e}")
-            exit(-1)
-
-        # Open the connection to Alize
-        # index = 11
-        try:
-            self.cam.open(index, mode)
-        except pecamerapy.CommOpenError as e:
-            print(f"Error during opening: {e}")
-            exit(-1)
-
-        # Test Getter/Setter
-        my_mode = self.cam.get_trigger_mode()  # should be TRIGGER_NONE (or other specified mode)
-        self.cam.set_trigger_mode(my_mode)  # set initial mode
+    def request_acquire(self,num_frames):
+        self.acquiring = True
+        self.num_frames = num_frames
 
     def acquire(self):
-        self.cam.capture(self.num_frames,self.num_frames)
+        self.camera.capture(self.num_frames,self.num_frames)
         if self.num_frames >1:
             self.spectrum = np.zeros(self.spec_length)
             for i in range(self.num_frames):
-                img, metadata = self.cam.get_image(timeout_sec=20)
+                img, metadata = self.camera.get_image(timeout_sec=20)
                 self.spectrum += img
             img = self.spectrum / self.num_frames
         else:
-            img, metadata = self.cam.get_image(timeout_sec=20)
-        self.res_q.put((np.fliplr(img),self.temperature)) #flip image as camera is mounted upside down.
-        #self.sendSpectrum.emit() #flip image as camera is mounted upside down.
+            img, metadata = self.camera.get_image(timeout_sec=20)
+        self.sendSpectrum.emit(np.fliplr(img)) #flip image as camera is mounted upside down.
 
     def run(self):
-        print(time.strftime("%H_%M_%S", time.localtime(time.time())) + ' Alize worker started')
-        while self.running:
-            self.temperature = self.cam.get_temperature()
-            try:
-                cmd = self.cmd_q.get(timeout=0.1)
-            except Exception:
-                continue
-
-            if cmd["type"] == "STOP":
-                self.cam.abort()
-                self.cam.close()
-                print('Alize camera closed properly')
-                self.running = False
-                break
-
-            if cmd["type"] == "change_int_time":
-                self.int_time = cmd["parameter_list"][0]
-                new_int_time = self.int_time / 1E3
-                self.cam.set_exposure_time(new_int_time)
-
-            if cmd["type"] == "acquire":
-                self.num_frames = cmd["averages"]
+        """" Continuous tasks of the Worker are defined here.
+        If loops check for requested changes in settings prior each acquisition. """
+        while not self.terminate: #infinite loop
+            time.sleep(0.01)
+            self.sendTemperature.emit(self.camera.get_temperature())
+            if self.acquiring:
                 self.acquire()
+                self.acquiring = False
+        self.camera.abort()
+        self.camera.close()
+        print('Alize Worker closes')
+        return

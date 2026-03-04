@@ -82,6 +82,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['spectrometer'] = self.spectrometer
 
         # initialize Powermeter
+        self.powermeter = ThorlabsPM100D()
         try:
             self.powermeter = ThorlabsPM100D()
             print('Thorlabs powermeter connected')
