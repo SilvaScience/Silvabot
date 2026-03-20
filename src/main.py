@@ -46,24 +46,24 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize cryostat
         #self.cryostat = CryoPasqal()
-        try:
+        #try:
             #try:
-            self.cryostat = CryoPasqal()
+            #self.cryostat = CryoPasqal()
             # except:
             #     self.cryostat = Cryocore()
             #     print('Connected to Montana CryoCore')
-        except:
-            self.cryostat = CryoDemo()
-            print('WARNING you are using a DEMO version of the cryostat')
-        self.devices['cryostat'] = self.cryostat
+        #except:
+        #    self.cryostat = CryoDemo()
+        #    print('WARNING you are using a DEMO version of the cryostat')
+        #self.devices['cryostat'] = self.cryostat
             
         # initialize Spectrometer
-        # try:
-        #     self.spectrometer = Pixis()
-        #     print('Pixis camera connected')
-        # except:
-        self.spectrometer = PixisDemo()
-        print('WARNING you are using a DEMO version of the Pixis')
+         #try:
+        self.spectrometer = Pixis()
+        print('Pixis camera connected')
+         #except:
+        #self.spectrometer = PixisDemo()
+        #print('WARNING you are using a DEMO version of the Pixis')
         #self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
@@ -270,6 +270,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.progress_bar.setValue(int(progress))
         if progress == 100.:
             self.measurement_busy = False
+            self.DataHandling.spec_length = self.spec_length #needed to reset DataHandling preallocation after measurements with large spectra
 
     def change_folder(self):
         # select folder to save data
@@ -442,10 +443,12 @@ class MainInterface(QtWidgets.QMainWindow):
         print('button clicked')
         if not self.measurement_busy:
             self.measurement_busy = True
-            self.DataHandling.clear_data()
             self.measurement = AcquireSpectrum(self.devices, self.parameter)
             self.measurement.sendProgress.connect(self.set_progress)
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.sendParameter.connect(self.change_parameter)
+            self.DataHandling.spec_length = self.measurement.spec_length
+            self.DataHandling.clear_data()
             self.measurement.start()
         else:
             print('Measurement not started, devices are busy')
