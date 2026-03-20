@@ -439,14 +439,19 @@ class AcquireSpectrum(QtCore.QThread):
             while self.wls[-1] <= self.end_wl:
                 # move grating to select wavelength range
                 if len(self.wls) == 0:
-                    center_wl = self.start_wl + 125
+                    center_wl = self.start_wl + 25
                 else:
-                    center_wl = self.wls[-1] + 125
+                    center_wl = self.wls[-1] + 50
                 self.sendParameter.emit('center_wl', center_wl)
 
                 # acquire spectrum
                 if hasattr(self.spectrometer, 'shutter'):
                     self.spectrometer.start_acquisition()
+                meas_wl = self.spectrometer.get_wavelength()
+                meas_spec = self.spectrometer.get_intensities()
+                selected_indices = np.where((meas_wl >= center_wl - 25) & (meas_wl <= center_wl + 25))
+                self.wls.append(meas_wl[selected_indices])
+                self.spec.append(meas_spec[selected_indices])
                 self.wls.append(np.array(self.spectrometer.get_wavelength()))
                 self.spec.append(np.array(self.spectrometer.get_intensities()))
                 if hasattr(self.spectrometer, 'shutter'):
