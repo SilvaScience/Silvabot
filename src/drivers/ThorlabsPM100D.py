@@ -15,6 +15,9 @@ NOTES:
 - If connections are changed (either change of PC or of spectrometer) the corresponding devices IDs can be found
 by setting 'debug=True' in the Device Worker.
 - If powermeter is not found in pyvisa.ResourceManager(), likely the driver has changed. Update it to an "IVI" one.
+        # It needs to appear as USB Test and Measurement Device, not as Thorlabs PM.
+        # In rm.list_resources(query='?*'), the port="USB0::0x1313::0x807B::250825519::INSTR" needs to be visible.
+        # If this is not the case, there is a driver issue.
 """
 
 from PyQt5 import QtCore, QtWidgets
@@ -106,7 +109,10 @@ class UpdateWorker(QtCore.QThread):
     def run(self):
         while not self.stop:
             # calling the read power function
-            self.current_power = self.pm.measure_power()*1E9
+            try:
+                self.current_power = self.pm.measure_power()*1E9
+            except pyvisa.errors.VisaIOError as e:
+                print('Thorlabs PM VisaIOError', e)
             # waiting to remeasure the power
             time.sleep(self.wait_time)
             self.new_power.emit(self.current_power)

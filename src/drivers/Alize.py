@@ -13,6 +13,7 @@ the TRUENAS server.
 
 NOTE:
 Currently still in testing
+- Flatfield correction is currently fixed to HIGHGAIN, 5s integration time. Consider adapting it dynamically, if needed.
 
 """
 
@@ -24,6 +25,7 @@ import time
 import serial
 import re
 import pecamerapy
+import os
 from multiprocessing import Process, Queue
 
 def camera_worker(cmd_q, res_q):
@@ -85,7 +87,7 @@ class Alize(QtCore.QThread):
         self.parameter_display_dict = defaultdict(dict)
         self.parameter_display_dict['int_time']['val'] = self.int_time
         self.parameter_display_dict['int_time']['unit'] = ' ms'
-        self.parameter_display_dict['int_time']['max'] = 10000
+        self.parameter_display_dict['int_time']['max'] = 200000
         self.parameter_display_dict['int_time']['read'] = False
         self.parameter_display_dict['avg_scan']['val'] = 1
         self.parameter_display_dict['avg_scan']['unit'] = ' scan(s)'
@@ -241,7 +243,7 @@ class Alize(QtCore.QThread):
             time.sleep(0.01)
         self.spectrum,self.parameter_dict['sensor_T'] = self.res_q.get()
         self.new_spectrum = True
-        print(time.strftime("%H_%M_%S", time.localtime(time.time())) + ' Spectrum acquired')
+        print(time.strftime("%H:%M:%S", time.localtime(time.time())) + ' Spectrum acquired')
         return self.spectrum
 
     def write_command(self, cmd):
@@ -321,16 +323,47 @@ class CameraWorker(QtCore.QThread):
         my_mode = self.cam.get_trigger_mode()  # should be TRIGGER_NONE (or other specified mode)
         self.cam.set_trigger_mode(my_mode)  # set initial mode
 
+        # set flatfield correction
+        cwd = os.getcwd()
+        calib_file_path = os.path.join(cwd,'calibrations','Alize_CA000010991',"3 HighGain 5.0.bin")
+        if not os.path.exists(calib_file_path):
+            raise FileNotFoundError(f"Alize Calibration file not found: '{calib_file_path}'. Check file path and try again.")
+
+        #FLATFIELD_PATH = Path(__file__).parent / "3 HighGain 5.0.bin"
+
+        size_img = self.cam.get_detector_size()
+        width, height = size_img[0], size_img[1]
+
+        # Read the flatfield .bin file
+        length = width * height
+        length_bytes = int(length * 32 / 8)
+        nuc_gain = np.fromfile(calib_file_path, dtype=np.float32, count=length)
+        nuc_gain = np.reshape(nuc_gain, size_img)
+        nuc_offset = np.fromfile(calib_file_path, dtype=np.float32, count=length, offset=length_bytes)
+        nuc_offset = np.reshape(nuc_offset, size_img)
+        nuc_bp = np.fromfile(calib_file_path, dtype=np.uint32, count=length, offset=2 * length_bytes)
+
+        # Set the flatfield and pixel replacement
+        self.cam.set_flatfield(gain=nuc_gain, offset=nuc_offset, width=width, height=height)
+        self.cam.set_pixel_replacement(map=nuc_bp, width=width, height=height)
+
+        # Enable the flatfield and pixel replacement
+        self.cam.set_flatfield_enabled(True)
+        self.cam.set_pixel_replacement_enabled(True)
+
+        # Set integration time to 100ms
+        self.cam.set_exposure_time(0.1)
+
     def acquire(self):
         self.cam.capture(self.num_frames,self.num_frames)
         if self.num_frames >1:
             self.spectrum = np.zeros(self.spec_length)
             for i in range(self.num_frames):
-                img, metadata = self.cam.get_image(timeout_sec=20)
+                img, metadata = self.cam.get_image(timeout_sec=210)
                 self.spectrum += img
             img = self.spectrum / self.num_frames
         else:
-            img, metadata = self.cam.get_image(timeout_sec=20)
+            img, metadata = self.cam.get_image(timeout_sec=210)
         self.res_q.put((np.fliplr(img),self.temperature)) #flip image as camera is mounted upside down.
         #self.sendSpectrum.emit() #flip image as camera is mounted upside down.
 

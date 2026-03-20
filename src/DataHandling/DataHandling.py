@@ -36,10 +36,10 @@ class DataHandling(QtCore.QThread):
         self.speclength = speclength
         self.data_dim = np.size(speclength) #dimension of data
         self.parameter_queue = {} # initialize FIFO queues for parameter storage
-        self.parameter_queue['time'] = deque(maxlen=100000)
-        self.parameter_queue['absolute_time'] = deque(maxlen=100000)
+        self.parameter_queue['time'] = deque(maxlen=200000)
+        self.parameter_queue['absolute_time'] = deque(maxlen=200000)
         for param in self.parameter:
-            self.parameter_queue[param] = deque(maxlen=100000)
+            self.parameter_queue[param] = deque(maxlen=200000)
         self.param_from_deque = np.zeros([len(self.parameter) + 2, 1])
         self.parameter_measured = np.zeros([len(self.parameter) + 2, 0])
 

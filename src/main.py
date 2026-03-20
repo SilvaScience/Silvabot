@@ -36,7 +36,8 @@ from drivers.Arduino import Arduino
 from drivers.ArduinoDemo import ArduinoDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement, RunMeasurement, BackgroundMeasurement, \
-    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement, HelicamBackgroundMeasurement
+    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement, HelicamBackgroundMeasurement, \
+    PowerSeriesMeasurement
 import threading
 
 
@@ -169,6 +170,8 @@ class MainInterface(QtWidgets.QMainWindow):
         self.Tseries_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_lineEdit')
         self.Tseries_int_time_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_int_time_lineEdit')
         self.Tseries_filter_pos_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_filter_pos_lineEdit')
+        self.Powerseries_run_button = self.findChild(QtWidgets.QPushButton, 'Powerseries_run_pushButton')
+        self.Powerseries_filter_select_box = self.findChild(QtWidgets.QSpinBox, 'Powerseries_filter_selection_spinBox')
         self.menu_device_settings = self.findChild(QtWidgets.QMenu, 'menuDevice_settings')
         self.menu_bar = self.findChild(QtWidgets.QMenuBar, 'menubar')
 
@@ -303,6 +306,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.kinetic_run_button.clicked.connect(self.kinetic_measurement)
         self.Tseries_lineEdit.editingFinished.connect(self.change_Tseries)
         self.Tseries_run_button.clicked.connect(self.Tseries_measurement)
+        self.Powerseries_run_button.clicked.connect(self.Powerseries_measurement)
 
         # run some functions once to define default values
         self.change_filename()
@@ -553,6 +557,21 @@ class MainInterface(QtWidgets.QMainWindow):
             self.measurement.sendParameter.connect(self.change_parameter)
             self.measurement.start()
 
+    def Powerseries_measurement(self):
+        # take power dependent measurements as defined in automation GUI section
+        if not self.measurement_busy:
+            print('Start Power-Dependent Measurement ')
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+            self.measurement = PowerSeriesMeasurement(self.devices, self.parameter,
+                                                  self.Powerseries_filter_select_box.value(),
+                                                  self.Tseries_spectra_avg_box.value(),
+                                                  self.Tseries_filter_pos_lineEdit.text())
+            self.measurement.sendProgress.connect(self.set_progress)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.sendParameter.connect(self.change_parameter)
+            self.measurement.start()
+
     def stop_measurement(self):
         # stop measurement
         self.measurement.stop()
@@ -575,7 +594,7 @@ class UpdateWorker(QtCore.QThread):
         self.read_only = read_only
         self.stop = False
         self.updated_param = {}
-        self.update_interval = 1
+        self.update_interval = 2
 
     def run(self):
         while not self.stop:

@@ -1,3 +1,10 @@
+# connection issues might appear if the PM is not installed with the correct driver. \
+# It needs to appear as USB Test and Measurement Device, not as Thorlabs PM.
+# In rm.list_resources(query='?*'), the port="USB0::0x1313::0x807B::250825519::INSTR" needs to be visible.
+# If this is not the case, there is a driver issue.
+
+
+
 # USB ID for screen powermeter is: USB0::0x1313::0x8075::P5002302::INSTR
 # USB ID for economy powermeter: USB0::0x1313::0x807B::250825519::INSTR
 

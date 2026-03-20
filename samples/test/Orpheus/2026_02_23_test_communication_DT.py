@@ -34,8 +34,8 @@ if match is None:
 else:
     baseAddress = match['PublicApiRestUrl_Version0']
 
-shutter = False
-put(baseAddress, '/ShutterInterlock/OpenCloseShutter', shutter)
+#shutter = False
+#put(baseAddress, '/ShutterInterlock/OpenCloseShutter', shutter)
 
 
 interactions = get(baseAddress, '/Optical/WavelengthControl/ExpandedInteractions').json()
@@ -48,6 +48,6 @@ if len(interactions) > 0:
 wavelengthToSet = interaction['OutputRange']['From'] + (interaction['OutputRange']['To'] - interaction['OutputRange']['From']) * random.uniform(0,1)
 print("setting wavelength %.4f nm using interaction %s" % (wavelengthToSet, interaction['Type']))
 print('/Optical/WavelengthControl/SetWavelength', { 'Interaction':interaction['Type'], 'Wavelength':wavelengthToSet })
-response = put(baseAddress,'/Optical/WavelengthControl/SetWavelengthUsingAnyInteraction', json.dumps(float(800)))
+#response = put(baseAddress,'/Optical/WavelengthControl/SetWavelengthUsingAnyInteraction', json.dumps(float(800)))
 r = requests.get(baseAddress + '/Optical/WavelengthControl/Output/Wavelength')
 print(get(baseAddress,'/Optical/WavelengthControl/Output/Wavelength').content)
