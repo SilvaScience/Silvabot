@@ -49,7 +49,7 @@ class Pixis(QtCore.QThread):
 
         # set up spectrograph
         self.serial_busy = False
-        port = 'COM6'
+        port = 'COM5'
         self.ser = serial.Serial(port=port, baudrate=9600, bytesize=8, parity='N',
                                  stopbits=1, xonxoff=0, rtscts=0, timeout=0.02)
         # get startup values
@@ -154,10 +154,6 @@ class Pixis(QtCore.QThread):
             self.write_command(cmd)
             self.parameter_dict['grating'] = value
             self.grating = value
-        elif parameter == 'start_wl':
-            self.parameter_dict['start_wl'] = value
-        elif parameter == 'end_wl':
-            self.parameter_dict['en d_wl'] = value
 
 
     def update_spectrum(self, spec, int_time):
