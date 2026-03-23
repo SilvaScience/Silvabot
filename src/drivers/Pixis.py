@@ -49,7 +49,7 @@ class Pixis(QtCore.QThread):
 
         # set up spectrograph
         self.serial_busy = False
-        port = 'COM6'
+        port = 'COM9'
         self.ser = serial.Serial(port=port, baudrate=9600, bytesize=8, parity='N',
                                  stopbits=1, xonxoff=0, rtscts=0, timeout=0.02)
         # get startup values
@@ -117,6 +117,9 @@ class Pixis(QtCore.QThread):
 
         # set int time once
         self.camera.set_attribute_value("Exposure Time", int(self.int_time))
+        self.camera.set_attribute_value("ADC Speed", 2.0)
+        self.camera.set_attribute_value("Readout Control Mode", 1)
+        self.camera.set_attribute_value("Shutter Timing Mode", 1)
 
     def set_parameter(self, parameter, value):
         """REQUIRED. This function defines how changes in the parameter tree are handled.

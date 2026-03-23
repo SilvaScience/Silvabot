@@ -69,12 +69,12 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['cryostat'] = self.cryostat
 
         # initialize Spectrometer
-        #try:
-        #    self.spectrometer = Pixis()
-        #    print('Pixis camera connected')
-        #except:
-        self.spectrometer = SpectrometerDemo()
-        print('Pixis connection failed, use DEMO')
+        try:
+            self.spectrometer = Pixis()
+            print('Pixis camera connected')
+        except:
+            self.spectrometer = SpectrometerDemo()
+            print('Pixis connection failed, use DEMO')
         #self.spectrometer = Heliotis()
         #self.spectrometer.request_file.connect(self.open_file_dialog)
         #self.spectrometer = ThorlabsCCS200()
@@ -105,7 +105,7 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize Arduino
         try:
-            self.arduino = Arduino('COM8')
+            self.arduino = Arduino('COM7')
             print('Arduino connected')
             self.devices['arduino'] = self.arduino
         except:
