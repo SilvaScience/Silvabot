@@ -432,39 +432,39 @@ class AcquireSpectrum(QtCore.QThread):
         self.acquire_measurement = True
         self.start_wl = self.spectrometer.parameter_dict['start_wl']
         self.end_wl = self.spectrometer.parameter_dict['end_wl']
-        self.wl_range = self.spectrometer.get_wavelength()                                                             # Estimation of the wavelength range of a single spectrum
-        self.nb_of_spectra = int(np.ceil((self.end_wl - self.start_wl) / (self.wl_range[-1] - self.wl_range[0])))
-        print('nb_of_spectra',self.nb_of_spectra)# Calculation of the number of spectrum required to cover the defined range (start_wl to end_wl)
-        self.spec_length = (self.spectrometer.spec_length[0], self.spectrometer.spec_length[1] * self.nb_of_spectra)   # Definition of the spec_length of the final combined spectra that will be sent to DataHandling
+        self.nb_of_spectra = int(np.ceil((self.end_wl - self.start_wl) / 50) + 1)       # Overestimates the number of individual spectra needed to cover the desired wl range (the 50 comes from the fact that 50 nm is around 200 points and the from each spectra 200 points are kept for the stitching / the + 1 ensures that the full wl range is included in the measurement)
+        self.spec_length = (self.spectrometer.spec_length[0], 200 * self.nb_of_spectra) # Definition of the spec_length of the stitched spectrum that will be sent to DataHandling (200 is the number of points for each individual spectra that is kept when stitching them together)
 
     def run(self):
         print(self.spectrometer.parameter_dict['start_wl'])
         if not self.terminate:
             self.sendProgress.emit(50)
             nb_iter = 0
-            while self.wls.size == 0 or self.wls[-1] <= self.end_wl:
+            while nb_iter < self.nb_of_spectra:
                 # move grating to select wavelength range
-                if nb_iter == 0:                                                     # First iteration of the while loop
-                    self.sendParameter.emit('center_wl', self.start_wl)                     # Position the center wavelength of the grating at the start_wl
-                    self.wl_range = self.spectrometer.get_wavelength()                      # Get the wavelength range of the spectrometer for the current grating position
-                    center_wl = self.start_wl + (self.wl_range[-1] - self.wl_range[0]) / 2  # Position the center wavelength of the grating so that the start of the first spectrum coincides with self.start_wl
-                else:                                                               # Subsequent iterations of the while loop
-                    self.wl_range = self.spectrometer.get_wavelength()                      # Get the wavelength range of the spectrometer for the current grating position
-                    center_wl = self.wls[-1] + (self.wl_range[-1] - self.wl_range[0]) / 2   # Position the center wavelength of the grating to get minimal overlap between the previous spectrum and the next
+                if nb_iter == 0:                         # First iteration of the while loop
+                    center_wl = self.start_wl + 25       # Adjust the center wl 25 nm after the starting wavelength position
+                else:                                    # Subsequent iterations of the while loop
+                    center_wl = self.wls[-1] + 25        # Adjust the center wl 25 nm after the starting wavelength position
+
                 self.sendParameter.emit('center_wl', center_wl)    # Send signal to move the grating
                 time.sleep(5)                                      # Wait to ensure the grating is in position before taking the next spectra
 
                 # acquire spectrum
                 if hasattr(self.spectrometer, 'shutter'):
                     self.spectrometer.start_acquisition()
-                new_wls = np.array(self.spectrometer.get_wavelength())         # Get wavelength range of the spectrometer for the new grating position
-                self.wls = np.concatenate((self.wls, new_wls), axis=0)   # Concatenate the new wavelengths to the self.wls array
-                new_spec = np.array(self.spectrometer.get_intensities())           # Get the spectrum for the new grating position
-                self.spec = np.concatenate((self.spec, new_spec), axis = 1)  # Concatenate the new spectrum to the self.spec array
+                new_wls = np.array(self.spectrometer.get_wavelength())    # Get wavelength range of the spectrometer for the new grating position
+                new_spec = np.array(self.spectrometer.get_intensities())  # Get the spectrum for the new grating position
+                mid_idx = len(new_wls) // 2 # Find the index of the middle of the wavelength range
+                self.wls = np.concatenate((self.wls, new_wls[mid_idx-100:mid_idx+100]), axis=0)   # Concatenate the center 200 points of the new wavelengths to the self.wls array
+                self.spec = np.concatenate((self.spec, new_spec[:, mid_idx-100:mid_idx+100]), axis = 1)  # Concatenate the center 200 points of the new spectrum to the self.spec array
                 if hasattr(self.spectrometer, 'shutter'):
                     self.spectrometer.stop_acquisition()
+
+                # Add 1 to the iteration counter
                 nb_iter += 1
-                print(self.wls[-1])
+
+            # Send signals to DataHandling
             self.sendSpectrum.emit(np.array(self.wls), np.array(self.spec))
             self.sendProgress.emit(100)
 
