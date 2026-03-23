@@ -17,12 +17,14 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         # create Widgets for plot
         self.graphWidget = pg.PlotWidget()
         self.clear_button = QtWidgets.QPushButton('Clear')
+################################### Added line to create the load_ref_button  #########################################################
         self.load_ref_button = QtWidgets.QPushButton('Load reference data')
         self.load_calib_button = QtWidgets.QPushButton('Load calibration data')
 
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(self.clear_button)
 
+################################### Added line to insert the load_ref_button in the GUI  ##############################################
         vbox.addWidget(self.load_ref_button)
         vbox.addWidget(self.load_calib_button)
 
@@ -89,7 +91,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         self.y = {}
         self.wls = []
 
-        # Empty array to store the reference values
+        # New line to create an empty array to store the reference values
         self.y_ref = {}
         self.y_calib = {}
 
@@ -247,14 +249,15 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
                 try:
                     ref = np.average(self.avg_ref_spec[lim1:lim2,:],axis=0)
                 except(AttributeError, TypeError):
-                    ref = np.zeros(len(wls))
+                    ref = np.zeros(1024)
                 self.y_ref[i] = ref
 
                 try:
                     if i == 0:
                         self.gen_calib_spectra()
                 except(AttributeError, TypeError):
-                    self.y_calib[i] = np.zeros(len(wls))
+                    self.y_calib[i] = np.zeros(1024)
+##################################################################################################################################
                 self.y[i] = np.average(spec[lim1:lim2,:],axis=0)
 
             else:
@@ -277,7 +280,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
                 img =pg.ImageItem(np.transpose(spec))
                 tr = QtGui.QTransform()  # prepare ImageItem transformation:
                 tr.translate(np.min(wls), 0)  # move 3x3 image to locate center at axis origin
-                tr.scale(wls_span / len(wls), 1)
+                tr.scale(wls_span / 1024, 1)
                 img.setTransform(tr)
                 self.graphWidget.clear()
                 self.graphWidget.addItem(img)
