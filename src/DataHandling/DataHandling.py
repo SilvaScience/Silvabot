@@ -33,7 +33,7 @@ class DataHandling(QtCore.QThread):
         self.starttime = time.time()
 
         # initialize data arrays, their uses are explained in the corresponding functions
-        self.speclength = speclength
+        self.spec_length = speclength
         self.data_dim = np.size(speclength) #dimension of data
         self.parameter_queue = {} # initialize FIFO queues for parameter storage
         self.parameter_queue['time'] = deque(maxlen=100000)
@@ -45,13 +45,13 @@ class DataHandling(QtCore.QThread):
 
         # preallocate data arrays depending on data dimension (1D or 2D).
         if self.data_dim  == 1:
-            self.spec = np.empty([self.speclength, 0])
-            self.background = np.empty([self.speclength, 1])
-            self.wls = np.empty([self.speclength, 1])
+            self.spec = np.empty([self.spec_length, 0])
+            self.background = np.empty([self.spec_length, 1])
+            self.wls = np.empty([self.spec_length, 1])
         else:
-            self.spec = np.empty([0,self.speclength[0],self.speclength[1]])
-            self.background = np.empty([0,self.speclength[0],self.speclength[1]])
-            self.wls = np.empty([self.speclength[1], 1])
+            self.spec = np.empty([0, self.spec_length[0], self.spec_length[1]])
+            self.background = np.empty([0, self.spec_length[0], self.spec_length[1]])
+            self.wls = np.empty([self.spec_length[1], 1])
 
         # set initial values
         self.maximum = np.zeros([3])
@@ -96,9 +96,9 @@ class DataHandling(QtCore.QThread):
         """Each time a new measurement is started, DataHandling is reset."""
         self.starttime = time.time()
         if self.data_dim == 1: # clear data arrays depending on dimension
-            self.spec = np.empty([self.speclength, 0])
+            self.spec = np.empty([self.spec_length, 0])
         else:
-            self.spec = np.empty([1,self.speclength[0],self.speclength[1]])
+            self.spec = np.empty([1, self.spec_length[0], self.spec_length[1]])
         self.BufferWorker.firstbuffer = True
         self.parameter_measured = np.zeros([len(self.parameter) + 2, 0])
         try:
@@ -113,6 +113,7 @@ class DataHandling(QtCore.QThread):
         # add data to data array, not used for now
         curr_time = time.time() - self.starttime
         self.wls = wls
+        print(self.wls)
         if self.data_dim == 1:
             self.spec = np.c_[self.spec, spec]
         else:
@@ -147,9 +148,9 @@ class DataHandling(QtCore.QThread):
         #print(time.time()-t1)
         # clear arrays in memory
         if self.data_dim == 1:
-            self.spec = np.empty([self.speclength, 0])
+            self.spec = np.empty([self.spec_length, 0])
         else:
-            self.spec = np.empty([0,self.speclength[0],self.speclength[1]])
+            self.spec = np.empty([0, self.spec_length[0], self.spec_length[1]])
         self.parameter_measured = np.zeros([len(self.parameter) + 2, 0])
 
 
