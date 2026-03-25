@@ -1,0 +1,1 @@
+start C:/Git/Silvabot/.venv/Scripts/python C:/Git/Silvabot/src/main.py

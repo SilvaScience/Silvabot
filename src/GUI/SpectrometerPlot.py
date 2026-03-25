@@ -1,3 +1,4 @@
+import h5py
 from PyQt5 import QtWidgets, QtCore, QtGui
 import pyqtgraph as pg
 import numpy as np
@@ -12,10 +13,43 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
         # create Widgets for plot
         self.graphWidget = pg.PlotWidget()
+        self.hist = pg.HistogramLUTItem()
+        self.img = pg.ImageItem()
+        hist_view = pg.GraphicsLayoutWidget()
+        hist_view.addItem(self.hist)
+        hist_view.setMaximumWidth(80)
+        graph_box = QtWidgets.QHBoxLayout()
+        graph_box.addWidget(self.graphWidget)
+        graph_box.addWidget(hist_view)
+        self.graphWidget.addItem(self.img)
+        self.hist.setImageItem(self.img)
         self.clear_button = QtWidgets.QPushButton('Clear')
+        self.bg_button = QtWidgets.QPushButton('Select Background')
+        self.checkbox_bg = QtWidgets.QCheckBox()
         vbox = QtWidgets.QVBoxLayout()
+        bg_hbox = QtWidgets.QHBoxLayout()
+        bg_hbox.addWidget(self.bg_button)
+        bg_hbox.addWidget(QtWidgets.QLabel("Correct background:"))
+        bg_hbox.addWidget(self.checkbox_bg)
+        bg_widget = QtWidgets.QWidget()
+        bg_widget.setLayout(bg_hbox)
         vbox.addWidget(self.clear_button)
-        vbox.addWidget(self.graphWidget)
+        vbox.addWidget(bg_widget)
+
+        #construct math ROIs
+        widget = QtWidgets.QWidget()
+        self.roi_controls = []
+        self.roi_values = {}
+        widget.setLayout(self.construct_ROI_input())
+        #vbox.addChildLayout(self.construct_ROI_input())
+        vbox.addWidget(widget)
+        #widget.setLayout(self.construct_ROI_input)
+
+
+        #vbox.addWidget(self.graphWidget)
+        graph_widget = QtWidgets.QWidget()
+        graph_widget.setLayout(graph_box)
+        vbox.addWidget(graph_widget)
         widget = QtWidgets.QWidget()
         widget.setLayout(vbox)
         self.setCentralWidget(widget)
@@ -64,8 +98,76 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         self.maxvalue_label.setParentItem(self.graphWidget.getPlotItem())
         self.maxvalue_label.anchor(itemPos=(1,0), parentPos=(1,0), offset=(-50,35))
 
+        # empty array
+        self.y ={}
+        self.wls = []
         # connect events
         self.clear_button.clicked.connect(self.clear_plot)
+        self.bg_button.clicked.connect(self.load_background)
+
+    def load_background(self):
+        data_path = QtWidgets.QFileDialog.getOpenFileName()[0]
+        with h5py.File(data_path, 'r') as f:
+            bg_spec = f['spectra'][:]
+            self.bg_xaxis = f['spectra'].attrs['xaxis']
+            self.bg_spec = np.average(bg_spec[1:,:,:],axis=0)
+
+
+
+    def construct_ROI_input(self):
+        layout = QtWidgets.QVBoxLayout()
+        grid_layout = QtWidgets.QGridLayout()
+
+        for i in range(4):
+            group = QtWidgets.QGroupBox(f"ROI{i}")
+            hbox = QtWidgets.QHBoxLayout()
+
+            min_spin = QtWidgets.QSpinBox()
+            min_spin.setRange(0, 1000)
+            min_spin.setValue(i * 63 + 26)
+
+            max_spin = QtWidgets.QSpinBox()
+            max_spin.setRange(0, 1000)
+            max_spin.setValue(i * 63 + 36)
+
+            hbox.addWidget(QtWidgets.QLabel("Min:"))
+            hbox.addWidget(min_spin)
+            hbox.addWidget(QtWidgets.QLabel("Max:"))
+            hbox.addWidget(max_spin)
+            group.setLayout(hbox)
+
+            row = 0
+            col = i
+            grid_layout.addWidget(group, row, col)
+
+            self.roi_controls.append((min_spin, max_spin))
+
+        layout.addLayout(grid_layout)
+
+        hbox_widget =QtWidgets.QWidget()
+        hbox = QtWidgets.QHBoxLayout()
+        self.input_line = QtWidgets.QLineEdit()
+        self.input_line.setPlaceholderText("Enter math expression using ROI0 to ROI3")
+        self.input_line.setText('y[0]-y[1]') #'np.ones(len(self.y[0])) - self.y[0]/self.y[3] - self.y[1]/self.y[3]'
+        hbox.addWidget(self.input_line)
+        self.input_line_range = QtWidgets.QLineEdit()
+        self.input_line_range.setText("[0,1,2,3,4]")
+        hbox.addWidget(self.input_line_range)
+        hbox.addWidget(QtWidgets.QLabel("Binning:"))
+        self.checkbox_bin = QtWidgets.QCheckBox()
+        self.spinbox_bin = QtWidgets.QSpinBox()
+        self.spinbox_bin.setValue(1)
+        hbox.addWidget(self.checkbox_bin)
+        hbox.addWidget(self.spinbox_bin)
+        hbox.addWidget(QtWidgets.QLabel("Sum mode:"))
+        self.checkbox_image = QtWidgets.QCheckBox()
+        hbox.addWidget(self.checkbox_image)
+        hbox.addWidget(QtWidgets.QLabel("show Limits:"))
+        self.checkbox_limits = QtWidgets.QCheckBox()
+        hbox.addWidget(self.checkbox_limits)
+        hbox_widget.setLayout(hbox)
+        layout.addWidget(hbox_widget)
+        return layout
 
     @QtCore.pyqtSlot()
     def clear_plot(self):
@@ -74,18 +176,81 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         # restore crosshair
         self.graphWidget.addItem(self.crosshair_v, ignoreBounds=True)
         self.graphWidget.addItem(self.crosshair_h, ignoreBounds=True)
+        self.graphWidget.addItem(self.img)
         self.plotcounter = 0
 
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
     def set_data(self, wls, spec):
-        #color = list(np.random.choice(range(256), size=3))
-        self.graphWidget.plot(wls, spec, pen=QtGui.QColor.fromRgbF(plt.cm.prism(self.plotcounter)[0],plt.cm.prism(self.plotcounter)[1],
+        if self.checkbox_bg.isChecked():
+            spec = spec - self.bg_spec
+        self.wls = wls
+        wls_span = np.max(wls) - np.min(wls)
+        if spec.ndim == 1:
+            self.graphWidget.plot(wls, spec, pen=QtGui.QColor.fromRgbF(plt.cm.prism(self.plotcounter)[0],plt.cm.prism(self.plotcounter)[1],
                                                                    plt.cm.prism(self.plotcounter)[2],plt.cm.prism(self.plotcounter)[3]))
+        else:
+            for i in range(4):
+                lim1 = self.roi_controls[i][0].value()
+                lim2 = self.roi_controls[i][1].value()
+                if lim2 > lim1:
+                    self.y[i] = np.average(spec[lim1:lim2, :], axis=0)
+                else:
+                    self.y[i] = spec[self.roi_controls[i][0].value()]
+                # 1 - R - T ; R = reflec/ref ; T = Trans/ref
+            try:
+                y = self.y
+                self.y[4] = eval(self.input_line.text())
+            except KeyError:
+                print('Incorrect expression, key out of range')
+            except SyntaxError:
+                print('Incorrect expression, syntax error')
+            if not self.checkbox_image.isChecked():
+                #img =pg.ImageItem(np.transpose(spec))
+                levels = self.hist.getLevels()
+                self.img.setImage(np.transpose(spec), autoLevels=False, levels=levels)
+                tr = QtGui.QTransform()  # prepare ImageItem transformation:
+                tr.translate(np.min(wls), 0)  # move 3x3 image to locate center at axis origin
+                tr.scale(wls_span / len(wls), 1)
+                self.img.setTransform(tr)
+                #self.hist.setImageItem(self.img)
+                #self.graphWidget.clear()
+                #self.graphWidget.addItem(self.img)
+                if self.checkbox_limits.isChecked():
+                    for i in range(4):
+                        y1 = self.roi_controls[i][0].value()
+                        y2 = self.roi_controls[i][1].value()
+                        self.graphWidget.addLine(x=None, y=y1)
+                        self.graphWidget.addLine(x=None, y=y2)
+            else:
+                colors = [QtGui.QColor("red"), QtGui.QColor("green"), QtGui.QColor("blue"), QtGui.QColor("cyan"),QtGui.QColor("white")]
+
+                plot_range = eval(self.input_line_range.text())
+                for i in plot_range:
+                    if self.checkbox_bin.isChecked():
+                        self.graphWidget.plot(wls, self.do_binning(self.y[i]), pen=colors[i])
+                    else:
+                        self.graphWidget.plot(wls, self.y[i], pen=colors[i])
         self.plotcounter = self.plotcounter + 1
         if self.plotcounter > 100:
             self.clear_plot()
             print(time.strftime('%H:%M:%S') + ' Too many spectra in live plot, clear display for performance')
             self.plotcounter = 0
+
+    def do_binning(self, spectrum):
+        """ Manual binning of the spectra. Some cameras might allow to readout pixel together to increase
+        signal-to-noise at the cost of lower resolution. """
+        #print(spectrum)
+        spec_length = len(spectrum)
+        binned_spec = np.empty(len(spectrum))
+        binning = self.spinbox_bin.value()
+        for i in range(spec_length):
+            if i > spec_length - binning:
+                binned_spec[i] = np.sum(spectrum[spec_length - binning:spec_length])
+            elif i < binning:
+                binned_spec[i] = np.sum(spectrum[0:i])
+            else:
+                binned_spec[i] = np.sum(spectrum[i - binning + 1:i + binning])
+        return binned_spec/(2 * (binning - 1) + 1)
 
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
     def set_data_preview(self, wls, spec):
@@ -101,7 +266,15 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             mousePoint = self.graphWidget.getPlotItem().vb.mapSceneToView(pos)
             self.crosshair_v.setPos(mousePoint.x())
             self.crosshair_h.setPos(mousePoint.y())
-        self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts")
+        calibration_mode = True
+        if calibration_mode:
+            try:
+                pixel = np.argmin(abs(self.wls - mousePoint.x()))
+                self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts {pixel:.0f} pixel")
+            except TypeError:
+                print('Cursor deactivated, waiting for first data.')
+        else:
+            self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts")
 
     @QtCore.pyqtSlot(np.ndarray)
     def update_datareader(self,max):

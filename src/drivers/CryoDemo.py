@@ -97,7 +97,7 @@ class UpdateWorker(QtCore.QThread):
     def run(self):
         while not self.stop:
             # calling the read temperature function
-            self.readtemp = self.read_T()
+            self.readtemp = self.read_T()[0]
 
             # waiting to remeasure the temperature
             time.sleep(self.waitTime)
