@@ -941,16 +941,16 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
             <string notr="true">background-color: rgb(255, 255, 255);</string>
            </property>
            <property name="suffix">
-            <string> ps</string>
+            <string> fs</string>
            </property>
            <property name="decimals">
-            <number>2</number>
+            <number>0</number>
            </property>
            <property name="maximum">
-            <double>10000.000000000000000</double>
+            <double>500000.000000000000000</double>
            </property>
            <property name="value">
-            <double>2.000000000000000</double>
+            <double>2000.000000000000000</double>
            </property>
           </widget>
           <widget class="QLabel" name="label_3">
@@ -1005,16 +1005,64 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
             <string notr="true">background-color: rgb(255, 255, 255);</string>
            </property>
            <property name="suffix">
-            <string> ps</string>
+            <string> fs</string>
            </property>
            <property name="decimals">
-            <number>2</number>
+            <number>0</number>
            </property>
            <property name="maximum">
             <double>10000.000000000000000</double>
            </property>
            <property name="value">
-            <double>0.020000000000000</double>
+            <double>0.000000000000000</double>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_8">
+           <property name="geometry">
+            <rect>
+             <x>90</x>
+             <y>60</y>
+             <width>47</width>
+             <height>13</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>step size</string>
+           </property>
+          </widget>
+          <widget class="QSpinBox" name="twoD_avg_spinBox">
+           <property name="geometry">
+            <rect>
+             <x>20</x>
+             <y>90</y>
+             <width>101</width>
+             <height>22</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="suffix">
+            <string>  avg</string>
+           </property>
+           <property name="maximum">
+            <number>10000</number>
+           </property>
+           <property name="value">
+            <number>1</number>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_10">
+           <property name="geometry">
+            <rect>
+             <x>130</x>
+             <y>90</y>
+             <width>47</width>
+             <height>13</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>averages</string>
            </property>
           </widget>
          </widget>

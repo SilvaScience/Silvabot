@@ -9,6 +9,8 @@ Created on Thu Oct  6 10:44:11 2022
 import socket
 import sys
 import json
+import time
+
 import requests
 import random
 from Topas4Locator import Topas4Locator
@@ -34,8 +36,15 @@ if match is None:
 else:
     baseAddress = match['PublicApiRestUrl_Version0']
 
-#shutter = False
-#put(baseAddress, '/ShutterInterlock/OpenCloseShutter', shutter)
+baseAddress = "http://192.168.1.120:8000/P24909/v0/PublicAPI"
+shutter = False
+put(baseAddress, '/ShutterInterlock/OpenCloseShutter', shutter)
+time.sleep(0.5)
+shutter = True
+put(baseAddress, '/ShutterInterlock/OpenCloseShutter', shutter)
+time.sleep(0.5)
+shutter = False
+put(baseAddress, '/ShutterInterlock/OpenCloseShutter', shutter)
 
 
 interactions = get(baseAddress, '/Optical/WavelengthControl/ExpandedInteractions').json()

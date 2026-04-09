@@ -509,7 +509,7 @@ class TwoDMeasurement(QtCore.QThread):
     sendSave = QtCore.pyqtSignal(str, str)
     sendParameter = QtCore.pyqtSignal(str, float)
 
-    def __init__(self, devices, tau_max_value, tau_step_value):
+    def __init__(self, devices, tau_max_value, tau_step_value,avg_value):
         super(TwoDMeasurement, self).__init__()
         self.spectrometer = devices['spectrometer']
         self.Bigfoot = devices['bigfoot']
@@ -518,6 +518,7 @@ class TwoDMeasurement(QtCore.QThread):
         lv.connect()
         step = tau_step_value #lv.LV_Control.read_scan_params()[1] #### can be changed if needed, or added with a button in the interface
         self.tau_array =  np.arange(0, tau_max_value + step, step)
+        self.avg_value = avg_value
         print('Measure 2D map with following tau array:', self.tau_array)
         self.terminate = False
 
@@ -526,7 +527,7 @@ class TwoDMeasurement(QtCore.QThread):
         for i,tau_value in enumerate(self.tau_array):
             if not self.terminate:  # check whether stopping measurement is called
                 self.sendProgress.emit(i/len(self.tau_array)*100)
-                print(time.strftime('%H:%M:%S') + f' Move tau stage to tau= {tau_value} ps')
+                print(time.strftime('%H:%M:%S') + f' Move tau stage to tau= {tau_value} fs')
                 self.sendParameter.emit('tau', tau_value)
                 bigfoot_busy = True
                 time.sleep(0.1)
@@ -534,10 +535,10 @@ class TwoDMeasurement(QtCore.QThread):
                     bigfoot_busy = self.Bigfoot.check_stage()
                     print(time.strftime('%H:%M:%S') + f' tau stage moving. Status: {bigfoot_busy}')
                     time.sleep(0.1)
-                self.spec = np.array(self.spectrometer.get_intensities())
-                #ADD BACKGROUND SUPPRESSION HERE?? OR IN get_intensities...?
-                self.sendSpectrum.emit(self.wls, self.spec)
-                print(time.strftime('%H:%M:%S') + f' Spectrum acquired for tau= {tau_value} ps')
+                for j in range(self.avg_value):
+                    self.spec = np.array(self.spectrometer.get_intensities())
+                    self.sendSpectrum.emit(self.wls, self.spec)
+                    print(time.strftime('%H:%M:%S') + f' Spectrum acquired for tau= {tau_value} fs')
 
         self.sendProgress.emit(100)
         print(time.strftime('%H:%M:%S') + ' Finished')

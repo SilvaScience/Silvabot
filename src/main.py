@@ -34,6 +34,8 @@ from drivers.ThorlabsPM100D import ThorlabsPM100D
 from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
 from drivers.Arduino import Arduino
 from drivers.ArduinoDemo import ArduinoDemo
+from drivers.Orpheus import Orpheus
+from drivers.OrpheusDemo import OrpheusDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement, RunMeasurement, BackgroundMeasurement, \
     ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement, HelicamBackgroundMeasurement, \
@@ -82,8 +84,20 @@ class MainInterface(QtWidgets.QMainWindow):
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
 
+        # initialize Orpheus
+        try:
+            self.orpheus = Orpheus()
+            #if self.orpheus.match == None:
+            #    self.orpheus = OrpheusDemo()
+            #    print('Orpheus not connected')
+            #else:
+            self.devices['orpheus'] = self.orpheus
+            print('Orpheus connected')
+        except:
+            print('Orpheus not connected')
+
         # initialize Powermeter
-        self.powermeter = ThorlabsPM100D()
+        #self.powermeter = ThorlabsPM100D()
         try:
             self.powermeter = ThorlabsPM100D()
             print('Thorlabs powermeter connected')

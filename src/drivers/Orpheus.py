@@ -21,7 +21,7 @@ from drivers.Topas4Locator import Topas4Locator
 import numpy as np
 
 
-class Orpheus(QtCore.QThread):
+class Orpheus(QtCore.QObject):
     name = 'Orpheus'
 
     def __init__(self):
@@ -32,9 +32,10 @@ class Orpheus(QtCore.QThread):
         locator = Topas4Locator()
         availableDevices = locator.locate()
         self.match = next((obj for obj in availableDevices if obj['SerialNumber'] == serialNumber), None)
-        print(self.match)
+        self.match = None
         if self.match is None:
-            print('Device with serial number %s not found' % serialNumber)
+            print('Device with serial number %s not found. Try connect with base address' % serialNumber)
+            self.baseAddress =  "http://192.168.1.120:8000/P24909/v0/PublicAPI"
         else:
             self.baseAddress = self.match['PublicApiRestUrl_Version0']
 
@@ -51,7 +52,7 @@ class Orpheus(QtCore.QThread):
         self.parameter_display_dict['shutter']['val'] = 0
         self.parameter_display_dict['shutter']['unit'] = ' per'
         self.parameter_display_dict['shutter']['max'] = 100
-        self.parameter_display_dict['set_wl']['val'] = 500
+        self.parameter_display_dict['set_wl']['val'] = float(self.get('/Optical/WavelengthControl/Output/Wavelength').text)
         self.parameter_display_dict['set_wl']['unit'] = ' nm'
         self.parameter_display_dict['set_wl']['max'] = 2600
         self.parameter_display_dict['set_wl']['read'] = False
@@ -64,9 +65,15 @@ class Orpheus(QtCore.QThread):
         self.waitTime = 0.1
 
         # start updating temp
-        self.UpdateWorker = UpdateWorker(self.baseAddress)
-        self.UpdateWorker.new_wl.connect(self.update_wl)
-        self.UpdateWorker.start()
+        self.thread = QtCore.QThread()
+        self.worker = UpdateWorker(self.baseAddress)
+
+        self.worker.moveToThread(self.thread)
+
+        self.thread.started.connect(self.worker.run)
+        self.worker.new_wl.connect(self.update_wl)
+
+        self.thread.start()
 
         # set ignore wavelength separator variable
         self.ignore_user_actions = False
@@ -128,13 +135,19 @@ class Orpheus(QtCore.QThread):
         else:
             return False
 
+    def stop_worker(self):
+        # TO BE IMPLEMENTED
+        self.worker.stop = True
+        self.thread.quit()
+        self.thread.wait()
 
-class UpdateWorker(QtCore.QThread):
+
+class UpdateWorker(QtCore.QObject):
     new_wl = QtCore.pyqtSignal(float)
 
     def __init__(self, base_address):
         super(UpdateWorker, self).__init__()
-        self.baseAddress = base_address
+        self.baseAddress = base_address #"http://192.168.1.120:8000/P24909/v0/PublicAPI"
         self.current_wl = []
         self.stop = False
         self.waitTime = 0.1
