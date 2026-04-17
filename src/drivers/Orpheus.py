@@ -47,6 +47,7 @@ class Orpheus(QtCore.QObject):
         self.parameter_dict['set_wl'] = 10
         self.parameter_dict['current_wl'] = 1
         self.parameter_dict['shutter'] = 0
+        self.parameter_dict['scmp'] = float(self.get('/Motors/ActualPositionInUnits?id=10').text)*1E3
         self.parameter_display_dict = defaultdict(dict)
         self.parameter_display_dict['shutter']['read'] = False
         self.parameter_display_dict['shutter']['val'] = 0
@@ -60,6 +61,10 @@ class Orpheus(QtCore.QObject):
         self.parameter_display_dict['current_wl']['unit'] = ' nm'
         self.parameter_display_dict['current_wl']['max'] = 2600
         self.parameter_display_dict['current_wl']['read'] = True
+        self.parameter_display_dict['scmp']['val'] = self.parameter_dict['scmp']
+        self.parameter_display_dict['scmp']['unit'] = ' um'
+        self.parameter_display_dict['scmp']['max'] = 11700 # max permitted value for this motor as readout through HTML commands
+        self.parameter_display_dict['scmp']['read'] = False
 
         # defining waitTime
         self.waitTime = 0.1
@@ -78,6 +83,8 @@ class Orpheus(QtCore.QObject):
         # set ignore wavelength separator variable
         self.ignore_user_actions = False
 
+
+
     def put(self, url, data):
         r = requests.put(self.baseAddress + url, json=data)
 
@@ -94,6 +101,10 @@ class Orpheus(QtCore.QObject):
                 self.put('/ShutterInterlock/OpenCloseShutter', False)
             else:
                 self.put('/ShutterInterlock/OpenCloseShutter', True)
+        if parameter == "scmp":
+            self.put('/Motors/TargetPositionInUnits?id=10', json.dumps(value*1E-3))
+            time.sleep(0.2)
+            self.parameter_dict['scmp'] = self.get('/Motors/ActualPositionInUnits?id=10').json()
 
     def update_wl(self, new_wl):
         self.parameter_dict['current_wl'] = new_wl
