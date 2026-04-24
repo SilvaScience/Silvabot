@@ -23,7 +23,7 @@ class UHF():
         self.parameter_display_dict = defaultdict(dict)
 
 
-        self.parameter_display_dict['sampling_rate']['val'] = 1000
+        self.parameter_display_dict['sampling_rate']['val'] = 858.3
         self.parameter_display_dict['sampling_rate']['unit'] = ' samples/s'
         self.parameter_display_dict['sampling_rate']['max'] = 100000
         self.parameter_display_dict['sampling_rate']['read'] = False
@@ -96,7 +96,6 @@ class UHF():
         self.scope_module.subscribe(self.wave_node)    # Subscribe to the scope wave node
         with self.device.set_transaction():
             self.device.scopes[0].channel(self.parameter_dict['Displayed_signal_input']) # Select the input channel to acquire
-#            print(self.parameter_dict['Displayed_signal_input']-1)
             self.device.scopes[0].trigenable(True)   # Enable the scope trigger
             self.device.scopes[0].trigchannel(3)     # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 2: ref trigger 1, 3: ref trigger 2)
             self.device.scopes[0].trigrising(1)      # Trigger on rising edge
@@ -110,9 +109,10 @@ class UHF():
         print('Configuration of the Lock-In completed')
 
     def set_parameter(self,parameter,value):
+        actual_value = value
         if parameter == 'sampling_rate':
-            self.update_sampling_rate(value)
-            self.sampling_rate = value
+            actual_value = self.update_sampling_rate(value)
+            self.parameter_dict['sampling_rate'] = actual_value
         if parameter == 'filter_order':
             self.update_filter_order(value)
             self.filter_order = value
@@ -125,10 +125,15 @@ class UHF():
         if parameter == 'Demodulator_trigger_input':
             self.update_Demodulator_trigger_input(value)
             self.parameter_dict['Demodulator_trigger_input'] = value
+        return actual_value
 
     def update_sampling_rate(self, sampling_rate):
         self.device.demods[0].rate(sampling_rate)
-        print(f'Sampling rate set to {sampling_rate} samples/s')
+        time.sleep(0.1)
+        actual_rate = self.device.demods[0].rate()
+        self.parameter_display_dict['sampling_rate']['val'] = actual_rate
+        print(f'Sampling rate set to {actual_rate} samples/s')
+        return actual_rate
     
     def update_filter_order(self, filter_order):
         self.device.demods[0].order(filter_order)
@@ -175,13 +180,17 @@ class UHF():
 
 class PlotterWorker(QtCore.QThread):
     scan_data = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendProgress = QtCore.pyqtSignal(float)
 
-    def __init__(self, device):
+    def __init__(self, device, scan_duration, burst_duration, expected_bursts):
         super().__init__()
         self.is_running = False
-        self.device = device.device        # Access the device from the UHF class
-        self.session = device.session      # Access the session from the UHF class
-        self.clockbase = device.clockbase  # Access the clockbase from the UHF class
+        self.scan_duration = scan_duration     # Expected scan duration in seconds
+        self.burst_duration = burst_duration   # Duration of each data burst in seconds
+        self.expected_bursts = expected_bursts # Expected number of bursts 
+        self.device = device.device            # Access the device from the UHF class
+        self.session = device.session          # Access the session from the UHF class
+        self.clockbase = device.clockbase      # Access the clockbase from the UHF class
 
     def run(self):
         self.is_running = True
@@ -198,27 +207,45 @@ class PlotterWorker(QtCore.QThread):
             return results, ts0
 
         # Initialize DAQ module for burst acquisition
-        sample_nodes = [self.device.demods[0].sample.r,   # Select Demod 0's R output
-                        self.device.demods[4].sample.r]   # Select Demod 4's R output
-        burst_duration = 0.2                              # Duration of each data burst in seconds
-        num_cols = int(np.ceil(burst_duration * self.device.demods[0].rate()))  # Number of samples per burst
-        daq_module = self.session.modules.daq   # Create DAQ module
-        daq_module.device(self.device)          # Link the DAQ module to the UHF device
-        daq_module.type(0)                      # Set DAQ type to 'burst'
-        daq_module.grid.mode(2)                 # Set grid mode
-        daq_module.endless(1)                   # Enable endless acquisition
-        daq_module.duration(burst_duration)     # Set burst duration
-        daq_module.grid.cols(num_cols)          # Set number of columns in the grid based on burst duration and sampling rate
+        sample_nodes = [self.device.demods[0].sample.x,   # Select Demod 0's X output
+                        self.device.demods[4].sample.x]   # Select Demod 4's X output
+        num_cols = int(np.ceil(self.burst_duration * self.device.demods[0].rate()))  # Number of samples per burst
+        daq_module = self.session.modules.daq    # Create DAQ module
+        daq_module.device(self.device)           # Link the DAQ module to the UHF device
+        daq_module.type(0)                       # Set DAQ type to 'burst'
+        daq_module.grid.mode(2)                  # Set grid mode
+        daq_module.endless(1)                    # Enable endless acquisition
+        daq_module.duration(self.burst_duration) # Set burst duration
+        daq_module.grid.cols(num_cols)           # Set number of columns in the grid based on burst duration and sampling rate
         for node in sample_nodes:
-            daq_module.subscribe(node)          # Subscribe to the sample nodes
+            daq_module.subscribe(node)           # Subscribe to the sample nodes
 
         # Acquire data in bursts until stopped
         ts0 = np.nan                             # Initialize initial timestamp
         results = {x: [] for x in sample_nodes}  # Initialize results dictionary
         daq_module.execute()                     # Start the DAQ module
-        while self.is_running:                   # Loop until stopped (stopped when scan is finished)
+        
+        # Determine stopping condition
+        scan_start_time = None
+        burst_counter = 0
+        while True:
+            burst_counter += 1                                  # Increment burst counter
             results, ts0 = read_data(daq_module, results, ts0)  # Read data and update results
-            time.sleep(burst_duration)                          # Wait for the duration of the burst before next read
+            if scan_start_time is None and len(results[sample_nodes[1]]) > 0:  # Set the scan start time based on the timestamp of the first burst received from Demod 4
+                # Set start time from first burst timestamp
+                first_burst = results[sample_nodes[1]][0]                      
+                scan_start_time = first_burst.header['createdtimestamp'][0] / self.clockbase
+            
+            progress = min(burst_counter / self.expected_bursts, 1.0) * 100
+            self.sendProgress.emit(progress)
+            
+            if scan_start_time is not None:
+                elapsed_time = (results[sample_nodes[1]][-1].header['createdtimestamp'][0] / self.clockbase) - scan_start_time
+                if elapsed_time >= self.scan_duration:
+                    break
+
+            time.sleep(self.burst_duration)
+        
         daq_module.finish()                                     # Stop the DAQ module
         results, ts0 = read_data(daq_module, results, ts0)      # Final read to get any remaining data
 
@@ -231,7 +258,7 @@ class PlotterWorker(QtCore.QThread):
         t4 = np.concatenate([(b.time + (b.header['createdtimestamp'][0] / self.clockbase) - ts0) for b in d4_bursts])   # Concatenate time values for Demod 4
 
         # Calculate the difference in R values and plot it
-        R_diff = r4 - r0
+        R_diff = r4 #- r0
         self.scan_data.emit(t0, R_diff)
         
     def stop(self):

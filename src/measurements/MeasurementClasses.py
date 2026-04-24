@@ -423,36 +423,56 @@ class TSeriesMeasurement(QtCore.QThread):
         print(time.strftime('%H:%M:%S') + ' Request Stop')
 
 # Measurement of coordinate translation stage scan and UHF data acquisition (like plotter in LabOne) for a back and forth scan of the stage
-class ScanPlotter(QtCore.QThread):
+class THzAcquisition(QtCore.QThread):
     # Define used signals
     sendProgress = QtCore.pyqtSignal(float)
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
 
-    def __init__(self, devices, plot_widget=None):
-        super(ScanPlotter, self).__init__()
-        self.tstage_thread = ScanWorker(devices['tstage'])
-        self.UHF_thread = PlotterWorker(devices['lock_in'])
-        self.plot_widget = plot_widget
+    def __init__(self, devices, initial_pos, final_pos, scan_speed, plot_widget=None, burst_duration=0.1):
+        super(THzAcquisition, self).__init__()
 
-        self.tstage_thread.finished_scan.connect(self.stop_measurement) # Connect signal to stop UHF thread when scan is finished
+        # Store parameters
+        self.initial_pos = initial_pos
+        self.final_pos = final_pos
+        self.scan_speed = scan_speed
+        self.burst_duration = burst_duration
+        self.plot_widget = plot_widget
+        
+        # Calculate number of samples in a scan = spec_length
+        total_time = abs(final_pos - initial_pos) / scan_speed                # Calculated total scan time
+        samp_rate = devices['lock_in'].parameter_dict['sampling_rate']        # Get sampling rate from UHF parameters
+        num_bursts = int(np.ceil(total_time / self.burst_duration) + 1)       # Calculated number of bursts to cover the scan time
+        num_samp_per_burst = int(np.ceil(self.burst_duration * samp_rate))    # Calculate number of samples per burst
+        self.spec_length = num_bursts * num_samp_per_burst                    # Calculate the total number of samples in a scan
+        
+        # Create threads for stage control and UHF data acquisition
+        self.tstage_thread = ScanWorker(devices['tstage'], initial_pos, final_pos)                       # Create ScanWorker thread to control the translation stage
+        self.UHF_thread = PlotterWorker(devices['lock_in'], total_time, self.burst_duration, num_bursts) # Create PlotterWorker thread to acquire data
+
+        # # Connect signals to start UHF thread when the scan starts and to plot data after the acquisition
+        self.tstage_thread.starting_scan.connect(self.start_measurement) # Connect signal to start UHF thread when scan is starting
         self.UHF_thread.scan_data.connect(self.plot_data) # Connect signal to plot data
-    
+        self.UHF_thread.sendProgress.connect(self.sendProgress)
+
     def run(self):
-        self.sendProgress.emit(50)
-        self.UHF_thread.start() # Start UHF data acquisition thread
         self.tstage_thread.start() # Start translation stage scan thread
 
-    def stop_measurement(self):
-        self.UHF_thread.stop()  # Stop UHF data acquisition thread when scan is finished
+    def start_measurement(self):
+        self.UHF_thread.start()  # Start UHF data acquisition thread when scan is starting
 
     def plot_data(self, t, r):
         if self.plot_widget is not None:
+            # Convert scan time to delay time between the pulses
+            dist_traveled = abs(self.final_pos - self.initial_pos) * 1e-3
+            dist_to_time = 2 * dist_traveled / 299792458 * 1e12
+            time_array = np.linspace(0, dist_to_time, len(t))
+            
             # Plot in the provided plot widget
             self.plot_widget.clear()
-            self.plot_widget.plot(t, r * 1e6, pen='b')
-            self.plot_widget.setLabel('bottom', 'Time (s)')
+            self.plot_widget.plot(time_array, r * 1e6, pen='b', linewidth=0.5, label='Vertical')
+            self.plot_widget.setLabel('bottom', 'Time (ps)')
             self.plot_widget.setLabel('left', 'Amplitude R (µV)')
-        self.sendProgress.emit(100)
+            self.plot_widget.addLegend()
         
 class ScopeView(QtCore.QThread):
     # Define used signals
@@ -504,7 +524,6 @@ class Autocorrelation(QtCore.QThread):
         # Create the position array for the scan
         step = self.interval if self.stop_pos >= self.start_pos else -abs(self.interval)
         positions = np.arange(self.start_pos, self.stop_pos + step / 2, step)
-
         # Initialize variables
         avg_data = []
         total = len(positions)
@@ -525,8 +544,12 @@ class Autocorrelation(QtCore.QThread):
                     val = self.powermeter.pm.measure_power() * 1e9  # nW
                     samples.append(val)
                 except Exception as e:
-                    print(f"Power meter read error at position {pos}, sample {i+1}: {type(e).__name__}: {e}")
-                    val = self.powermeter.parameter_dict.get('current_power', 0)
+                    print(f"[Autocorrelation] Power meter read error at position {pos}, sample {i+1}: {type(e).__name__}: {e}")
+                    # Use last known value (or zero if no samples yet)
+                    if samples:
+                        val = samples[-1]
+                    else:
+                        val = self.powermeter.parameter_dict.get('current_power', 0)
                     samples.append(val)
                 time.sleep(0.05)
 
@@ -540,17 +563,36 @@ class Autocorrelation(QtCore.QThread):
         # Store the positions and averaged data in numpy arrays for plotting
         self.positions = np.array(positions[: len(avg_data)])
         self.data = np.array(avg_data)
+        self.data = self.data - np.min(self.data)
 
         # Convert positions (mm) to relative time delays (ps) using speed of light
         c = 299792458
         positions_m = self.positions * 1e-3
-        self.times = 2.0 * (positions_m - min(positions_m)) / c * 1e12 # factor of 2 accounts for round trip of light
-
+        self.times = 2.0 * positions_m / c * 1e12 # factor of 2 accounts for round trip of light
         # send time array and corresponding averaged data (GUI thread will handle plotting)
         self.sendSpectrum.emit(self.times, self.data)
         self.sendProgress.emit(100)
+
+        # Find indices where signal crosses half max
+        try:
+            half_max = np.max(self.data) / 2
+            above = self.data >= half_max
+            crosses = np.where(np.diff(above.astype(int)) != 0)[0]
+            up_crossing = crosses[0]
+            down_crossing = crosses[-1] + 1
+            
+            # Interpolate to find accurate crossing points for FWHM calculation and calculate FWHM
+            interp_begining_FWHM = self.times[up_crossing] + (half_max - self.data[up_crossing]) * (self.times[up_crossing+1] - self.times[up_crossing]) / (self.data[up_crossing+1] - self.data[up_crossing])
+            interp_end_FWHM = self.times[down_crossing-1] + (half_max - self.data[down_crossing-1]) * (self.times[down_crossing] - self.times[down_crossing-1]) / (self.data[down_crossing] - self.data[down_crossing-1])
+            FWHM = interp_end_FWHM - interp_begining_FWHM
+            print(f"FWHM: {FWHM*1e3:.5g} fs")
+        except Exception as e:
+            print(f"[Autocorrelation] Error occurred while finding FWHM: {type(e).__name__}: {e}")
+            return
 
     def stop(self):
         """Signal the running scan to terminate gracefully."""
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+        

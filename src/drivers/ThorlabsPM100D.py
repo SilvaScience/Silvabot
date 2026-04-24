@@ -126,7 +126,7 @@ class ThorlabsPM100DInterface(object):
             print(self.visa_resource_manager.list_resources(query='?*'))
                
         self.pm = self.visa_resource_manager.open_resource(port)
-        self.pm.timeout = 10000  # Set timeout to 5 seconds (in milliseconds)
+        self.pm.timeout = 10e3
 
         self.idn = self.query("*IDN?")
 

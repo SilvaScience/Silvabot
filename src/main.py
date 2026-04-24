@@ -27,7 +27,7 @@ from drivers.ThorlabsPM100D import ThorlabsPM100D
 from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,BackgroundMeasurement, \
-    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, ScanPlotter, ScopeView, Autocorrelation
+    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, THzAcquisition, ScopeView, Autocorrelation
 
 from drivers.PI863 import PI863
 from drivers.PI863Demo import PI863Demo
@@ -117,7 +117,6 @@ class MainInterface(QtWidgets.QMainWindow):
         self.spectro_tab = self.findChild(QtWidgets.QWidget, 'spectro_tab')
         self.parameter_tab = self.findChild(QtWidgets.QWidget, 'parameter_tab')
         self.thz_tab = self.findChild(QtWidgets.QWidget, 'thz_tab')
-        self.thz_plotter_scan = self.findChild(QtWidgets.QPushButton, 'thz_plotter_scan')
         self.thz_acquisition = self.findChild(QtWidgets.QPushButton, 'thz_acquisition')
         self.autocorrelation = self.findChild(QtWidgets.QPushButton, 'autocorrelation')
         self.thz_clear = self.findChild(QtWidgets.QPushButton, 'thz_clear')
@@ -261,10 +260,9 @@ class MainInterface(QtWidgets.QMainWindow):
         self.Tseries_run_button.clicked.connect(self.Tseries_measurement)
         
         # THz tab button connections
-        self.thz_plotter_scan.clicked.connect(self.thz_plotter_scan_clicked)
-        self.thz_acquisition.clicked.connect(self.thz_acquisition_clicked)
-        self.autocorrelation.clicked.connect(self.autocorrelation_clicked) 
-        self.thz_clear.clicked.connect(self.thz_clear_clicked)
+        self.thz_acquisition.clicked.connect(self.thz_acquisition_measurement)
+        self.autocorrelation.clicked.connect(self.Autocorrelation_measurement) 
+        self.thz_clear.clicked.connect(self.THz_clear)
 
         # run some functions once to define default values
         self.change_filename()
@@ -481,16 +479,22 @@ class MainInterface(QtWidgets.QMainWindow):
         self.measurement.stop()
         self.measurement_busy = False
 
-    def Plotter_scan(self):
-        # This function plots the amplitude R of the demodulated signal from the UHF lock-in amplifier (acts like the Plotter in LabOne)
-        # while scanning the translation stage from 0 to 50 mm.
+    def thz_acquisition_measurement(self):
+        # Starts a THz measurement using the translation stage and the lock in.
         if not self.measurement_busy:
             self.measurement_busy = True
             self.DataHandling.clear_data()
-            self.measurement = ScanPlotter(self.devices, self.thz_plot_widget)
+
+            # Get parameters for THz acquisition from the GUI
+            initial_pos = self.tstage.parameter_dict['scan_initial_position']
+            final_pos = self.tstage.parameter_dict['scan_final_position']
+            scan_speed = self.tstage.parameter_dict['speed']
+
+            # Run the THz acquisition measurement
+            self.measurement = THzAcquisition(self.devices, initial_pos, final_pos, scan_speed, self.thz_plot_widget)
             self.measurement.sendProgress.connect(self.set_progress)
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.run()
+            self.measurement.start()
         else:
             print('Measurement not started, devices are busy')
     
@@ -507,29 +511,19 @@ class MainInterface(QtWidgets.QMainWindow):
         else:
             print('Measurement not started, devices are busy')
     
-    def thz_plotter_scan_clicked(self):
-        self.Plotter_scan()
-    
-    def thz_acquisition_clicked(self):
-        """Handler for THz Acquisition Button"""
-        print('THz Acquisition started')
-        x_data = np.linspace(0, 10, 100)
-        y_data = np.sin(x_data)
-        self.thz_plot_widget.plot(x_data, y_data, pen='b')
-    
-    def autocorrelation_clicked(self):
+    def Autocorrelation_measurement(self):
         # start an autocorrelation scan using parameters from Tstage dropdown menu
         if not self.measurement_busy:
             self.measurement_busy = True
             self.DataHandling.clear_data()
 
             # Get parameters for autocorrelation from the GUI
-            start = self.tstage.parameter_dict['autocorrelation_start_pos']
-            stop = self.tstage.parameter_dict['autocorrelation_stop_pos']
+            initial_pos = self.tstage.parameter_dict['scan_initial_position']
+            final_pos = self.tstage.parameter_dict['scan_final_position']
             interval = self.tstage.parameter_dict['autocorrelation_interval']
 
             # Run the autocorrelation measurement
-            self.measurement = Autocorrelation(self.devices, start, stop, interval, plot_widget=self.thz_plot_widget)
+            self.measurement = Autocorrelation(self.devices, initial_pos, final_pos, interval, plot_widget=self.thz_plot_widget)
             
             # Connect the different signals
             self.measurement.sendProgress.connect(self.set_progress)
@@ -547,7 +541,7 @@ class MainInterface(QtWidgets.QMainWindow):
             self.thz_plot_widget.setLabel('bottom', 'Time (ps)')
             self.thz_plot_widget.setLabel('left', 'Power (µW)')
     
-    def thz_clear_clicked(self):
+    def THz_clear(self):
         self.thz_plot_widget.clear()
 
     def closeEvent(self, event):

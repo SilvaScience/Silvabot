@@ -363,16 +363,9 @@ p, li { white-space: pre-wrap; }
             </property>
             <layout class="QHBoxLayout" name="thz_buttons_layout">
              <item>
-              <widget class="QPushButton" name="thz_plotter_scan">
-               <property name="text">
-                <string>Plotter Scan</string>
-               </property>
-              </widget>
-             </item>
-             <item>
               <widget class="QPushButton" name="thz_acquisition">
                <property name="text">
-                <string>THz Acquisition</string>
+                <string>THz acquisition</string>
                </property>
               </widget>
              </item>
