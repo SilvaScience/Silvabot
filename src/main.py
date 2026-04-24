@@ -480,20 +480,14 @@ class MainInterface(QtWidgets.QMainWindow):
         self.measurement_busy = False
 
     def thz_acquisition_measurement(self):
-        # Starts a THz measurement using the translation stage and the lock in.
+        # Conducts a THz measurement using the translation stage and the lock in.
         if not self.measurement_busy:
             self.measurement_busy = True
-            self.DataHandling.clear_data()
-
-            # Get parameters for THz acquisition from the GUI
-            initial_pos = self.tstage.parameter_dict['scan_initial_position']
-            final_pos = self.tstage.parameter_dict['scan_final_position']
-            scan_speed = self.tstage.parameter_dict['speed']
-
-            # Run the THz acquisition measurement
-            self.measurement = THzAcquisition(self.devices, initial_pos, final_pos, scan_speed, self.thz_plot_widget)
+            self.measurement = THzAcquisition(self.devices, self.thz_plot_widget)
             self.measurement.sendProgress.connect(self.set_progress)
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.DataHandling.spec_length = self.measurement.spec_length
+            self.DataHandling.clear_data()
             self.measurement.start()
         else:
             print('Measurement not started, devices are busy')

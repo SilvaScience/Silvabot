@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 class UHF():
 
     name = 'UHF'
+    sendProgress = QtCore.pyqtSignal(float)
 
     def __init__(self):
         super(UHF, self).__init__()
@@ -177,34 +178,15 @@ class UHF():
         t_us = 1e6 * np.arange(-self.totalsamples, 0) * self.dt + (self.timestamp - self.triggertimestamp) / float(self.clockbase) # Create the time array
         return t_us, self.wave
 
-
-class PlotterWorker(QtCore.QThread):
-    scan_data = QtCore.pyqtSignal(np.ndarray, np.ndarray)
-    sendProgress = QtCore.pyqtSignal(float)
-
-    def __init__(self, device, scan_duration, burst_duration, expected_bursts):
-        super().__init__()
+    def DAQ_setup(self, scan_duration, burst_duration, expected_bursts):
         self.is_running = False
         self.scan_duration = scan_duration     # Expected scan duration in seconds
         self.burst_duration = burst_duration   # Duration of each data burst in seconds
         self.expected_bursts = expected_bursts # Expected number of bursts 
-        self.device = device.device            # Access the device from the UHF class
-        self.session = device.session          # Access the session from the UHF class
-        self.clockbase = device.clockbase      # Access the clockbase from the UHF class
 
-    def run(self):
-        self.is_running = True
-        
-        # Function to read data from the DAQ module and to store it in results dictionary
-        def read_data(daq_module, results, ts0):
-            daq_data = daq_module.read(raw=False, clk_rate=self.clockbase)
-            for node in sample_nodes:
-                if node in daq_data.keys():
-                    for sig_burst in daq_data[node]:
-                        results[node].append(sig_burst)
-                        if np.any(np.isnan(ts0)):
-                            ts0 = sig_burst.header['createdtimestamp'][0] / self.clockbase
-            return results, ts0
+        self.sample_nodes = [self.device.demods[0].sample.x,   # Select Demod 0's X output
+                             self.device.demods[4].sample.x]   # Select Demod 4's X output
+        self.num_cols = int(np.ceil(self.burst_duration * self.device.demods[0].rate()))  # Number of samples per burst
 
         # Initialize DAQ module for burst acquisition
         sample_nodes = [self.device.demods[0].sample.x,   # Select Demod 0's X output
@@ -219,47 +201,4 @@ class PlotterWorker(QtCore.QThread):
         daq_module.grid.cols(num_cols)           # Set number of columns in the grid based on burst duration and sampling rate
         for node in sample_nodes:
             daq_module.subscribe(node)           # Subscribe to the sample nodes
-
-        # Acquire data in bursts until stopped
-        ts0 = np.nan                             # Initialize initial timestamp
-        results = {x: [] for x in sample_nodes}  # Initialize results dictionary
-        daq_module.execute()                     # Start the DAQ module
-        
-        # Determine stopping condition
-        scan_start_time = None
-        burst_counter = 0
-        while True:
-            burst_counter += 1                                  # Increment burst counter
-            results, ts0 = read_data(daq_module, results, ts0)  # Read data and update results
-            if scan_start_time is None and len(results[sample_nodes[1]]) > 0:  # Set the scan start time based on the timestamp of the first burst received from Demod 4
-                # Set start time from first burst timestamp
-                first_burst = results[sample_nodes[1]][0]                      
-                scan_start_time = first_burst.header['createdtimestamp'][0] / self.clockbase
-            
-            progress = min(burst_counter / self.expected_bursts, 1.0) * 100
-            self.sendProgress.emit(progress)
-            
-            if scan_start_time is not None:
-                elapsed_time = (results[sample_nodes[1]][-1].header['createdtimestamp'][0] / self.clockbase) - scan_start_time
-                if elapsed_time >= self.scan_duration:
-                    break
-
-            time.sleep(self.burst_duration)
-        
-        daq_module.finish()                                     # Stop the DAQ module
-        results, ts0 = read_data(daq_module, results, ts0)      # Final read to get any remaining data
-
-        # Organize the acquired data
-        d0_bursts = results[sample_nodes[0]]                                                                            # Get bursts for Demod 0
-        r0 = np.concatenate([b.value.flatten() for b in d0_bursts])                                                     # Concatenate R values for Demod 0
-        t0 = np.concatenate([(b.time + (b.header['createdtimestamp'][0] / self.clockbase) - ts0) for b in d0_bursts])   # Concatenate time values for Demod 0
-        d4_bursts = results[sample_nodes[1]]                                                                            # Get bursts for Demod 4
-        r4 = np.concatenate([b.value.flatten() for b in d4_bursts])                                                     # Concatenate R values for Demod 4
-        t4 = np.concatenate([(b.time + (b.header['createdtimestamp'][0] / self.clockbase) - ts0) for b in d4_bursts])   # Concatenate time values for Demod 4
-
-        # Calculate the difference in R values and plot it
-        R_diff = r4 #- r0
-        self.scan_data.emit(t0, R_diff)
-        
-    def stop(self):
-        self.is_running = False
+        return self.clockbase, sample_nodes, daq_module

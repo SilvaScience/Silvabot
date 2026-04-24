@@ -308,7 +308,10 @@ class BufferWorker(QtCore.QObject):
                 else:
                     # float16 is used for camera pixels, as max values is 65504.
                     hf.create_dataset("spectra", data=spec, compression="gzip", chunks=True, maxshape=(None,np.shape(spec)[1],np.shape(spec)[2]),dtype='float16')
-                hf["spectra"].attrs["xaxis"] = wls
+                try:
+                    hf["spectra"].attrs["xaxis"] = wls
+                except OSError as e:
+                    print(f"Error occurred while setting xaxis attribute: {e}. Consider reducing the size of the xaxis array or using a different data type.")
                 hf.create_dataset("parameter", data=parameter_measured, compression="gzip", chunks=True, maxshape=(np.shape(parameter_measured)[0],None))
                 # Store parameter keys as a comma-separated string to avoid attribute size issues
                 hf["parameter"].attrs["parameter_keys"] = ','.join(list(parameter_queue.keys()))

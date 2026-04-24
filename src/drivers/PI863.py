@@ -130,25 +130,3 @@ class UpdateWorker_Position(QtCore.QThread):
             return self.pidevice.qPOS(1)[1]
         except:
             return None
-        
-class ScanWorker(QtCore.QThread):
-    starting_scan = QtCore.pyqtSignal()
-    sendProgress = QtCore.pyqtSignal(float)
-
-    def __init__(self, device, initial_pos, final_pos):
-        super().__init__()
-        self.pidevice = device.pidevice  # Extract the actual GCS device from PI863 instance
-        self.initial_pos = initial_pos   # Store the initial position for the scan
-        self.final_pos = final_pos       # Store the final position for the scan
-
-    def run(self):
-        # Move to initial position before starting the scan at a fast speed
-        scan_speed = self.pidevice.qVEL()                     # Get the current speed from the parameter dict
-        self.pidevice.VEL(1, 10)                              # Set speed to a fast value (10 mm/s) for moving to the initial position        
-        self.pidevice.MOV(1, self.initial_pos)                # Moves the stage to the initial position
-        pitools.waitontarget(self.pidevice, 1, timeout=10000) # Waits until the stage reaches the target position
-        self.pidevice.VEL(1, scan_speed['1'])                 # Set the speed for scanning to the value from the parameter dict
-        
-        # Scan from initial position to final position
-        self.starting_scan.emit()            # Emit signal to indicate that the scan is starting
-        self.pidevice.MOV(1, self.final_pos) # Moves the stage to its maximum position

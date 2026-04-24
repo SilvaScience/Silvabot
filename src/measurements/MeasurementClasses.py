@@ -9,11 +9,8 @@ import time
 import re
 from PyQt5 import QtCore
 import numpy as np
-import matplotlib.pyplot as plt
-from drivers.PI863 import ScanWorker
-from drivers.UHF import PlotterWorker
-# pipython helper used to wait until stage has reached its target position
-from pipython import pitools
+from pipython import pitools     # pipython helper used to wait until stage has reached its target position
+
 
 
 # Measurement to acquire one spectrum
@@ -427,52 +424,116 @@ class THzAcquisition(QtCore.QThread):
     # Define used signals
     sendProgress = QtCore.pyqtSignal(float)
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    plotDataSignal = QtCore.pyqtSignal(np.ndarray, np.ndarray)
 
-    def __init__(self, devices, initial_pos, final_pos, scan_speed, plot_widget=None, burst_duration=0.1):
+    def __init__(self, devices, plot_widget=None, burst_duration=0.1):
         super(THzAcquisition, self).__init__()
 
         # Store parameters
-        self.initial_pos = initial_pos
-        self.final_pos = final_pos
-        self.scan_speed = scan_speed
+        self.tstage = devices['tstage']
+        self.lock_in = devices['lock_in']
+        self.initial_pos = self.tstage.parameter_dict['scan_initial_position']
+        self.final_pos = self.tstage.parameter_dict['scan_final_position']
+        self.scan_speed = self.tstage.parameter_dict['speed']
         self.burst_duration = burst_duration
         self.plot_widget = plot_widget
         
         # Calculate number of samples in a scan = spec_length
-        total_time = abs(final_pos - initial_pos) / scan_speed                # Calculated total scan time
-        samp_rate = devices['lock_in'].parameter_dict['sampling_rate']        # Get sampling rate from UHF parameters
-        num_bursts = int(np.ceil(total_time / self.burst_duration) + 1)       # Calculated number of bursts to cover the scan time
-        num_samp_per_burst = int(np.ceil(self.burst_duration * samp_rate))    # Calculate number of samples per burst
-        self.spec_length = num_bursts * num_samp_per_burst                    # Calculate the total number of samples in a scan
+        self.total_time = abs(self.final_pos - self.initial_pos) / self.scan_speed # Calculated total scan time
+        self.samp_rate = devices['lock_in'].parameter_dict['sampling_rate']        # Get sampling rate from UHF parameters
+        self.num_bursts = int(np.ceil(self.total_time / self.burst_duration) + 1)       # Calculated number of bursts to cover the scan time
+        self.num_samp_per_burst = int(np.ceil(self.burst_duration * self.samp_rate))    # Calculate number of samples per burst
+        self.spec_length = self.num_bursts * self.num_samp_per_burst                    # Calculate the total number of samples in a scan
         
-        # Create threads for stage control and UHF data acquisition
-        self.tstage_thread = ScanWorker(devices['tstage'], initial_pos, final_pos)                       # Create ScanWorker thread to control the translation stage
-        self.UHF_thread = PlotterWorker(devices['lock_in'], total_time, self.burst_duration, num_bursts) # Create PlotterWorker thread to acquire data
+        # Connect the plotting signal to the measurement's plotting method
+        self.plotDataSignal.connect(self.plot_data)
 
-        # # Connect signals to start UHF thread when the scan starts and to plot data after the acquisition
-        self.tstage_thread.starting_scan.connect(self.start_measurement) # Connect signal to start UHF thread when scan is starting
-        self.UHF_thread.scan_data.connect(self.plot_data) # Connect signal to plot data
-        self.UHF_thread.sendProgress.connect(self.sendProgress)
+    # Function to acquire data from the lock-in while the delay stage is moving
+    def Plotter_acquire(self, clockbase, sample_nodes, daq_module):
+        self.is_running = True
+        self.clockbase = clockbase
+        
+        # Function to read data from the DAQ module and to store it in results dictionary
+        def read_data(daq_module, results, ts0):
+            daq_data = daq_module.read(raw=False, clk_rate=self.clockbase)
+            for node in sample_nodes:
+                if node in daq_data.keys():
+                    for sig_burst in daq_data[node]:
+                        results[node].append(sig_burst)
+                        if np.any(np.isnan(ts0)):
+                            ts0 = sig_burst.header['createdtimestamp'][0] / self.clockbase
+            return results, ts0
 
-    def run(self):
-        self.tstage_thread.start() # Start translation stage scan thread
-
-    def start_measurement(self):
-        self.UHF_thread.start()  # Start UHF data acquisition thread when scan is starting
-
-    def plot_data(self, t, r):
-        if self.plot_widget is not None:
-            # Convert scan time to delay time between the pulses
-            dist_traveled = abs(self.final_pos - self.initial_pos) * 1e-3
-            dist_to_time = 2 * dist_traveled / 299792458 * 1e12
-            time_array = np.linspace(0, dist_to_time, len(t))
+        # Start data acquisition in bursts until stopped
+        ts0 = np.nan                             # Initialize initial timestamp
+        results = {x: [] for x in sample_nodes}  # Initialize results dictionary
+        daq_module.execute()                     # Start the DAQ module
+        
+        # While loop to continuously read data until the stop condition is met (scan time exceeded or stop requested)
+        scan_start_time = None
+        burst_counter = 0
+        while True:
+            burst_counter += 1                                  # Increment burst counter
+            results, ts0 = read_data(daq_module, results, ts0)  # Read data and update results
+            if scan_start_time is None and len(results[sample_nodes[1]]) > 0:  # Set the scan start time based on the timestamp of the first burst received from Demod 4
+                # Set start time from first burst timestamp
+                first_burst = results[sample_nodes[1]][0]                      
+                scan_start_time = first_burst.header['createdtimestamp'][0] / self.clockbase
             
-            # Plot in the provided plot widget
-            self.plot_widget.clear()
-            self.plot_widget.plot(time_array, r * 1e6, pen='b', linewidth=0.5, label='Vertical')
-            self.plot_widget.setLabel('bottom', 'Time (ps)')
-            self.plot_widget.setLabel('left', 'Amplitude R (µV)')
-            self.plot_widget.addLegend()
+            progress = min(burst_counter / self.num_bursts, 1.0) * 100
+            self.sendProgress.emit(progress)
+            
+            if scan_start_time is not None:
+                elapsed_time = (results[sample_nodes[1]][-1].header['createdtimestamp'][0] / self.clockbase) - scan_start_time
+                if elapsed_time >= self.total_time:
+                    break
+
+            time.sleep(self.burst_duration)
+        
+        # Stop the DAQ module and do a final read to get any remaining data
+        daq_module.finish()                                     # Stop the DAQ module
+        results, ts0 = read_data(daq_module, results, ts0)      # Final read to get any remaining data
+
+        # Organize the acquired data and calculate the difference between the two demodulators
+        d0_bursts = results[sample_nodes[0]]                                                                            # Get bursts for Demod 0
+        r0 = np.concatenate([b.value.flatten() for b in d0_bursts])                                                     # Concatenate R values for Demod 0
+        t0 = np.concatenate([(b.time + (b.header['createdtimestamp'][0] / self.clockbase) - ts0) for b in d0_bursts])   # Concatenate time values for Demod 0
+        d4_bursts = results[sample_nodes[1]]                                                                            # Get bursts for Demod 4
+        r4 = np.concatenate([b.value.flatten() for b in d4_bursts])                                                     # Concatenate R values for Demod 4
+        t4 = np.concatenate([(b.time + (b.header['createdtimestamp'][0] / self.clockbase) - ts0) for b in d4_bursts])   # Concatenate time values for Demod 4
+        R_diff = r4 #- r0
+
+        return t0, R_diff
+    
+    def run(self):
+        self.tstage.pidevice.VEL(1, 10)                              # Set speed to a fast value (10 mm/s) for moving to the initial position
+        self.tstage.pidevice.VEL(1, 10)                              # Set speed to a fast value (10 mm/s) for moving to the initial position        
+        self.tstage.pidevice.MOV(1, self.initial_pos)                # Moves the stage to the initial position
+        pitools.waitontarget(self.tstage.pidevice, 1, timeout=10000) # Wait until the stage has reached the initial position
+        self.tstage.pidevice.VEL(1, self.scan_speed)                 # Set the speed for scanning to the value from the parameter dict
+        clockbase, nodes, module = self.lock_in.DAQ_setup(self.total_time, self.burst_duration, self.num_bursts)  # Configure UHF for burst acquisition with the defined burst duration and sampling rate
+        self.tstage.pidevice.MOV(1, self.final_pos)                  # Start the stage moving to its maximum position
+        t, X = self.Plotter_acquire(clockbase, nodes, module) # Start UHF data acquisition during the scan
+        self.plotDataSignal.emit(t, X)  # Plot the data
+    
+    def plot_data(self, t, X):
+        # Convert scan time to delay time between the pulses
+        dist_traveled = abs(self.final_pos - self.initial_pos) * 1e-3
+        dist_to_time = 2 * dist_traveled / 299792458 * 1e12
+        time_array = np.linspace(0, dist_to_time, len(t), dtype=np.float16)
+        
+        # Plot in the provided plot widget
+        self.plot_widget.clear()
+        self.plot_widget.plot(time_array, X * 1e6, pen='b', linewidth=0.5, label='Vertical')
+        self.plot_widget.setLabel('bottom', 'Time (ps)')
+        self.plot_widget.setLabel('left', 'Amplitude R (µV)')
+        self.plot_widget.addLegend()
+
+        # Send the data to DataHandling for saving
+        self.sendSpectrum.emit(time_array, X * 1e6)
+    
+    def stop(self):
+        self.terminate = True
         
 class ScopeView(QtCore.QThread):
     # Define used signals
@@ -535,7 +596,7 @@ class Autocorrelation(QtCore.QThread):
 
             # Move translation stage and wait for it to reach the target
             self.tstage.pidevice.MOV(1, pos)
-            pitools.waitontarget(self.tstage.pidevice, 1, timeout=10000)
+            self._wait_for_target(pos, timeout=10.0)
 
             # Measure the power at current position multiple times
             samples = []
@@ -594,5 +655,19 @@ class Autocorrelation(QtCore.QThread):
         """Signal the running scan to terminate gracefully."""
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
+    
+    def _wait_for_target(self, target_pos, timeout=10.0, tolerance=0.01):
+        """Wait for the stage to reach the target position within tolerance."""
+        import time
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            current_pos = self.tstage.pidevice.qPOS(1)[1]  # Get current position
+            if abs(current_pos - target_pos) < tolerance:
+                return True  # Target reached
+            time.sleep(0.01)  # Small delay to avoid busy waiting
+        
+        print(f"Warning: Stage did not reach target position {target_pos} within {timeout} seconds")
+        return False
 
         
