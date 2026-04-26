@@ -116,19 +116,22 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize Arduino
         try:
-            self.arduino = Arduino('COM8')
+            self.arduino = Arduino('COM14') # 8
             print('Arduino connected')
             self.devices['arduino'] = self.arduino
         except:
             print('Arduino connection failed')
-            self.arduino = ArduinoDemo()
+            self.arduino = ArduinoDemo('COM14')
             print('ArduinoDemo connected')
             self.devices['arduino'] = self.arduino
 
         # initialize Bigfoot
-        self.bigfoot = Bigfoot()
-        self.devices['bigfoot'] = self.bigfoot
-        print('Bigfoot connected')
+        try:
+            self.bigfoot = Bigfoot()
+            self.devices['bigfoot'] = self.bigfoot
+            print('Bigfoot connected')
+        except:
+            print('Bigfoot connection failed')
         # initialize SLMDemo
         #self.SLM = SLMDemo()
         #self.devices['SLM'] = self.SLM
@@ -556,7 +559,7 @@ class MainInterface(QtWidgets.QMainWindow):
         if not self.measurement_busy:
             self.measurement_busy = True
             self.DataHandling.clear_data()
-            self.measurement = HelicamBackgroundMeasurement(self.devices)
+            self.measurement = HelicamBackgroundMeasurement(self.devices)  
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
             self.measurement.start()
 

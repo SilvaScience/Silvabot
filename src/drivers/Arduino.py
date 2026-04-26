@@ -53,6 +53,12 @@ class Arduino(QtCore.QThread):
         self.parameter_display_dict['filter_wheel_3']['max'] = 360
         self.parameter_display_dict['filter_wheel_3']['read'] = False
 
+        self.parameter_dict['laser_diode'] = 0
+        self.parameter_display_dict['laser_diode']['val'] = 0
+        self.parameter_display_dict['laser_diode']['unit'] = ' '
+        self.parameter_display_dict['laser_diode']['max'] = 300
+        self.parameter_display_dict['laser_diode']['read'] = False
+
         #defining waitTime
         self.WaitTime = 0.1
 
@@ -76,19 +82,27 @@ class Arduino(QtCore.QThread):
             steps_to_move = round(change_in_angle*2048/360)
             self.update_shutter(2, steps_to_move)
             self.parameter_dict['filter_wheel_2'] = value
-
         elif parameter == 'filter_wheel_3':
             change_in_angle = self.parameter_dict['filter_wheel_3'] -value
             steps_to_move = round(change_in_angle*2048/360)
             self.update_shutter(3,steps_to_move)
             self.parameter_dict['filter_wheel_3'] = value
-
+        elif parameter == 'laser_diode':
+            command = 'LM=' + str(int(value))
+            try:
+                self.ser.write(command.encode())
+            except serial.SerialTimeoutException:
+                print(time.strftime('%H:%M:%S') + 'Arduino serial timeout exception')
+                # self.restart()
+            self.parameter_dict['laser_diode'] = value
 
     def update_shutter(self,shutter, set_angle):
         #set shutter1 to some degree
         command = 'SRV' + str(shutter) + '=' + str(set_angle)
         try:
             self.ser.write(command.encode())
+            print(command)
+            print(type(command))
         except serial.SerialTimeoutException:
             print(time.strftime('%H:%M:%S') + 'Arduino serial timeout exception')
             #self.restart()
