@@ -168,8 +168,11 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             except SyntaxError:
                 print('Incorrect expression, syntax error')
         if spec.ndim == 1:
-            self.graphWidget.plot(wls, spec, pen=QtGui.QColor.fromRgbF(plt.cm.prism(self.plotcounter)[0],plt.cm.prism(self.plotcounter)[1],
+            try:
+                self.graphWidget.plot(wls, spec, pen=QtGui.QColor.fromRgbF(plt.cm.prism(self.plotcounter)[0],plt.cm.prism(self.plotcounter)[1],
                                                                    plt.cm.prism(self.plotcounter)[2],plt.cm.prism(self.plotcounter)[3]))
+            except Exception as e:
+                print(f'If you were not plotting THz data, an error occurred while plotting the spectrum:{e}')
         else:
             if not self.checkbox_image.isChecked():
                 img =pg.ImageItem(np.transpose(spec))

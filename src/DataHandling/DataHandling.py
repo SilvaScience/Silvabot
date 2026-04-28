@@ -143,7 +143,10 @@ class DataHandling(QtCore.QThread):
         # Extract maxima of data to display them in SpectrumViewer
         self.maximum[1] = np.amax(spec)
         if self.data_dim == 1:
-            self.maximum[2] = wls[np.argmax(spec)]
+            try:
+                self.maximum[2] = wls[np.argmax(spec)]
+            except:
+                self.maximum[2] = 0
         else:
             self.maximum[2] = wls[np.unravel_index(spec.argmax(), spec.shape)[1]]
         self.maximum[0] = curr_time
@@ -172,7 +175,10 @@ class DataHandling(QtCore.QThread):
         # Extract maxima of data to display them in SpectrumViewer
         self.maximum[1] = np.amax(spec)
         if self.data_dim == 1:
-            self.maximum[2] = wls[np.argmax(spec)]
+            try:
+                self.maximum[2] = wls[np.argmax(spec)]
+            except:
+                self.maximum[2] = 0
         else:
             self.maximum[2] = wls[np.unravel_index(spec.argmax(), spec.shape)[1]]
         self.maximum[0] = curr_time

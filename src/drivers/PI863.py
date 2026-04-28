@@ -49,10 +49,10 @@ class PI863():
         self.parameter_display_dict['scan_final_position']['max'] = 50
         self.parameter_display_dict['scan_final_position']['read'] = False
 
-        self.parameter_display_dict['autocorrelation_interval']['val'] = 1
-        self.parameter_display_dict['autocorrelation_interval']['unit'] = ' µm'
-        self.parameter_display_dict['autocorrelation_interval']['max'] = 50000
-        self.parameter_display_dict['autocorrelation_interval']['read'] = False
+        self.parameter_display_dict['autocorrelation_step']['val'] = 1
+        self.parameter_display_dict['autocorrelation_step']['unit'] = ' µm'
+        self.parameter_display_dict['autocorrelation_step']['max'] = 50000
+        self.parameter_display_dict['autocorrelation_step']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
@@ -83,8 +83,8 @@ class PI863():
             self.update_scan_initial_position(value)
         if parameter == 'scan_final_position':
             self.update_scan_final_position(value)
-        if parameter == 'autocorrelation_interval':
-            self.update_autocorrelation_interval(value)
+        if parameter == 'autocorrelation_step':
+            self.update_autocorrelation_step(value)
 
     def update_speed(self, new_speed):
         self.pidevice.VEL(1, new_speed)
@@ -104,9 +104,9 @@ class PI863():
     def update_scan_final_position(self, new_final_pos):
         self.parameter_dict['scan_final_position'] = new_final_pos
 
-    def update_autocorrelation_interval(self, new_interval):
-        self.parameter_dict['autocorrelation_interval'] = new_interval * 1e-3
-    
+    def update_autocorrelation_step(self, new_step):
+        self.parameter_dict['autocorrelation_step'] = new_step * 1e-3
+
 class UpdateWorker_Position(QtCore.QThread):
     new_Position = QtCore.pyqtSignal(float)
 

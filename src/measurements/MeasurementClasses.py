@@ -440,7 +440,8 @@ class THzAcquisition(QtCore.QThread):
         
         # Calculate number of samples in a scan = spec_length
         self.total_time = abs(self.final_pos - self.initial_pos) / self.scan_speed # Calculated total scan time
-        self.samp_rate = devices['lock_in'].parameter_dict['sampling_rate']        # Get sampling rate from UHF parameters
+        # self.samp_rate = devices['lock_in'].parameter_dict['sampling_rate']        # Get sampling rate from UHF parameters
+        self.samp_rate = self.lock_in.device.demods[0].rate()                           # Get sampling rate from the UHF
         self.num_bursts = int(np.ceil(self.total_time / self.burst_duration) + 1)       # Calculated number of bursts to cover the scan time
         self.num_samp_per_burst = int(np.ceil(self.burst_duration * self.samp_rate))    # Calculate number of samples per burst
         self.spec_length = self.num_bursts * self.num_samp_per_burst                    # Calculate the total number of samples in a scan
@@ -513,14 +514,15 @@ class THzAcquisition(QtCore.QThread):
         self.tstage.pidevice.VEL(1, self.scan_speed)                 # Set the speed for scanning to the value from the parameter dict
         clockbase, nodes, module = self.lock_in.DAQ_setup(self.total_time, self.burst_duration, self.num_bursts)  # Configure UHF for burst acquisition with the defined burst duration and sampling rate
         self.tstage.pidevice.MOV(1, self.final_pos)                  # Start the stage moving to its maximum position
-        t, X = self.Plotter_acquire(clockbase, nodes, module) # Start UHF data acquisition during the scan
-        self.plotDataSignal.emit(t, X)  # Plot the data
+        t, X = self.Plotter_acquire(clockbase, nodes, module)        # Start UHF data acquisition during the scan
+        self.plotDataSignal.emit(t, X)                               # Plot the data
+        self.sendProgress.emit(100)                                  # Emit 100% progress when done
     
     def plot_data(self, t, X):
         # Convert scan time to delay time between the pulses
         dist_traveled = abs(self.final_pos - self.initial_pos) * 1e-3
         dist_to_time = 2 * dist_traveled / 299792458 * 1e12
-        time_array = np.linspace(0, dist_to_time, len(t), dtype=np.float16)
+        time_array = np.linspace(0, dist_to_time, len(t))
         
         # Plot in the provided plot widget
         self.plot_widget.clear()
@@ -530,7 +532,8 @@ class THzAcquisition(QtCore.QThread):
         self.plot_widget.addLegend()
 
         # Send the data to DataHandling for saving
-        self.sendSpectrum.emit(time_array, X * 1e6)
+        time_attribute = np.array([0, dist_to_time, len(t)])  # Create time attribute to be saved in the H5 file. This will prevent overflowing the H5 attribute while allowing to reconstruct the time array from the attribute when loading the data in mdsam
+        self.sendSpectrum.emit(time_attribute, X * 1e6)       # Send the data to DataHandling for saving
     
     def stop(self):
         self.terminate = True

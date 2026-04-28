@@ -16,18 +16,11 @@ class UHF():
 
         # setting up the parameter dict
         self.parameter_dict = defaultdict()
-        self.parameter_dict['sampling_rate'] = 0
         self.parameter_dict['filter_order'] = 0
         self.parameter_dict['time_constant'] = 0
         self.parameter_dict['Displayed_signal_input'] = 0
-        self.parameter_dict['Demodulator_trigger_input'] = 0
         self.parameter_display_dict = defaultdict(dict)
 
-
-        self.parameter_display_dict['sampling_rate']['val'] = 858.3
-        self.parameter_display_dict['sampling_rate']['unit'] = ' samples/s'
-        self.parameter_display_dict['sampling_rate']['max'] = 100000
-        self.parameter_display_dict['sampling_rate']['read'] = False
         self.parameter_display_dict['filter_order']['val'] = 4
         self.parameter_display_dict['filter_order']['unit'] = ' '
         self.parameter_display_dict['filter_order']['max'] = 8
@@ -42,11 +35,6 @@ class UHF():
         self.parameter_display_dict['Displayed_signal_input']['min'] = 1
         self.parameter_display_dict['Displayed_signal_input']['max'] = 2
         self.parameter_display_dict['Displayed_signal_input']['read'] = False
-        self.parameter_display_dict['Demodulator_trigger_input']['val'] = 1
-        self.parameter_display_dict['Demodulator_trigger_input']['unit'] = ' '
-        self.parameter_display_dict['Demodulator_trigger_input']['min'] = 1
-        self.parameter_display_dict['Demodulator_trigger_input']['max'] = 2
-        self.parameter_display_dict['Demodulator_trigger_input']['read'] = False
 
         # set up parameter dict that only contains value
         self.parameter_dict = {}
@@ -70,23 +58,23 @@ class UHF():
 
         # Configure the first demodulation
         self.device.demods[0].adcselect(0)                                         # Select the input channel to use
-        self.device.demods[0].rate(self.parameter_dict['sampling_rate'])           # Set the sampling rate
         self.device.demods[0].enable(True)                                         # Enable the demodulator
         self.device.demods[0].order(self.parameter_dict['filter_order'])           # Set the filter order
         self.device.demods[0].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
         self.device.demods[0].oscselect(0)                                         # Set the oscillator to use
         self.device.demods[0].sinc(1)                                              # Enable sinc filter
+        self.device.demods[0].rate(429.2)                                          # Set the sampling rate to 429.2 samples/s
         self.device.extrefs[0].enable(1)                                           # Enable external reference
         self.device.demods[3].adcselect(2)                                         # Select the input channel to use for the reference
 
         # Configure the second demodulation
         self.device.demods[4].adcselect(1)                                         # Select the input channel to use
-        self.device.demods[4].rate(self.parameter_dict['sampling_rate'])           # Set the sampling rate
         self.device.demods[4].enable(True)                                         # Enable the demodulator
         self.device.demods[4].order(self.parameter_dict['filter_order'])           # Set the filter order
         self.device.demods[4].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
         self.device.demods[4].oscselect(1)                                         # Set the oscillator to use
         self.device.demods[4].sinc(1)                                              # Enable sinc filter
+        self.device.demods[4].rate(429.2)                                          # Set the sampling rate to 429.2 samples/s
         self.device.extrefs[1].enable(1)                                           # Enable external reference
         self.device.demods[7].adcselect(2)                                         # Select the input channel to use for the reference
 
@@ -110,10 +98,6 @@ class UHF():
         print('Configuration of the Lock-In completed')
 
     def set_parameter(self,parameter,value):
-        actual_value = value
-        if parameter == 'sampling_rate':
-            actual_value = self.update_sampling_rate(value)
-            self.parameter_dict['sampling_rate'] = actual_value
         if parameter == 'filter_order':
             self.update_filter_order(value)
             self.filter_order = value
@@ -123,18 +107,6 @@ class UHF():
         if parameter == 'Displayed_signal_input':
             self.update_displayed_signal_input(value)
             self.parameter_dict['Displayed_signal_input'] = value
-        if parameter == 'Demodulator_trigger_input':
-            self.update_Demodulator_trigger_input(value)
-            self.parameter_dict['Demodulator_trigger_input'] = value
-        return actual_value
-
-    def update_sampling_rate(self, sampling_rate):
-        self.device.demods[0].rate(sampling_rate)
-        time.sleep(0.1)
-        actual_rate = self.device.demods[0].rate()
-        self.parameter_display_dict['sampling_rate']['val'] = actual_rate
-        print(f'Sampling rate set to {actual_rate} samples/s')
-        return actual_rate
     
     def update_filter_order(self, filter_order):
         self.device.demods[0].order(filter_order)
@@ -149,11 +121,6 @@ class UHF():
     def update_displayed_signal_input(self, displayed_signal_input):
         self.device.scopes[0].channel(displayed_signal_input - 1)  
         print(f'Displayed signal input set to channel {displayed_signal_input}')
-
-    def update_Demodulator_trigger_input(self, demodulator_trigger_input):
-        self.device.demods[3].adcselect(demodulator_trigger_input + 1)
-        self.device.demods[7].adcselect(demodulator_trigger_input + 1)  
-        print(f'Demodulator trigger input set to channel {demodulator_trigger_input}')
 
     def Scope_acquire(self):
         self.device.scopes[0].channels[0].inputselect(self.parameter_dict['Displayed_signal_input'] - 1) 
