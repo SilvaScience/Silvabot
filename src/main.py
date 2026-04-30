@@ -63,7 +63,7 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize lock-in
         try:
-            self.lock_in = UHF()
+            self.lock_in = UHF(lock_in_type='UHF')
         except:
             self.lock_in = UHFDemo()
             print('WARNING you are using a DEMO version of the lock in')

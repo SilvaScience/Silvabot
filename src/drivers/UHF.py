@@ -11,8 +11,8 @@ class UHF():
     name = 'UHF'
     sendProgress = QtCore.pyqtSignal(float)
 
-    def __init__(self):
-        super(UHF, self).__init__()
+    def __init__(self, lock_in_type):
+        super(UHF, self, lock_in_type).__init__()
 
         # setting up the parameter dict
         self.parameter_dict = defaultdict()
@@ -56,27 +56,28 @@ class UHF():
         self.device.sigins[1].ac(False)   # Set the device to DC coupling
         self.device.sigins[1].imp50(True) # Set the input impedance to 50 Ohm
 
-        # Configure the first demodulation
-        self.device.demods[0].adcselect(0)                                         # Select the input channel to use
-        self.device.demods[0].enable(True)                                         # Enable the demodulator
-        self.device.demods[0].order(self.parameter_dict['filter_order'])           # Set the filter order
-        self.device.demods[0].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
-        self.device.demods[0].oscselect(0)                                         # Set the oscillator to use
-        self.device.demods[0].sinc(1)                                              # Enable sinc filter
-        self.device.demods[0].rate(429.2)                                          # Set the sampling rate to 429.2 samples/s
-        self.device.extrefs[0].enable(1)                                           # Enable external reference
-        self.device.demods[3].adcselect(2)                                         # Select the input channel to use for the reference
+        if lock_in_type == 'UHF':
+            # Configure the first demodulation
+            self.device.demods[0].adcselect(0)                                         # Select the input channel to use
+            self.device.demods[0].enable(True)                                         # Enable the demodulator
+            self.device.demods[0].order(self.parameter_dict['filter_order'])           # Set the filter order
+            self.device.demods[0].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
+            self.device.demods[0].oscselect(0)                                         # Set the oscillator to use
+            self.device.demods[0].sinc(1)                                              # Enable sinc filter
+            self.device.demods[0].rate(429.2)                                          # Set the sampling rate to 429.2 samples/s
+            self.device.extrefs[0].enable(1)                                           # Enable external reference
+            self.device.demods[3].adcselect(2)                                         # Select the input channel to use for the reference
 
-        # Configure the second demodulation
-        self.device.demods[4].adcselect(1)                                         # Select the input channel to use
-        self.device.demods[4].enable(True)                                         # Enable the demodulator
-        self.device.demods[4].order(self.parameter_dict['filter_order'])           # Set the filter order
-        self.device.demods[4].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
-        self.device.demods[4].oscselect(1)                                         # Set the oscillator to use
-        self.device.demods[4].sinc(1)                                              # Enable sinc filter
-        self.device.demods[4].rate(429.2)                                          # Set the sampling rate to 429.2 samples/s
-        self.device.extrefs[1].enable(1)                                           # Enable external reference
-        self.device.demods[7].adcselect(2)                                         # Select the input channel to use for the reference
+            # Configure the second demodulation
+            self.device.demods[4].adcselect(1)                                         # Select the input channel to use
+            self.device.demods[4].enable(True)                                         # Enable the demodulator
+            self.device.demods[4].order(self.parameter_dict['filter_order'])           # Set the filter order
+            self.device.demods[4].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
+            self.device.demods[4].oscselect(1)                                         # Set the oscillator to use
+            self.device.demods[4].sinc(1)                                              # Enable sinc filter
+            self.device.demods[4].rate(429.2)                                          # Set the sampling rate to 429.2 samples/s
+            self.device.extrefs[1].enable(1)                                           # Enable external reference
+            self.device.demods[7].adcselect(2)                                         # Select the input channel to use for the reference
 
         # Configure the scope parameters
         self.scope_module = self.session.modules.scope # Create scope module
