@@ -20,7 +20,7 @@ from ctypes import *
 class ThorlabsCCS200(QtCore.QThread):
     name = 'Spectrometer'
 
-    def __init__(self):
+    def __init__(self, port =None):
         super(ThorlabsCCS200, self).__init__()
 
         # load and initialize  spectrometerWorker

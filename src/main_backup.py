@@ -23,27 +23,29 @@ from drivers.StresingDemo import StresingDemo
 from drivers.MonochromDemo import MonochromDemo
 from drivers.Piezos import Piezos
 from drivers.Lakeshore import Lakeshore
-from drivers.Heliotis_noncontinuous import Heliotis
+from drivers.Heliotis import Heliotis
+from drivers.OceanSpectrometer import OceanSpectrometer
 from drivers.PixisDemo import PixisDemo
 from drivers.Pixis import Pixis
+from drivers.Alize import Alize
 from drivers.Bigfoot import Bigfoot
 from drivers.Cryocore import Cryocore
 from drivers.ThorlabsCCS200 import ThorlabsCCS200
 from drivers.ThorlabsPM100D import ThorlabsPM100D
 from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
 from drivers.Arduino import Arduino
-from drivers.Orpheus import Orpheus
 from drivers.ArduinoDemo import ArduinoDemo
+from drivers.Orpheus import Orpheus
+from drivers.OrpheusDemo import OrpheusDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement, RunMeasurement, BackgroundMeasurement, \
-    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement, HelicamBackgroundMeasurement
+    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement, HelicamBackgroundMeasurement, \
+    PowerSeriesMeasurement, ChirpMeasurement
 import threading
-
-from drivers.OrpheusDemo import OrpheusDemo
 
 
 class MainInterface(QtWidgets.QMainWindow):
-   
+
     def __init__(self):
         super(MainInterface, self).__init__()
         project_folder = Path(__file__).parent.resolve()
@@ -69,32 +71,41 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['cryostat'] = self.cryostat
 
         # initialize Spectrometer
-        #try:
-        #    self.spectrometer = Pixis()
-        #    print('Pixis camera connected')
-        #except:
-        self.spectrometer = SpectrometerDemo()
-        print('Pixis connection failed, use DEMO')
-        #self.spectrometer = Heliotis()
-        #self.spectrometer.request_file.connect(self.open_file_dialog)
-        #self.spectrometer = ThorlabsCCS200()
-
+        try:
+            self.spectrometer = Pixis()
+            print('Pixis camera connected')
+            self.spectrometer = Alize()
+            print('Alize camera connected')
+        except:
+            self.spectrometer = Heliotis()
+            print("Heliotis connected")
+            self.spectrometer.request_file.connect(self.open_file_dialog)
+        self.spectrometer = ThorlabsCCS200()
+        print("ThorlabsCCS200 connected")
+        #print('Pixis connection failed, use DEMO')
+        #self.spectrometer = SpectrometerDemo()
+        #self.spectrometer = OceanSpectrometer()
+        #print('OceanSpectrometer connected')
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
 
         # initialize Orpheus
-        try:
-            self.orpheus = Orpheus()
-            if self.orpheus.match == None:
-                self.orpheus = OrpheusDemo()
-                print('Orpheus not connected')
-            else:
-                self.devices['orpheus'] = self.orpheus
-                print('Orpheus connected')
-        except:
-            print('Orpheus not connected')
+        self.orpheus = Orpheus()
+        self.devices['orpheus'] = self.orpheus
+        #try:
+        #    self.orpheus = Orpheus()
+        #    if self.orpheus.match == None:
+        #        self.orpheus = Orpheus()
+        #        #print('Orpheus not connected')
+        #        self.devices['orpheus'] = self.orpheus
+        #    else:
+        #        self.devices['orpheus'] = self.orpheus
+        #        print('Orpheus connected')
+        #except:
+        #    print('Orpheus not connected')
 
         # initialize Powermeter
+        #self.powermeter = ThorlabsPM100D()
         try:
             self.powermeter = ThorlabsPM100D()
             print('Thorlabs powermeter connected')
@@ -105,43 +116,36 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # initialize Arduino
         try:
-            self.arduino = Arduino('COM8')
+            self.arduino = Arduino('COM14') # 8
             print('Arduino connected')
             self.devices['arduino'] = self.arduino
         except:
             print('Arduino connection failed')
-            #self.arduino = ArduinoDemo()
-            #print('ArduinoDemo connected')
-            #self.devices['arduino'] = self.arduino
+            self.arduino = ArduinoDemo('COM14')
+            print('ArduinoDemo connected')
+            self.devices['arduino'] = self.arduino
 
         # initialize Bigfoot
-        #self.bigfoot = Bigfoot()
-        #self.devices['bigfoot'] = self.bigfoot
-        #print('Bigfoot connected')
+        try:
+            self.bigfoot = Bigfoot()
+            self.devices['bigfoot'] = self.bigfoot
+            print('Bigfoot connected')
+        except:
+            print('Bigfoot connection failed')
         # initialize SLMDemo
         #self.SLM = SLMDemo()
         #self.devices['SLM'] = self.SLM
         #print('SLMDemo connected')
 
-        # initialize StresingDemo
-        #self.Stresing = StresingDemo()
-        #self.devices['Stresing'] = self.Stresing
-        #print('Stresing connected')
-
-        # initialize MonochromDemo
-        #self.Monochrom = MonochromDemo()
-        #self.devices['Monochrom'] = self.Monochrom
-        #print('Monochrom DEMO connected')
-
         # initialize Piezos
-        #self.Piezos = Piezos('COM9')
-        #self.devices['Piezos'] = self.Piezos
-        #print('Piezos connected')
-       
+        self.Piezos = Piezos('COM9')
+        self.devices['Piezos'] = self.Piezos
+        print('Piezos connected')
+
         # initialize TCLakeshoreDemo
-        #self.TCnHLakeshore = Lakeshore()
-        #self.devices['Lakeshore'] = self.TCnHLakeshore
-        #print('Lakeshore connected')
+        self.TCnHLakeshore = Lakeshore()
+        self.devices['Lakeshore'] = self.TCnHLakeshore
+        print('Lakeshore connected')
 
         # find items to complement in GUI
         self.test_button = self.findChild(QtWidgets.QPushButton, 'test_pushButton')
@@ -164,7 +168,11 @@ class MainInterface(QtWidgets.QMainWindow):
         self.bg_select_box = self.findChild(QtWidgets.QPushButton, 'select_bg_pushButton')
         self.twoD_run_button = self.findChild(QtWidgets.QPushButton, 'twoD_run_pushButton')
         self.twoD_tau_box = self.findChild(QtWidgets.QDoubleSpinBox, 'twoD_tau_spinBox')
+        self.twoD_tau_start_box = self.findChild(QtWidgets.QDoubleSpinBox, 'twoD_tau_start_spinBox')
         self.twoD_step_box = self.findChild(QtWidgets.QDoubleSpinBox, 'twoD_step_spinBox')
+        self.twoD_avg_box = self.findChild(QtWidgets.QSpinBox, 'twoD_avg_spinBox')
+        self.chirp_scan_run_button = self.findChild(QtWidgets.QPushButton, 'Chirp_scan_run_pushButton')
+        self.chirp_scan_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Chirp_scan_lineEdit')
         self.helicam_bg_button = self.findChild(QtWidgets.QPushButton, 'helicam_bg_pushButton')
         self.kinetic_lineEdit = self.findChild(QtWidgets.QLineEdit, 'kinetic_lineEdit')
         self.kinetic_run_button = self.findChild(QtWidgets.QPushButton, 'kinetic_run_pushButton')
@@ -181,6 +189,8 @@ class MainInterface(QtWidgets.QMainWindow):
         self.Tseries_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_lineEdit')
         self.Tseries_int_time_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_int_time_lineEdit')
         self.Tseries_filter_pos_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_filter_pos_lineEdit')
+        self.Powerseries_run_button = self.findChild(QtWidgets.QPushButton, 'Powerseries_run_pushButton')
+        self.Powerseries_filter_select_box = self.findChild(QtWidgets.QSpinBox, 'Powerseries_filter_selection_spinBox')
         self.menu_device_settings = self.findChild(QtWidgets.QMenu, 'menuDevice_settings')
         self.menu_bar = self.findChild(QtWidgets.QMenuBar, 'menubar')
 
@@ -308,13 +318,15 @@ class MainInterface(QtWidgets.QMainWindow):
         self.bg_check_box.stateChanged.connect(self.update_check_bg)
         #self.twoD_tau_lineEdit.editingFinished.connect(self.twoD_tau_positions)
         self.twoD_run_button.clicked.connect(self.twoD_measurement)
-        self.helicam_bg_button.clicked.connect(self.helicam_background_measurement)
+        #self.helicam_bg_button.clicked.connect(self.helicam_background_measurement)
         self.ParameterPlot.send_idx_change.connect(self.DataHandling.change_send_idx)
         self.ParameterPlot.send_parameter_filename.connect(self.DataHandling.save_parameter)
         self.kinetic_lineEdit.editingFinished.connect(self.change_kinetic_interval)
         self.kinetic_run_button.clicked.connect(self.kinetic_measurement)
         self.Tseries_lineEdit.editingFinished.connect(self.change_Tseries)
         self.Tseries_run_button.clicked.connect(self.Tseries_measurement)
+        self.Powerseries_run_button.clicked.connect(self.Powerseries_measurement)
+        self.chirp_scan_run_button.clicked.connect(self.chirp_scan_measurement)
 
         # run some functions once to define default values
         self.change_filename()
@@ -392,7 +404,7 @@ class MainInterface(QtWidgets.QMainWindow):
         bg = np.loadtxt(bg_path, delimiter=',')
         self.DataHandling.background = bg[-self.spec_length:, 1]
         # print(np.shape(bg[1:,1]))
-        
+
         # display background filename
         idx = bg_path.rfind('/')
         self.bg_file_indicator.setText(bg_path[idx+1:])
@@ -515,7 +527,18 @@ class MainInterface(QtWidgets.QMainWindow):
         if not self.measurement_busy:
             self.measurement_busy = True
             self.DataHandling.clear_data()
-            self.measurement = TwoDMeasurement(self.devices, self.twoD_tau_box.value(),self.twoD_step_box.value())
+            self.measurement = TwoDMeasurement(self.devices, self.twoD_tau_box.value(),self.twoD_step_box.value(),self.twoD_tau_start_box.value(),self.twoD_avg_box.value())
+            self.measurement.sendProgress.connect(self.set_progress)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.sendParameter.connect(self.change_parameter)
+            self.measurement.start()
+
+    def chirp_scan_measurement(self):
+        # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
+        if not self.measurement_busy:
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+            self.measurement = ChirpMeasurement(self.devices, self.chirp_scan_lineEdit.text(),self.twoD_avg_box.value())
             self.measurement.sendProgress.connect(self.set_progress)
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
             self.measurement.sendParameter.connect(self.change_parameter)
@@ -565,10 +588,31 @@ class MainInterface(QtWidgets.QMainWindow):
             self.measurement.sendParameter.connect(self.change_parameter)
             self.measurement.start()
 
+    def Powerseries_measurement(self):
+        # take power dependent measurements as defined in automation GUI section
+        if not self.measurement_busy:
+            print('Start Power-Dependent Measurement ')
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+            self.measurement = PowerSeriesMeasurement(self.devices, self.parameter,
+                                                  self.Powerseries_filter_select_box.value(),
+                                                  self.Tseries_spectra_avg_box.value(),
+                                                  self.Tseries_filter_pos_lineEdit.text())
+            self.measurement.sendProgress.connect(self.set_progress)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.sendParameter.connect(self.change_parameter)
+            self.measurement.start()
+
     def stop_measurement(self):
         # stop measurement
         self.measurement.stop()
         self.measurement_busy = False
+
+    def closeEvent(self, event):
+        for device in self.devices:
+            if hasattr(self.devices[device], 'close_device'):
+                self.devices[device].close_device()
+        event.accept()
 
 
 class UpdateWorker(QtCore.QThread):
@@ -581,7 +625,7 @@ class UpdateWorker(QtCore.QThread):
         self.read_only = read_only
         self.stop = False
         self.updated_param = {}
-        self.update_interval = 1
+        self.update_interval = 0.5
 
     def run(self):
         while not self.stop:

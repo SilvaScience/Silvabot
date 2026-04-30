@@ -34,7 +34,7 @@ class OceanSpectrometer(QtCore.QThread):
 
     name = 'Spectrometer'
     
-    def __init__(self):
+    def __init__(self, port =None):
         super(OceanSpectrometer, self).__init__()
 
         # load spectrometer

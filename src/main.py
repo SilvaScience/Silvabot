@@ -1,193 +1,73 @@
-"""
-Created on Tue Jan  1 14:34:11 2025
-@author: David Tiede
-"""
-
+from ruamel.yaml import YAML
+import importlib
 import sys
 import time
+import numpy as np
 import re
-import os
 from collections import defaultdict
 from pathlib import Path
-import numpy as np
-import csv
-from time import sleep
 from PyQt5 import QtCore, QtWidgets, uic
 from functools import partial
 from GUI.ParameterPlot import ParameterPlot
 from GUI.SpectrometerPlot import SpectrometerPlot
-from drivers.CryoDemo import CryoDemo
-from drivers.SpectrometerDemo_advanced import SpectrometerDemo
-from drivers.SLMDemo import SLMDemo
-from drivers.StresingDemo import StresingDemo
-from drivers.MonochromDemo import MonochromDemo
-from drivers.Piezos import Piezos
-from drivers.Lakeshore import Lakeshore
-from drivers.Heliotis_noncontinuous import Heliotis
-from drivers.PixisDemo import PixisDemo
-from drivers.Pixis import Pixis
-from drivers.Alize import Alize
-from drivers.Bigfoot import Bigfoot
-from drivers.Cryocore import Cryocore
-from drivers.ThorlabsCCS200 import ThorlabsCCS200
-from drivers.ThorlabsPM100D import ThorlabsPM100D
-from drivers.ThorlabsPM100DDemo import ThorlabsPM100DDemo
-from drivers.Arduino import Arduino
-from drivers.ArduinoDemo import ArduinoDemo
-from drivers.Orpheus import Orpheus
-from drivers.OrpheusDemo import OrpheusDemo
 from DataHandling.DataHandling import DataHandling
-from measurements.MeasurementClasses import AcquireMeasurement, RunMeasurement, BackgroundMeasurement, \
-    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement, HelicamBackgroundMeasurement, \
-    PowerSeriesMeasurement
-import threading
+
+
+def load_class(path):
+    # loads a class from a project-defined path. Returns the class
+    module_name, class_name = path.rsplit(".", 1)
+    return getattr(importlib.import_module(module_name), class_name)
+
+
+def create_device(path, init_args=None):
+    # Initializes a class from project-defined path. Returns the called class
+    cls = load_class(path)
+    return cls(**(init_args or {}))
 
 
 class MainInterface(QtWidgets.QMainWindow):
-   
+
     def __init__(self):
-        super(MainInterface, self).__init__()
-        project_folder = Path(__file__).parent.resolve()
-        uic.loadUi(Path(project_folder,r'GUI/main_GUI.ui'), self)
+        super().__init__()
 
-        # fancy name
+        self.project_folder = Path(__file__).parent.resolve()
+        uic.loadUi(self.project_folder / 'GUI/main_GUI.ui', self)
+
         self.setWindowTitle('Silvabot')
-
-        # set devices dict
         self.devices = defaultdict(dict)
 
-        # initialize cryostat
-        """ This is a demo devices that has read and write parameters.
-        Illustrates use of parameters"""
-        # always try to include communication on important events.
-        # This is extremely useful for debugging and troubleshooting.
+        # load devices from config file
+        self.config_path = self.project_folder / "config.yaml"
+        self.config_yaml = YAML() # comment conserving YAML
         try:
-            self.cryostat = Cryocore() # launch cryostat interface
-            print('Connected to Montana CryoCore')
-        except:
-            self.cryostat = CryoDemo()
-            print('WARNING you are using a DEMO version of the cryostat')
-        self.devices['cryostat'] = self.cryostat
+            self.config = self.config_yaml.safe_load(open(self.config_path))
+        except FileNotFoundError as e:
+            print(f'Config file not found. {e}. \n Consider renaming config_default in src folder.')
 
-        # initialize Spectrometer
-        #try:
-        #self.spectrometer = Pixis()
-        #print('Pixis camera connected')
-        self.spectrometer = Alize()
-        print('Alize camera connected')
-        #except:
-        #self.spectrometer = Heliotis()
-        #self.spectrometer.request_file.connect(self.open_file_dialog)
-        #self.spectrometer = ThorlabsCCS200()
-        #print('Pixis connection failed, use DEMO')
-        #self.spectrometer = SpectrometerDemo()
-        self.spec_length = self.spectrometer.spec_length
-        self.devices['spectrometer'] = self.spectrometer
+        for name, cfg in self.config["devices"].items():
+            if not cfg.get("enabled", False): # check if device should be loaded
+                continue
+            init_args = cfg.get("init_args", {})
+            driver = cfg["driver"]
+            fallback = cfg.get("fallback")
+            #initialize device
+            try:
+                device = create_device(driver, init_args)
+                print(f"{name}: {driver.split('.')[-1]} connected")
+            except Exception as e: # catch if loading device failed
+                print(f"{name}: {driver.split('.')[-1]} failed ({e})")
+                if not fallback: # continue, if no fallback driver is defined
+                    continue
+                device = create_device(fallback, init_args)
+                print(f"{name}: {fallback.split('.')[-1]} (fallback) connected")
 
-        # initialize Orpheus
-        try:
-            self.orpheus = Orpheus()
-            #if self.orpheus.match == None:
-            #    self.orpheus = OrpheusDemo()
-            #    print('Orpheus not connected')
-            #else:
-            self.devices['orpheus'] = self.orpheus
-            print('Orpheus connected')
-        except:
-            print('Orpheus not connected')
-
-        # initialize Powermeter
-        #self.powermeter = ThorlabsPM100D()
-        try:
-            self.powermeter = ThorlabsPM100D()
-            print('Thorlabs powermeter connected')
-        except:
-            self.powermeter = ThorlabsPM100DDemo()
-            print('WARNING you are using a DEMO version of the powermeter')
-        self.devices['powermeter'] = self.powermeter
-
-        # initialize Arduino
-        try:
-            self.arduino = Arduino('COM8')
-            print('Arduino connected')
-            self.devices['arduino'] = self.arduino
-        except:
-            print('Arduino connection failed')
-            #self.arduino = ArduinoDemo()
-            #print('ArduinoDemo connected')
-            #self.devices['arduino'] = self.arduino
-
-        # initialize Bigfoot
-        #self.bigfoot = Bigfoot()
-        #self.devices['bigfoot'] = self.bigfoot
-        #print('Bigfoot connected')
-        # initialize SLMDemo
-        #self.SLM = SLMDemo()
-        #self.devices['SLM'] = self.SLM
-        #print('SLMDemo connected')
-
-        # initialize StresingDemo
-        #self.Stresing = StresingDemo()
-        #self.devices['Stresing'] = self.Stresing
-        #print('Stresing connected')
-
-        # initialize MonochromDemo
-        #self.Monochrom = MonochromDemo()
-        #self.devices['Monochrom'] = self.Monochrom
-        #print('Monochrom DEMO connected')
-
-        # initialize Piezos
-        self.Piezos = Piezos('COM9')
-        self.devices['Piezos'] = self.Piezos
-        print('Piezos connected')
-       
-        # initialize TCLakeshoreDemo
-        self.TCnHLakeshore = Lakeshore()
-        self.devices['Lakeshore'] = self.TCnHLakeshore
-        print('Lakeshore connected')
-
-        # find items to complement in GUI
-        self.test_button = self.findChild(QtWidgets.QPushButton, 'test_pushButton')
-        self.parameter_tree = self.findChild(QtWidgets.QTreeWidget, 'parameters_treeWidget')
-        self.spectro_tab = self.findChild(QtWidgets.QWidget, 'spectro_tab')
-        self.parameter_tab = self.findChild(QtWidgets.QWidget, 'parameter_tab')
-        self.acquire_button = self.findChild(QtWidgets.QPushButton, 'acquire_pushButton')
-        self.view_button = self.findChild(QtWidgets.QPushButton, 'view_pushButton')
-        self.run_button = self.findChild(QtWidgets.QPushButton, 'run_pushButton')
-        self.stop_button = self.findChild(QtWidgets.QPushButton, 'stop_pushButton')
-        self.save_folder_button = self.findChild(QtWidgets.QPushButton, 'folder_pushButton')
-        self.save_button = self.findChild(QtWidgets.QPushButton, 'save_pushButton')
-        self.comments_edit = self.findChild(QtWidgets.QTextEdit, 'comments_textEdit')
-        self.filename_edit = self.findChild(QtWidgets.QLineEdit, 'filename_lineEdit')
-        self.progress_bar = self.findChild(QtWidgets.QProgressBar, 'progressBar')
-        self.bg_button = self.findChild(QtWidgets.QPushButton, 'Acquire_bg_pushButton')
-        self.bg_check_box = self.findChild(QtWidgets.QCheckBox, 'bg_checkBox')
-        self.bg_file_indicator = self.findChild(QtWidgets.QLineEdit, 'bg_file_lineEdit')
-        self.bg_scans_box = self.findChild(QtWidgets.QSpinBox, 'bg_scans_spinBox')
-        self.bg_select_box = self.findChild(QtWidgets.QPushButton, 'select_bg_pushButton')
-        self.twoD_run_button = self.findChild(QtWidgets.QPushButton, 'twoD_run_pushButton')
-        self.twoD_tau_box = self.findChild(QtWidgets.QDoubleSpinBox, 'twoD_tau_spinBox')
-        self.twoD_step_box = self.findChild(QtWidgets.QDoubleSpinBox, 'twoD_step_spinBox')
-        self.helicam_bg_button = self.findChild(QtWidgets.QPushButton, 'helicam_bg_pushButton')
-        self.kinetic_lineEdit = self.findChild(QtWidgets.QLineEdit, 'kinetic_lineEdit')
-        self.kinetic_run_button = self.findChild(QtWidgets.QPushButton, 'kinetic_run_pushButton')
-        self.SLM_tab = self.findChild(QtWidgets.QWidget, 'SLM_tab')
-        self.Tseries_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_lineEdit')
-        self.Tseries_stab_time_box = self.findChild(QtWidgets.QSpinBox, 'Tseries_stab_time_spinBox')
-        self.Tseries_run_button = self.findChild(QtWidgets.QPushButton, 'Tseries_run_pushButton')
-        self.Tseries_ref_power_box = self.findChild(QtWidgets.QDoubleSpinBox, 'Tseries_ref_power_doubleSpinBox')
-        self.Tseries_int_time_WL_box = self.findChild(QtWidgets.QDoubleSpinBox, 'Tseries_int_time_WL_doubleSpinBox')
-        self.Tseries_int_time_orpheus_box = self.findChild(QtWidgets.QDoubleSpinBox, 'Tseries_int_time_orpheus_doubleSpinBox')
-        self.Tseries_power_dep_checkBox = self.findChild(QtWidgets.QCheckBox, 'Tseries_power_dep_checkBox')
-        self.Tseries_two_sources_checkBox = self.findChild(QtWidgets.QCheckBox, 'Tseries_two_sources_checkBox')
-        self.Tseries_spectra_avg_box = self.findChild(QtWidgets.QSpinBox, 'Tseries_spectra_avg_spinBox')
-        self.Tseries_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_lineEdit')
-        self.Tseries_int_time_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_int_time_lineEdit')
-        self.Tseries_filter_pos_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_filter_pos_lineEdit')
-        self.Powerseries_run_button = self.findChild(QtWidgets.QPushButton, 'Powerseries_run_pushButton')
-        self.Powerseries_filter_select_box = self.findChild(QtWidgets.QSpinBox, 'Powerseries_filter_selection_spinBox')
-        self.menu_device_settings = self.findChild(QtWidgets.QMenu, 'menuDevice_settings')
-        self.menu_bar = self.findChild(QtWidgets.QMenuBar, 'menubar')
+            # Additional device-specific attributes.
+            if hasattr(device, "request_file"):
+                device.request_file.connect(self.open_file_dialog)
+            if hasattr(device, "spec_length"):
+                self.spec_length = device.spec_length
+            # Add device to device dictionary
+            self.devices[name] = device
 
         # initial parameter values, retrieved from devices
         self.parameter_dic = defaultdict(lambda: defaultdict(dict))
@@ -220,11 +100,6 @@ class MainInterface(QtWidgets.QMainWindow):
                     else:
                         raise NotImplementedError
 
-
-
-
-
-
         # create parameter array for easy access
         self.create_parameter_array()
 
@@ -238,22 +113,16 @@ class MainInterface(QtWidgets.QMainWindow):
         vbox.addWidget(self.ParameterPlot)
         self.parameter_tab.setLayout(vbox)
 
-        vbox = QtWidgets.QVBoxLayout()
-        if hasattr(self, 'SLM'):
-            vbox.addWidget(self.SLM)
-        self.SLM_tab.setLayout(vbox)
-
-
         """ This initializes the parameter tree. It is constructed based on the device dict,
         that includes parameter information of each device """
-        self.parameter_tree.setColumnCount(2)
-        self.parameter_tree.setHeaderLabels(["Name", "Value"])
+        self.parameters_treeWidget.setColumnCount(2)
+        self.parameters_treeWidget.setHeaderLabels(["Name", "Value"])
         self.parameter_widgets = {}
         self.readonly_parameter = []
         self.writeonly_parameter = []
         for device in self.parameter_dic.keys():
             item = QtWidgets.QTreeWidgetItem([device.capitalize()])
-            self.parameter_tree.addTopLevelItem(item)
+            self.parameters_treeWidget.addTopLevelItem(item)
             for param in self.parameter_dic[device].keys():
                 child =QtWidgets.QTreeWidgetItem()
                 item.addChild(child)
@@ -276,8 +145,8 @@ class MainInterface(QtWidgets.QMainWindow):
                     self.parameter_widgets[param].setValue(self.parameter_dic[device][param]['val'])
                     self.parameter_widgets[param].editingFinished.connect(partial(self.set_parameter,param))
                     self.writeonly_parameter.append(param)
-                self.parameter_tree.setItemWidget(child, 0, name_widget)
-                self.parameter_tree.setItemWidget(child, 1, self.parameter_widgets[param])
+                self.parameters_treeWidget.setItemWidget(child, 0, name_widget)
+                self.parameters_treeWidget.setItemWidget(child, 1, self.parameter_widgets[param])
 
         # start DataHandling
         self.DataHandling = DataHandling(self.parameter, self.spec_length)
@@ -300,39 +169,76 @@ class MainInterface(QtWidgets.QMainWindow):
         self.power_calib_array = []
 
         # set connect events
-        self.test_button.clicked.connect(self.test_button_clicked)
-        self.acquire_button.clicked.connect(self.acquire_measurement)
-        self.view_button.clicked.connect(self.view_measurement)
-        self.run_button.clicked.connect(self.run_measurement)
-        self.stop_button.clicked.connect(self.stop_measurement)
-        self.filename_edit.editingFinished.connect(self.change_filename)
-        self.save_button.clicked.connect(self.save_data)
-        self.save_folder_button.clicked.connect(self.change_folder)
-        self.bg_button.clicked.connect(self.background_measurement)
-        self.bg_select_box.clicked.connect(self.load_bg)
-        self.bg_check_box.stateChanged.connect(self.update_check_bg)
+        self.test_pushButton.clicked.connect(self.test_button_clicked)
+        self.acquire_pushButton.clicked.connect(self.acquire_measurement)
+        self.view_pushButton.clicked.connect(self.view_measurement)
+        self.run_pushButton.clicked.connect(self.run_measurement)
+        self.stop_pushButton.clicked.connect(self.stop_measurement)
+        self.filename_lineEdit.editingFinished.connect(self.change_filename)
+        self.save_pushButton.clicked.connect(self.save_data)
+        self.folder_pushButton.clicked.connect(self.change_folder)
+        self.acquire_bg_pushButton.clicked.connect(self.background_measurement)
+        self.select_bg_pushButton.clicked.connect(self.load_bg)
+        self.bg_checkBox.stateChanged.connect(self.update_check_bg)
         #self.twoD_tau_lineEdit.editingFinished.connect(self.twoD_tau_positions)
-        self.twoD_run_button.clicked.connect(self.twoD_measurement)
-        self.helicam_bg_button.clicked.connect(self.helicam_background_measurement)
+        self.twoD_run_pushButton.clicked.connect(self.twoD_measurement)
+        #self.helicam_bg_button.clicked.connect(self.helicam_background_measurement)
         self.ParameterPlot.send_idx_change.connect(self.DataHandling.change_send_idx)
         self.ParameterPlot.send_parameter_filename.connect(self.DataHandling.save_parameter)
         self.kinetic_lineEdit.editingFinished.connect(self.change_kinetic_interval)
-        self.kinetic_run_button.clicked.connect(self.kinetic_measurement)
+        self.kinetic_run_pushButton.clicked.connect(self.kinetic_measurement)
         self.Tseries_lineEdit.editingFinished.connect(self.change_Tseries)
-        self.Tseries_run_button.clicked.connect(self.Tseries_measurement)
-        self.Powerseries_run_button.clicked.connect(self.Powerseries_measurement)
+        self.Tseries_run_pushButton.clicked.connect(self.Tseries_measurement)
+        self.Powerseries_run_pushButton.clicked.connect(self.Powerseries_measurement)
+        self.chirp_scan_run_pushButton.clicked.connect(self.chirp_scan_measurement)
 
         # run some functions once to define default values
         self.change_filename()
 
+        # set last User Input in comments section
+        self.comments_textEdit.setPlainText(self.config["comment"])
+
         # show GUI, to be executed at the end of init.
         self.show()
 
-        #print(
-        #    "Main thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
-        #)
-
     ##### General functions #####
+
+    def start_measurement(self, cls, *args, extra_connections=None):
+        """
+        Starts a measurement, clears DataHandling and connects signals to slots
+        - cls: Name of class stored in MeasurementClasses (str)
+        - *args: Arguments to be passed to Measurement
+        - extra_connections: Dictionary of connections
+        """
+        if self.measurement_busy: # check if measurement is in progress.
+            # Some measurements (e.g. Acquire) can be executed even if busy
+            print('Measurement not started, devices are busy')
+            return
+        else:
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+
+        try:
+            cls = load_class(f"{'measurements.MeasurementClasses'}.{cls}")
+            self.measurement = cls(*args)
+
+            # standard connections
+            if hasattr(self.measurement, "sendProgress"):
+                self.measurement.sendProgress.connect(self.set_progress)
+            if hasattr(self.measurement, "sendSpectrum"):
+                self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            if hasattr(self.measurement, "sendParameter"):
+                self.measurement.sendParameter.connect(self.change_parameter)
+
+            # optional extra connections
+            if extra_connections:
+                for signal_name, slot in extra_connections.items():
+                    if hasattr(self.measurement, signal_name):
+                        getattr(self.measurement, signal_name).connect(slot)
+            self.measurement.start()
+
+        except Exception as e:
+            print(f'Measurement not started, Exception: {e}')
 
     def create_parameter_array(self):
         # initialization function to store all parameters in one array
@@ -372,7 +278,7 @@ class MainInterface(QtWidgets.QMainWindow):
 
     def set_progress(self, progress):
         # set progress bar and define whether a measurement is running. When progess ne 100, no new measurement starts
-        self.progress_bar.setValue(int(progress))
+        self.progressBar.setValue(int(progress))
         if progress == 100.:
             self.measurement_busy = False
 
@@ -384,12 +290,12 @@ class MainInterface(QtWidgets.QMainWindow):
 
     def change_filename(self):
         # change filename to string of LineEdit
-        self.filename = str(self.save_folder_path) + "/" + str(self.filename_edit.text().strip('\n'))
+        self.filename = str(self.save_folder_path) + "/" + str(self.filename_lineEdit.text().strip('\n'))
         print('filename changed to: ' + str(self.filename))
 
     def save_data(self):
         # save data
-        self.DataHandling.save_data(self.filename, self.comments_edit.toPlainText())
+        self.DataHandling.save_data(self.filename, self.comments_textEdit.toPlainText())
 
     def load_bg(self):
         # open background file and set as background
@@ -398,13 +304,13 @@ class MainInterface(QtWidgets.QMainWindow):
         bg = np.loadtxt(bg_path, delimiter=',')
         self.DataHandling.background = bg[-self.spec_length:, 1]
         # print(np.shape(bg[1:,1]))
-        
+
         # display background filename
         idx = bg_path.rfind('/')
-        self.bg_file_indicator.setText(bg_path[idx+1:])
+        self.bg_file_lineEdit.setText(bg_path[idx + 1:])
 
     def update_check_bg(self):
-        self.DataHandling.correct_background = self.bg_check_box.isChecked()
+        self.DataHandling.correct_background = self.bg_checkBox.isChecked()
 
     def open_file_dialog(self):
         '''
@@ -461,131 +367,60 @@ class MainInterface(QtWidgets.QMainWindow):
             print('Lecture of T series failed')
 
     ##### Measurements #####
-
     def acquire_measurement(self):
-        # take one spectrum with spectrometer
-        if self.measurement_busy:
-            try:
-                self.measurement.take_spectrum()
-            except AttributeError:
-                print('Measurement not started, devices are busy')
-        else:
-            self.measurement_busy = True
-            self.DataHandling.clear_data()
-            self.measurement = AcquireMeasurement(self.devices, self.parameter)
-            self.measurement.sendProgress.connect(self.set_progress)
-            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.start()
+        # Single measurement
+        # TO DO implement allow_when_busy condition
+        self.start_measurement('AcquireMeasurement', self.devices, self.parameter)
 
     def view_measurement(self):
-        # take one spectrum with spectrometer
-        if not self.measurement_busy:
-            self.measurement_busy = True
-            self.DataHandling.clear_data()
-            self.measurement = ViewMeasurement(self.devices, self.parameter)
-            self.measurement.sendProgress.connect(self.set_progress)
-            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.sendClear.connect(self.SpectrometerPlot.clear_plot)
-            self.measurement.start()
-        else:
-            print('Measurement not started, devices are busy')
+        # Continuous measurement
+        self.start_measurement('ViewMeasurement', self.devices, self.parameter,
+            extra_connections={"sendClear": self.SpectrometerPlot.clear_plot})
 
     def run_measurement(self):
-        # continuously taking spectra with spectrometer
-        if not self.measurement_busy:
-            self.measurement_busy = True
-            self.DataHandling.clear_data()
-            self.measurement = RunMeasurement(self.devices, self.parameter)
-            self.measurement.sendProgress.connect(self.set_progress)
-            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.start()
-        else:
-            print('Measurement not started, devices are busy')
+        # Continous measurement with accumulation
+        self.start_measurement('RunMeasurement', self.devices, self.parameter)
 
     def background_measurement(self):
-        # acquire background to subtract from spectra. May average over several spectra
-        if not self.measurement_busy:
-            self.measurement_busy = True
-            self.DataHandling.clear_data()
-            self.measurement = BackgroundMeasurement(self.devices, self.parameter, self.bg_scans_box.value(),
-                                                     self.filename, self.comments_edit.toPlainText())
-            self.measurement.sendProgress.connect(self.set_progress)
-            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.sendSave.connect(self.DataHandling.save_data)
-            self.measurement.start()
-        else:
-            print('Measurement not started, devices are busy')
+        # Take background measurement, as needed for some spectrometers
+        self.start_measurement('BackgroundMeasurement',self.devices, self.parameter,
+            self.bg_scans_spinBox.value(), self.filename, self.comments_textEdit.toPlainText(),
+            extra_connections={"sendSave": self.DataHandling.save_data})
 
     def twoD_measurement(self):
         # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
-        if not self.measurement_busy:
-            self.measurement_busy = True
-            self.DataHandling.clear_data()
-            self.measurement = TwoDMeasurement(self.devices, self.twoD_tau_box.value(),self.twoD_step_box.value())
-            self.measurement.sendProgress.connect(self.set_progress)
-            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.sendParameter.connect(self.change_parameter)
-            self.measurement.start()
+        self.start_measurement('TwoDMeasurement', self.devices, self.twoD_tau_spinBox.value(),
+            self.twoD_step_spinBox.value(), self.twoD_tau_start_spinBox.value(),self.twoD_avg_spinBox.value())
+
+    def chirp_scan_measurement(self):
+        # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
+        self.start_measurement('ChirpMeasurement',self.devices,self.chirp_scan_lineEdit.text(),
+                               self.twoD_avg_spinBox.value())
 
     def helicam_background_measurement(self):
-        # acquires averaged rawI & rawQ measurements of the helicam. click on 'Save' after a while to save this as a bg file
-        if not self.measurement_busy:
-            self.measurement_busy = True
-            self.DataHandling.clear_data()
-            self.measurement = HelicamBackgroundMeasurement(self.devices)
-            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.start()
-
+        self.start_measurement('HelicamBackgroundMeasurement',self.devices)
 
     def kinetic_measurement(self):
-        # take time resolved measurements as defined in automation GUI section
-        if not self.measurement_busy:
-            self.measurement_busy = True
-            #self.DataPlot.clear_data()
-            self.DataHandling.clear_data()
-            self.change_kinetic_interval()
-            self.measurement =KineticMeasurement(self.devices, self.parameter, self.kinetic_interval)
-            self.measurement.sendProgress.connect(self.set_progress)
-            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.sendParameter.connect(self.change_parameter)
-            self.measurement.start()
-        else:
-            print('Measurement not started, devices are busy')
+        # take time dependent measurement as defined in autmoation GUI section
+        self.change_kinetic_interval()
+        self.start_measurement('KineticMeasurement',self.devices, self.parameter, self.kinetic_interval)
 
     def Tseries_measurement(self):
         # take temperature dependent measurements as defined in automation GUI section
-        if not self.measurement_busy:
-            print('Start T-Dependent Measurement ')
-            self.measurement_busy = True
-            self.DataHandling.clear_data()
-            self.measurement = TSeriesMeasurement(self.devices, self.parameter, self.Tseries,
-                                                  self.Tseries_stab_time_box.value(),self.Tseries_two_sources_checkBox.isChecked(),
-                                                  self.Tseries_ref_power_box.value(),self.Tseries_int_time_WL_box.value(),
-                                                  self.Tseries_int_time_orpheus_box.value(),
-                                                  self.Tseries_spectra_avg_box.value(),
-                                                  self.Tseries_power_dep_checkBox.isChecked(),
-                                                  self.Tseries_filter_pos_lineEdit.text(),
-                                                  self.Tseries_int_time_lineEdit.text())
-            self.measurement.sendProgress.connect(self.set_progress)
-            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.sendParameter.connect(self.change_parameter)
-            self.measurement.start()
+        self.start_measurement('TSeriesMeasurement',self.devices, self.parameter, self.Tseries,
+            self.Tseries_stab_time_spinBox.value(), self.Tseries_two_sources_checkBox.isChecked(),
+            self.Tseries_ref_power_doubleSpinBox.value(), self.Tseries_int_time_WL_doubleSpinBox.value(),
+            self.Tseries_int_time_orpheus_doubleSpinBox.value(), self.Tseries_spectra_avg_spinBox.value(),
+            self.Tseries_power_dep_checkBox.isChecked(), self.Tseries_filter_pos_lineEdit.text(),
+            self.Tseries_int_time_lineEdit.text())
 
     def Powerseries_measurement(self):
         # take power dependent measurements as defined in automation GUI section
-        if not self.measurement_busy:
-            print('Start Power-Dependent Measurement ')
-            self.measurement_busy = True
-            self.DataHandling.clear_data()
-            self.measurement = PowerSeriesMeasurement(self.devices, self.parameter,
-                                                  self.Powerseries_filter_select_box.value(),
-                                                  self.Tseries_spectra_avg_box.value(),
-                                                  self.Tseries_filter_pos_lineEdit.text())
-            self.measurement.sendProgress.connect(self.set_progress)
-            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.sendParameter.connect(self.change_parameter)
-            self.measurement.start()
+        self.start_measurement('PowerSeriesMeasurement',self.devices, self.parameter,
+            self.Powerseries_filter_selection_spinBox.value(), self.Tseries_spectra_avg_spinBox.value(),
+            self.Tseries_filter_pos_lineEdit.text())
 
+    ### stopping functions ###
     def stop_measurement(self):
         # stop measurement
         self.measurement.stop()
@@ -595,6 +430,15 @@ class MainInterface(QtWidgets.QMainWindow):
         for device in self.devices:
             if hasattr(self.devices[device], 'close_device'):
                 self.devices[device].close_device()
+
+        # Add/update the comment field
+        self.config["comment"] = (self.comments_textEdit.toPlainText())
+        # Write back to file
+        with open(self.config_path, "w") as f:
+            self.config_yaml.dump(self.config, f, sort_keys=False)
+        print(self.comments_textEdit.toPlainText())
+
+        # close Qt
         event.accept()
 
 
@@ -608,7 +452,7 @@ class UpdateWorker(QtCore.QThread):
         self.read_only = read_only
         self.stop = False
         self.updated_param = {}
-        self.update_interval = 2
+        self.update_interval = 0.5
 
     def run(self):
         while not self.stop:
@@ -625,10 +469,3 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     window = MainInterface()
     app.exec()
-
-
-
-
-
-
-

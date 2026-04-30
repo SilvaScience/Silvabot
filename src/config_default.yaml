@@ -1,0 +1,41 @@
+devices:
+  cryostat:
+    enabled: false
+    driver: drivers.Cryocore.Cryocore
+    fallback: drivers.CryoDemo.CryoDemo
+  spectrometer:
+    enabled: true
+    driver: drivers.ThorlabsCCS200.ThorlabsCCS200 # Options: .Heliotis, .Pixis, .OceanSpectrometer,
+    fallback: drivers.SpectrometerDemo_advanced.SpectrometerDemo
+    init_args:
+      port: 'COM10'
+  orpheus:
+    enabled: false
+    driver: drivers.orpheus.Orpheus
+  powermeter:
+    enabled: false
+    driver: drivers.powermeter.ThorlabsPM100D
+    fallback: drivers.powermeter.ThorlabsPM100DDemo
+  arduino:
+    enabled: false
+    driver: drivers.arduino.Arduino
+    fallback: drivers.arduino.ArduinoDemo
+    init_args:
+      port: COM14
+  piezos:
+    enabled: false
+    driver: drivers.piezos.Piezos
+    init_args:
+      port: COM9
+  lakeshore:
+    enabled: false
+    driver: drivers.lakeshore.Lakeshore
+comment: 'User: DT
+
+  Sample:
+
+  Power:
+
+  Wavelength:
+
+  Freq: '
