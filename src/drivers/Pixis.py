@@ -121,12 +121,6 @@ class Pixis(QtCore.QThread):
 
         # set int time once
         self.camera.set_attribute_value("Exposure Time", int(self.int_time))
-        self.camera.set_attribute_value("ADC Speed", 2.0) # 0.1 (100kHz) or 2.0 (2MHz), better if faster
-        self.camera.set_attribute_value("Sensor Temperature Set Point", -70)
-        self.camera.set_attribute_value("Readout Control Mode", 1) # Should be: 1 full frame
-        self.camera.set_attribute_value("Shutter Timing Mode", 1) # Controls the external shutter: 1 normal, 2 always closed, 3 always open
-        # attributes_value = self.camera.get_all_attribute_values()
-        # print(attributes_value)
 
     def set_parameter(self, parameter, value):
         """REQUIRED. This function defines how changes in the parameter tree are handled.
@@ -256,6 +250,7 @@ class Pixis(QtCore.QThread):
                     time.sleep(0.01)
                 spectrum = spectrum + self.spectrum
                 self.new_spectrum = False
+            spectrum = spectrum / self.avg_scan
         return spectrum
 
     def update_temperature(self,temperature):

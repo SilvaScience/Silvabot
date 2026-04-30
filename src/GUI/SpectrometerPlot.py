@@ -1,3 +1,4 @@
+import h5py
 from PyQt5 import QtWidgets, QtCore, QtGui
 import pyqtgraph as pg
 import numpy as np
@@ -17,14 +18,17 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         # create Widgets for plot
         self.graphWidget = pg.PlotWidget()
         self.clear_button = QtWidgets.QPushButton('Clear')
-        self.load_ref_button = QtWidgets.QPushButton('Load reference data')
-        self.load_calib_button = QtWidgets.QPushButton('Load calibration data')
-
+        self.bg_button = QtWidgets.QPushButton('Select Background')
+        self.checkbox_bg = QtWidgets.QCheckBox()
         vbox = QtWidgets.QVBoxLayout()
+        bg_hbox = QtWidgets.QHBoxLayout()
+        bg_hbox.addWidget(self.bg_button)
+        bg_hbox.addWidget(QtWidgets.QLabel("Correct background:"))
+        bg_hbox.addWidget(self.checkbox_bg)
+        bg_widget = QtWidgets.QWidget()
+        bg_widget.setLayout(bg_hbox)
         vbox.addWidget(self.clear_button)
-
-        vbox.addWidget(self.load_ref_button)
-        vbox.addWidget(self.load_calib_button)
+        vbox.addWidget(bg_widget)
 
         #construct math ROIs
         widget = QtWidgets.QWidget()
@@ -95,6 +99,71 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
         # connect events
         self.clear_button.clicked.connect(self.clear_plot)
+        self.bg_button.clicked.connect(self.load_background)
+
+    def load_background(self):
+        data_path = QtWidgets.QFileDialog.getOpenFileName()[0]
+        with h5py.File(data_path, 'r') as f:
+            bg_spec = f['spectra'][:]
+            self.bg_xaxis = f['spectra'].attrs['xaxis']
+            self.bg_spec = np.average(bg_spec[1:,:,:],axis=0)
+
+
+
+    def construct_ROI_input(self):
+        layout = QtWidgets.QVBoxLayout()
+        grid_layout = QtWidgets.QGridLayout()
+
+        for i in range(4):
+            group = QtWidgets.QGroupBox(f"ROI{i}")
+            hbox = QtWidgets.QHBoxLayout()
+
+            min_spin = QtWidgets.QSpinBox()
+            min_spin.setRange(0, 1000)
+            min_spin.setValue(i * 63 + 26)
+
+            max_spin = QtWidgets.QSpinBox()
+            max_spin.setRange(0, 1000)
+            max_spin.setValue(i * 63 + 36)
+
+            hbox.addWidget(QtWidgets.QLabel("Min:"))
+            hbox.addWidget(min_spin)
+            hbox.addWidget(QtWidgets.QLabel("Max:"))
+            hbox.addWidget(max_spin)
+            group.setLayout(hbox)
+
+            row = 0
+            col = i
+            grid_layout.addWidget(group, row, col)
+
+            self.roi_controls.append((min_spin, max_spin))
+
+        layout.addLayout(grid_layout)
+
+        hbox_widget =QtWidgets.QWidget()
+        hbox = QtWidgets.QHBoxLayout()
+        self.input_line = QtWidgets.QLineEdit()
+        self.input_line.setPlaceholderText("Enter math expression using ROI0 to ROI3")
+        self.input_line.setText('y[0]-y[1]') #'np.ones(len(self.y[0])) - self.y[0]/self.y[3] - self.y[1]/self.y[3]'
+        hbox.addWidget(self.input_line)
+        self.input_line_range = QtWidgets.QLineEdit()
+        self.input_line_range.setText("[0,1,2,3,4]")
+        hbox.addWidget(self.input_line_range)
+        hbox.addWidget(QtWidgets.QLabel("Binning:"))
+        self.checkbox_bin = QtWidgets.QCheckBox()
+        self.spinbox_bin = QtWidgets.QSpinBox()
+        self.spinbox_bin.setValue(1)
+        hbox.addWidget(self.checkbox_bin)
+        hbox.addWidget(self.spinbox_bin)
+        hbox.addWidget(QtWidgets.QLabel("Sum mode:"))
+        self.checkbox_image = QtWidgets.QCheckBox()
+        hbox.addWidget(self.checkbox_image)
+        hbox.addWidget(QtWidgets.QLabel("show Limits:"))
+        self.checkbox_limits = QtWidgets.QCheckBox()
+        hbox.addWidget(self.checkbox_limits)
+        hbox_widget.setLayout(hbox)
+        layout.addWidget(hbox_widget)
+        return layout
 
         # New line added to run the load_data function when load_ref_button is clicked.
         self.load_ref_button.clicked.connect(self.load_data)
@@ -269,10 +338,29 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             print('Incorrect expression, key out of range')
         except SyntaxError:
             print('Incorrect expression, syntax error')
+        if self.checkbox_bg.isChecked():
+            spec = spec - self.bg_spec
+        self.wls = wls
+        wls_span = np.max(wls) - np.min(wls)
         if spec.ndim == 1:
             self.graphWidget.plot(wls, spec, pen=QtGui.QColor.fromRgbF(plt.cm.prism(self.plotcounter)[0],plt.cm.prism(self.plotcounter)[1],
                                                                    plt.cm.prism(self.plotcounter)[2],plt.cm.prism(self.plotcounter)[3]))
         else:
+            for i in range(4):
+                lim1 = self.roi_controls[i][0].value()
+                lim2 = self.roi_controls[i][1].value()
+                if lim2 > lim1:
+                    self.y[i] = np.average(spec[lim1:lim2, :], axis=0)
+                else:
+                    self.y[i] = spec[self.roi_controls[i][0].value()]
+                # 1 - R - T ; R = reflec/ref ; T = Trans/ref
+            try:
+                y = self.y
+                self.y[4] = eval(self.input_line.text())
+            except KeyError:
+                print('Incorrect expression, key out of range')
+            except SyntaxError:
+                print('Incorrect expression, syntax error')
             if not self.checkbox_image.isChecked():
                 img =pg.ImageItem(np.transpose(spec))
                 tr = QtGui.QTransform()  # prepare ImageItem transformation:
