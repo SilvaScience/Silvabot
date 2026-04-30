@@ -3,12 +3,12 @@ from collections import defaultdict
 import time
 import numpy as np
 
-class UHFDemo():
+class Lock_InDemo():
 
-    name = 'UHFDemo'
+    name = 'Lock_InDemo'
 
     def __init__(self):
-        super(UHFDemo, self).__init__()
+        super(Lock_InDemo, self).__init__()
 
         # setting up the parameter dict
         self.parameter_dict = defaultdict()

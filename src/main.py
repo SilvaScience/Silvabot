@@ -31,8 +31,8 @@ from measurements.MeasurementClasses import AcquireMeasurement,RunMeasurement,Ba
 
 from drivers.PI863 import PI863
 from drivers.PI863Demo import PI863Demo
-from drivers.UHFDemo import UHFDemo
-from drivers.UHF import UHF
+from drivers.Lock_InDemo import Lock_InDemo
+from drivers.Lock_In import Lock_In
 
 
 class MainInterface(QtWidgets.QMainWindow):
@@ -62,11 +62,12 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['tstage'] = self.tstage
 
         # initialize lock-in
-        try:
-            self.lock_in = UHF(lock_in_type='UHF')
-        except:
-            self.lock_in = UHFDemo()
-            print('WARNING you are using a DEMO version of the lock in')
+        #try:
+        lock_in_type = 'UHF' # can be changed to other types if implemented
+        self.lock_in = Lock_In(lock_in_type=lock_in_type)
+        #except:
+        #    self.lock_in = Lock_InDemo()
+        #    print('WARNING you are using a DEMO version of the lock in')
         self.devices['lock_in'] = self.lock_in
 
         # initialize Powermeter

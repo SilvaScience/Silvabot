@@ -6,13 +6,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-class UHF():
+class Lock_In():
 
-    name = 'UHF'
+    name = 'Lock-In'
     sendProgress = QtCore.pyqtSignal(float)
 
     def __init__(self, lock_in_type):
-        super(UHF, self, lock_in_type).__init__()
+        super(Lock_In, self).__init__()
+        # Define the type of lock-in used
+        self.lock_in_type = lock_in_type
 
         # setting up the parameter dict
         self.parameter_dict = defaultdict()
@@ -41,10 +43,11 @@ class UHF():
         for key in self.parameter_display_dict.keys():
             self.parameter_dict[key] = self.parameter_display_dict[key]['val']
 
-        # Connect to the UHF device
-        self.session = Session("localhost")                     # Create a session with the Data Server
-        self.device = self.session.connect_device("DEV2037")    # Connect to the UHF device (ID DEV2037)
-        print('Connection established with the Lock-In')    
+        # Connect to the appropriate lock-in device
+        if lock_in_type == 'UHF':
+            self.session = Session("localhost")                     # Create a session with the Data Server
+            self.device = self.session.connect_device("DEV2037")    # Connect to the UHF device (ID DEV2037)
+            print('Connection established with the Lock-In')    
 
         # Configure the signal input 1
         self.device.sigins[0].range(1.5)  # Set input range to 1.5 V
