@@ -20,6 +20,5 @@ ipywidgets~=8.1.7
 packaging~=25.0
 psutil~=7.0.0
 harvesters~=1.4.3
-ruamel.yaml
 genicam~=1.5.1
 numba~=0.61.2

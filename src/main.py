@@ -1,4 +1,4 @@
-from ruamel.yaml import YAML
+import yaml
 import importlib
 import sys
 import time
@@ -38,9 +38,8 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # load devices from config file
         self.config_path = self.project_folder / "config.yaml"
-        self.config_yaml = YAML() # comment conserving YAML
         try:
-            self.config = self.config_yaml.safe_load(open(self.config_path))
+            self.config = yaml.safe_load(open(self.config_path))
         except FileNotFoundError as e:
             print(f'Config file not found. {e}. \n Consider renaming config_default in src folder.')
 
@@ -191,6 +190,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.Tseries_run_pushButton.clicked.connect(self.Tseries_measurement)
         self.Powerseries_run_pushButton.clicked.connect(self.Powerseries_measurement)
         self.chirp_scan_run_pushButton.clicked.connect(self.chirp_scan_measurement)
+        self.compressor_scan_run_pushButton.clicked.connect(self.compressor_scan_measurement)
 
         # run some functions once to define default values
         self.change_filename()
@@ -397,6 +397,11 @@ class MainInterface(QtWidgets.QMainWindow):
         self.start_measurement('ChirpMeasurement',self.devices,self.chirp_scan_lineEdit.text(),
                                self.twoD_avg_spinBox.value())
 
+    def compressor_scan_measurement(self):
+        # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
+        self.start_measurement('CompressorMeasurement',self.devices,self.compressor_scan_lineEdit.text(),
+                               self.twoD_avg_spinBox.value())
+
     def helicam_background_measurement(self):
         self.start_measurement('HelicamBackgroundMeasurement',self.devices)
 
@@ -435,8 +440,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.config["comment"] = (self.comments_textEdit.toPlainText())
         # Write back to file
         with open(self.config_path, "w") as f:
-            self.config_yaml.dump(self.config, f, sort_keys=False)
-        print(self.comments_textEdit.toPlainText())
+            yaml.dump(self.config, f, sort_keys=False)
 
         # close Qt
         event.accept()

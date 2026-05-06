@@ -141,7 +141,7 @@ class SpectrometerWorker(QtCore.QThread):
         super(SpectrometerWorker, self).__init__()  # Elevates this thread to be independent.
 
         # definition of some parameters
-        os.chdir(os.path.join(os.getcwd(),"drivers\\dlls"))
+        os.chdir(os.path.join(os.getcwd(),"src\\drivers\\dlls"))
         self.lib = cdll.LoadLibrary("TLCCS_64.dll")
         self.ccs_handle = c_int(0)
         # windows device manager -> NI-VISA USB Device -> Spectrometer -> Properties -> Details -> Device Instance ID

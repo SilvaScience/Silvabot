@@ -589,6 +589,44 @@ class ChirpMeasurement(QtCore.QThread):
         print(time.strftime('%H:%M:%S') + ' Request Stop')
 
 
+class CompressorMeasurement(QtCore.QThread):
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)  # Final averaged image (e.g., A_opt)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendSave = QtCore.pyqtSignal(str, str)
+    sendParameter = QtCore.pyqtSignal(str, float)
+
+    def __init__(self, devices, compr_scan_lineEdit,avg_value):
+        super(CompressorMeasurement, self).__init__()
+        self.spectrometer = devices['spectrometer']
+        self.wls = []  # preallocate wls array
+        self.spec = []  # preallocate spec array
+        line_components = [float(x) for x in re.split(':', compr_scan_lineEdit)]
+        self.compr_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
+        self.avg_value = avg_value
+        print('Measure chirp scan with following compressor positions:', self.compr_array)
+        self.terminate = False
+
+    def run(self):
+        self.wls = np.array(self.spectrometer.get_wavelength())
+        for i,compr_value in enumerate(self.compr_array):
+            if not self.terminate:  # check whether stopping measurement is called
+                self.sendProgress.emit(i/len(self.compr_array)*100)
+                print(time.strftime('%H:%M:%S') + f' Move compressor to {compr_value} um')
+                self.sendParameter.emit('Motor_1', compr_value/1E3) # transform to mm
+                time.sleep(2) # no feedback on when Motor is set.
+                for j in range(self.avg_value):
+                    self.spec = np.array(self.spectrometer.get_intensities())
+                    self.sendSpectrum.emit(self.wls, self.spec)
+                    print(time.strftime('%H:%M:%S') + f' Spectrum acquired for compressor= {compr_value} um')
+
+        self.sendProgress.emit(100)
+        print(time.strftime('%H:%M:%S') + ' Finished')
+        return
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
+
 
 
 
