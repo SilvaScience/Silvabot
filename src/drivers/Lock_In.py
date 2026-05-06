@@ -49,17 +49,16 @@ class Lock_In():
             self.device = self.session.connect_device("DEV2037")    # Connect to the UHF device (ID DEV2037)
             print('Connection established with the Lock-In')    
 
-        # Configure the signal input 1
-        self.device.sigins[0].range(1.5)  # Set input range to 1.5 V
-        self.device.sigins[0].ac(False)   # Set the device to DC coupling
-        self.device.sigins[0].imp50(True) # Set the input impedance to 50 Ohm
+            # Configure the signal input 1
+            self.device.sigins[0].range(1.5)  # Set input range to 1.5 V
+            self.device.sigins[0].ac(False)   # Set the device to DC coupling
+            self.device.sigins[0].imp50(True) # Set the input impedance to 50 Ohm
 
-        # Configure the signal input 2
-        self.device.sigins[1].range(1.5)  # Set input range to 1.5 V
-        self.device.sigins[1].ac(False)   # Set the device to DC coupling
-        self.device.sigins[1].imp50(True) # Set the input impedance to 50 Ohm
+            # Configure the signal input 2
+            self.device.sigins[1].range(1.5)  # Set input range to 1.5 V
+            self.device.sigins[1].ac(False)   # Set the device to DC coupling
+            self.device.sigins[1].imp50(True) # Set the input impedance to 50 Ohm
 
-        if lock_in_type == 'UHF':
             # Configure the first demodulation
             self.device.demods[0].adcselect(0)                                         # Select the input channel to use
             self.device.demods[0].enable(True)                                         # Enable the demodulator
@@ -82,24 +81,24 @@ class Lock_In():
             self.device.extrefs[1].enable(1)                                           # Enable external reference
             self.device.demods[7].adcselect(2)                                         # Select the input channel to use for the reference
 
-        # Configure the scope parameters
-        self.scope_module = self.session.modules.scope # Create scope module
-        self.scope_module.mode(1)                      # Select the mode of operation (1 = time domain and triggered acquisition)
-        self.wave_node = self.device.scopes[0].wave    # Define node to acquire data from
-        self.scope_module.subscribe(self.wave_node)    # Subscribe to the scope wave node
-        with self.device.set_transaction():
-            self.device.scopes[0].channel(self.parameter_dict['Displayed_signal_input']) # Select the input channel to acquire
-            self.device.scopes[0].trigenable(True)   # Enable the scope trigger
-            self.device.scopes[0].trigchannel(3)     # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 2: ref trigger 1, 3: ref trigger 2)
-            self.device.scopes[0].trigrising(1)      # Trigger on rising edge
-            self.device.scopes[0].triglevel(0.0)     # Trigger level in V
-            self.device.scopes[0].length(65536)      # Set the number of points in the scope (65536 is the maximum number of points)
+            # Configure the scope parameters
+            self.scope_module = self.session.modules.scope # Create scope module
+            self.scope_module.mode(1)                      # Select the mode of operation (1 = time domain and triggered acquisition)
+            self.wave_node = self.device.scopes[0].wave    # Define node to acquire data from
+            self.scope_module.subscribe(self.wave_node)    # Subscribe to the scope wave node
+            with self.device.set_transaction():
+                self.device.scopes[0].channel(self.parameter_dict['Displayed_signal_input']) # Select the input channel to acquire
+                self.device.scopes[0].trigenable(True)   # Enable the scope trigger
+                self.device.scopes[0].trigchannel(3)     # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 2: ref trigger 1, 3: ref trigger 2)
+                self.device.scopes[0].trigrising(1)      # Trigger on rising edge
+                self.device.scopes[0].triglevel(0.0)     # Trigger level in V
+                self.device.scopes[0].length(65536)      # Set the number of points in the scope (65536 is the maximum number of points)
 
 
-        # Get the internal clock frequency of the device
-        self.clockbase = self.device.clockbase()     # Definition of the internal clock frequency
+            # Get the internal clock frequency of the device
+            self.clockbase = self.device.clockbase()     # Definition of the internal clock frequency
 
-        print('Configuration of the Lock-In completed')
+            print('Configuration of the Lock-In completed')
 
     def set_parameter(self,parameter,value):
         if parameter == 'filter_order':

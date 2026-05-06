@@ -62,12 +62,12 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices['tstage'] = self.tstage
 
         # initialize lock-in
-        #try:
-        lock_in_type = 'UHF' # can be changed to other types if implemented
-        self.lock_in = Lock_In(lock_in_type=lock_in_type)
-        #except:
-        #    self.lock_in = Lock_InDemo()
-        #    print('WARNING you are using a DEMO version of the lock in')
+        try:
+            lock_in_type = 'UHF' # can be changed to other types if implemented
+            self.lock_in = Lock_In(lock_in_type=lock_in_type)
+        except:
+            self.lock_in = Lock_InDemo()
+            print('WARNING you are using a DEMO version of the lock in')
         self.devices['lock_in'] = self.lock_in
 
         # initialize Powermeter
