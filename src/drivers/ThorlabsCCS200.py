@@ -53,7 +53,7 @@ class ThorlabsCCS200(QtCore.QThread):
         self.parameter_display_dict = defaultdict(dict)
         self.parameter_display_dict['int_time']['val'] = 500
         self.parameter_display_dict['int_time']['unit'] = ' ms'
-        self.parameter_display_dict['int_time']['max'] = 10000
+        self.parameter_display_dict['int_time']['max'] = 20000
         self.parameter_display_dict['int_time']['read'] = False
         self.parameter_display_dict['binning']['val'] = 1
         self.parameter_display_dict['binning']['unit'] = ' px'
