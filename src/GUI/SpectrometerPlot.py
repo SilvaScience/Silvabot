@@ -110,7 +110,10 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         with h5py.File(data_path, 'r') as f:
             bg_spec = f['spectra'][:]
             self.bg_xaxis = f['spectra'].attrs['xaxis']
-            self.bg_spec = np.average(bg_spec[1:,:,:],axis=0)
+            if bg_spec.ndim == 2:
+                self.bg_spec = np.average(bg_spec[:, :], axis=1)
+            else:
+                self.bg_spec = np.average(bg_spec[1:,:,:],axis=0)
 
 
 

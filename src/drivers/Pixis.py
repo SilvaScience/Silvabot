@@ -8,11 +8,12 @@ parameter_display_dict (set Spinbox options and read/write)
 set_parameter function (assign set functions)
 
 NOTE:
-Communication with Pixis is kind of slow (150ms), such that in the current interface a new image is acquired every 150ms
+- Communication with Pixis is kind of slow (150ms), such that in the current interface a new image is acquired every 150ms
 at the fastest. If ever a faster acquisition is required, transfer of multiple frames per communication (eg. with
 cam.grab - see manual or pylablib homepage) can be implemented. For the current planned experiments an acquistion rate of
 150ms was judged to be sufficient.
-To install driver, picam needs to be installed on the PC. It is freely available at:
+- Efficient ROI readout is not yet implemented. This might be needed for low signal applications.
+- To install driver, picam needs to be installed on the PC. It is freely available at:
 https://www.teledynevisionsolutions.com/products/pi_max4/?vertical=tvs-princeton-instruments&segment=tvs&aQ=Picam&aPage=1&dlQ=picam&dlPage=1
 
 """
@@ -21,6 +22,7 @@ import numpy as np
 from PyQt5 import QtCore
 from collections import defaultdict
 from pylablib.devices import PrincetonInstruments
+
 import time
 import serial
 import re
@@ -29,7 +31,7 @@ class Pixis(QtCore.QThread):
 
     name = 'Pixis'
     
-    def __init__(self):
+    def __init__(self, port):
         super(Pixis, self).__init__()
 
         #self.camera.start()
@@ -49,9 +51,11 @@ class Pixis(QtCore.QThread):
 
         # set up spectrograph
         self.serial_busy = False
-        port = 'COM9'
-        self.ser = serial.Serial(port=port, baudrate=9600, bytesize=8, parity='N',
+        try:
+            self.ser = serial.Serial(port=port, baudrate=9600, bytesize=8, parity='N',
                                  stopbits=1, xonxoff=0, rtscts=0, timeout=0.02)
+        except Exception as e:
+            print(f'spectrometer: Pixis spectrograph not found. {e}')
         # get startup values
         self.grating = float(self.write_command('?GRATING')[0])
         numbers = self.write_command('?GRATINGS')
@@ -117,9 +121,6 @@ class Pixis(QtCore.QThread):
 
         # set int time once
         self.camera.set_attribute_value("Exposure Time", int(self.int_time))
-        self.camera.set_attribute_value("ADC Speed", 2.0)
-        self.camera.set_attribute_value("Readout Control Mode", 1)
-        self.camera.set_attribute_value("Shutter Timing Mode", 1)
 
     def set_parameter(self, parameter, value):
         """REQUIRED. This function defines how changes in the parameter tree are handled.

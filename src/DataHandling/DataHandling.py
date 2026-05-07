@@ -146,6 +146,9 @@ class DataHandling(QtCore.QThread):
         self.bufferSaveSignal.emit(self.spec, self.wls, self.parameter_queue, self.parameter_measured)
         #print(time.time()-t1)
         # clear arrays in memory
+
+
+
         if self.data_dim == 1:
             self.spec = np.empty([self.speclength, 0])
         else:

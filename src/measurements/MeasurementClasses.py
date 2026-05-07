@@ -509,7 +509,7 @@ class TwoDMeasurement(QtCore.QThread):
     sendSave = QtCore.pyqtSignal(str, str)
     sendParameter = QtCore.pyqtSignal(str, float)
 
-    def __init__(self, devices, tau_max_value, tau_step_value):
+    def __init__(self, devices, tau_max_value, tau_step_value,twoD_step_start_value,avg_value):
         super(TwoDMeasurement, self).__init__()
         self.spectrometer = devices['spectrometer']
         self.Bigfoot = devices['bigfoot']
@@ -517,7 +517,8 @@ class TwoDMeasurement(QtCore.QThread):
         self.spec = []  # preallocate spec array
         lv.connect()
         step = tau_step_value #lv.LV_Control.read_scan_params()[1] #### can be changed if needed, or added with a button in the interface
-        self.tau_array =  np.arange(0, tau_max_value + step, step)
+        self.tau_array =  np.arange(twoD_step_start_value, tau_max_value + step, step)
+        self.avg_value = avg_value
         print('Measure 2D map with following tau array:', self.tau_array)
         self.terminate = False
 
@@ -526,7 +527,7 @@ class TwoDMeasurement(QtCore.QThread):
         for i,tau_value in enumerate(self.tau_array):
             if not self.terminate:  # check whether stopping measurement is called
                 self.sendProgress.emit(i/len(self.tau_array)*100)
-                print(time.strftime('%H:%M:%S') + f' Move tau stage to tau= {tau_value} ps')
+                print(time.strftime('%H:%M:%S') + f' Move tau stage to tau= {tau_value} fs')
                 self.sendParameter.emit('tau', tau_value)
                 bigfoot_busy = True
                 time.sleep(0.1)
@@ -534,10 +535,10 @@ class TwoDMeasurement(QtCore.QThread):
                     bigfoot_busy = self.Bigfoot.check_stage()
                     print(time.strftime('%H:%M:%S') + f' tau stage moving. Status: {bigfoot_busy}')
                     time.sleep(0.1)
-                self.spec = np.array(self.spectrometer.get_intensities())
-                #ADD BACKGROUND SUPPRESSION HERE?? OR IN get_intensities...?
-                self.sendSpectrum.emit(self.wls, self.spec)
-                print(time.strftime('%H:%M:%S') + f' Spectrum acquired for tau= {tau_value} ps')
+                for j in range(self.avg_value):
+                    self.spec = np.array(self.spectrometer.get_intensities())
+                    self.sendSpectrum.emit(self.wls, self.spec)
+                    print(time.strftime('%H:%M:%S') + f' Spectrum acquired for tau= {tau_value} fs')
 
         self.sendProgress.emit(100)
         print(time.strftime('%H:%M:%S') + ' Finished')
@@ -546,6 +547,87 @@ class TwoDMeasurement(QtCore.QThread):
     def stop(self):
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+
+class ChirpMeasurement(QtCore.QThread):
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)  # Final averaged image (e.g., A_opt)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendSave = QtCore.pyqtSignal(str, str)
+    sendParameter = QtCore.pyqtSignal(str, float)
+
+    def __init__(self, devices, chirp_scan_lineEdit,avg_value):
+        super(ChirpMeasurement, self).__init__()
+        self.spectrometer = devices['spectrometer']
+        self.Bigfoot = devices['bigfoot']
+        self.wls = []  # preallocate wls array
+        self.spec = []  # preallocate spec array
+        line_components = [float(x) for x in re.split(':', chirp_scan_lineEdit)]
+        self.scmp_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
+        self.avg_value = avg_value
+        print('Measure chirp scan with following SCMP positions:', self.scmp_array)
+        self.terminate = False
+
+    def run(self):
+        self.wls = np.array(self.spectrometer.get_wavelength())
+        for i,scmp_value in enumerate(self.scmp_array):
+            if not self.terminate:  # check whether stopping measurement is called
+                self.sendProgress.emit(i/len(self.scmp_array)*100)
+                print(time.strftime('%H:%M:%S') + f' Move SCMP to {scmp_value} um')
+                self.sendParameter.emit('scmp', scmp_value)
+                time.sleep(0.5) # no feedback on when SCMP is set.
+                for j in range(self.avg_value):
+                    self.spec = np.array(self.spectrometer.get_intensities())
+                    self.sendSpectrum.emit(self.wls, self.spec)
+                    print(time.strftime('%H:%M:%S') + f' Spectrum acquired for scmp= {scmp_value} um')
+
+        self.sendProgress.emit(100)
+        print(time.strftime('%H:%M:%S') + ' Finished')
+        return
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+
+class CompressorMeasurement(QtCore.QThread):
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)  # Final averaged image (e.g., A_opt)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendSave = QtCore.pyqtSignal(str, str)
+    sendParameter = QtCore.pyqtSignal(str, float)
+
+    def __init__(self, devices, compr_scan_lineEdit,avg_value):
+        super(CompressorMeasurement, self).__init__()
+        self.spectrometer = devices['spectrometer']
+        self.wls = []  # preallocate wls array
+        self.spec = []  # preallocate spec array
+        line_components = [float(x) for x in re.split(':', compr_scan_lineEdit)]
+        self.compr_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
+        self.avg_value = avg_value
+        print('Measure chirp scan with following compressor positions:', self.compr_array)
+        self.terminate = False
+
+    def run(self):
+        self.wls = np.array(self.spectrometer.get_wavelength())
+        for i,compr_value in enumerate(self.compr_array):
+            if not self.terminate:  # check whether stopping measurement is called
+                self.sendProgress.emit(i/len(self.compr_array)*100)
+                print(time.strftime('%H:%M:%S') + f' Move compressor to {compr_value} um')
+                self.sendParameter.emit('Motor_1', compr_value/1E3) # transform to mm
+                time.sleep(2) # no feedback on when Motor is set.
+                for j in range(self.avg_value):
+                    self.spec = np.array(self.spectrometer.get_intensities())
+                    self.sendSpectrum.emit(self.wls, self.spec)
+                    print(time.strftime('%H:%M:%S') + f' Spectrum acquired for compressor= {compr_value} um')
+
+        self.sendProgress.emit(100)
+        print(time.strftime('%H:%M:%S') + ' Finished')
+        return
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+
 
 
 class HelicamBackgroundMeasurement(QtCore.QThread):

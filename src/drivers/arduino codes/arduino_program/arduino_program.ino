@@ -17,6 +17,9 @@ void setup() {
   SRV1.setSpeed(rpm);
   SRV2.setSpeed(rpm);
   SRV3.setSpeed(rpm);
+  pinMode(A0, OUTPUT);
+  pinMode(A1, OUTPUT);
+  pinMode(A2, OUTPUT);
 }
 
 void processCommand(String command){
@@ -42,7 +45,33 @@ void processCommand(String command){
        int value = command.substring(equalPos+1,command.length()).toInt();
        SRV3.step(value);
     }
+    else if (servoName == "LM") // Laser Module section. Turns on each number that is contained in LM string
+      {
+        String value = command.substring(equalPos+1,command.length());
+        if (String(value).indexOf('1') != -1) {
+          digitalWrite(A0, HIGH);
+         Serial.println("A0 HIGH");
+        } else {
+          digitalWrite(A0, LOW);
+          Serial.println("A0 LOW");
+        }
+        if (String(value).indexOf('2') != -1) {
+          digitalWrite(A1, HIGH);
+         Serial.println("A1 HIGH");
+        } else {
+          digitalWrite(A1, LOW);
+          Serial.println("A1 LOW");
+        }
+        if (String(value).indexOf('3') != -1) {
+          digitalWrite(A2, HIGH);
+         Serial.println("A2 HIGH");
+        } else {
+          digitalWrite(A2, LOW);
+          Serial.println("A2 LOW");
+        }
+    }
   }}
+
 void loop() {
   // run repeatedly, check if python sent something:
   
