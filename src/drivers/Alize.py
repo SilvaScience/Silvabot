@@ -38,7 +38,7 @@ class Alize(QtCore.QThread):
 
     name = 'Alize'
     
-    def __init__(self):
+    def __init__(self, port):
         super(Alize, self).__init__()
 
         #self.camera.start()
@@ -60,7 +60,6 @@ class Alize(QtCore.QThread):
         # set up spectrograph
 
         self.serial_busy = False
-        port = 'COM12'
         self.ser = serial.Serial(port=port, baudrate=9600, bytesize=8, parity='N',
                                  stopbits=1, xonxoff=0, rtscts=0, timeout=2)
         # get startup values
