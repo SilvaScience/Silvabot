@@ -505,7 +505,9 @@ class MainInterface(QtWidgets.QMainWindow):
         print('button clicked')
         if not self.measurement_busy:
             self.measurement_busy = True
-            self.measurement = AcquireSpectrum(self.devices, self.parameter)
+            start_wl = self.Start_wl_DoubleSpinBox.value()
+            stop_wl = self.Stop_wl_DoubleSpinBox.value()
+            self.measurement = AcquireSpectrum(self.devices, self.parameter, start_wl, stop_wl)
             self.measurement.sendProgress.connect(self.set_progress)
             self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
             self.measurement.sendParameter.connect(self.change_parameter)

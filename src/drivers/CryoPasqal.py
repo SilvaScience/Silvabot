@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+@author: Étienne Tremblay
+Hardware class to control Pasqal cryostat. It currently monitors the different 
+temperatures of the cryostat and allows to set the temperature setpoint, turn 
+on/off the compressor and turn on/off the heaters.
+"""
 
 from PyQt5 import QtCore
 import time
@@ -24,9 +30,6 @@ class CryoPasqal(QtCore.QThread):
         self.ChannelB_T = []
         self.ChannelC_T = []
         self.ChannelD_T = []
-        self.HeliumDischarge_T = []
-        self.WaterIn_T = []
-        self.WaterOut_T = []
         self.MainControllet_T = []
         self.stop = False
         self.parameter_display_dict = defaultdict(dict)
@@ -58,18 +61,6 @@ class CryoPasqal(QtCore.QThread):
         self.parameter_display_dict['ChannelD_T']['unit'] = ' K'
         self.parameter_display_dict['ChannelD_T']['max'] = 1000
         self.parameter_display_dict['ChannelD_T']['read'] = True
-        self.parameter_display_dict['HeliumDischarge_T']['val'] = 300
-        self.parameter_display_dict['HeliumDischarge_T']['unit'] = ' K'
-        self.parameter_display_dict['HeliumDischarge_T']['max'] = 1000
-        self.parameter_display_dict['HeliumDischarge_T']['read'] = True
-        self.parameter_display_dict['WaterIn_T']['val'] = 300
-        self.parameter_display_dict['WaterIn_T']['unit'] = ' K'
-        self.parameter_display_dict['WaterIn_T']['max'] = 1000
-        self.parameter_display_dict['WaterIn_T']['read'] = True
-        self.parameter_display_dict['WaterOut_T']['val'] = 300
-        self.parameter_display_dict['WaterOut_T']['unit'] = ' K'
-        self.parameter_display_dict['WaterOut_T']['max'] = 1000
-        self.parameter_display_dict['WaterOut_T']['read'] = True
         self.parameter_display_dict['MainController_T']['val'] = 300
         self.parameter_display_dict['MainController_T']['unit'] = ' K'
         self.parameter_display_dict['MainController_T']['max'] = 1000
@@ -115,11 +106,21 @@ class CryoPasqal(QtCore.QThread):
 
 
     def update_Set_T(self, Set_temperature):
+        """
+        Purpose : Update the temperature setpoint of the cryostat when the value is changed in the GUI
+        Input : 
+            Set_temperature (float) : the new temperature setpoint to be set in the cryostat
+        """
         self.Opti.write(f'source:temperature:spoint (@1),{Set_temperature}')
         self.Opti.write('source:temperature:spoint? (@1)')
         print(f'Temperature set to {self.Opti.read()}')
         
     def update_temp(self, new_Temps):
+        """
+        Purpose : Update the temperature values in the parameter dictionary
+        Input : 
+            new_Temps (list) : a list of all the new temperature values
+        """
         self.parameter_dict['ChannelA_T'] = float(new_Temps[0])
         self.parameter_dict['ChannelB_T'] = float(new_Temps[1])
         self.parameter_dict['ChannelC_T'] = float(new_Temps[2])
@@ -130,6 +131,11 @@ class CryoPasqal(QtCore.QThread):
         self.parameter_dict['MainController_T'] = float(new_Temps[7])
     
     def update_compressor_state(self, value):
+        """
+        Purpose : Change the state of the compressor when the value is changed in the GUI
+        Input :
+            value (int) : the new compressor state to be set in the cryostat (0 for OFF, 1 for ON)
+        """
         init_state = int(self.Opti.query('control:compressor:state?'))
         if value == init_state:
             print('The desired operation is already started')
@@ -142,6 +148,11 @@ class CryoPasqal(QtCore.QThread):
                 print(f'Warming up')
     
     def update_heater_state(self,value):
+        """
+        Purpose : Change the state of the heaters when the value is changed in the GUI
+        Input :
+            value (int) : the new state of the heaters to be set (0 for OFF, 1 for ON)
+        """
         init_state = int(self.Opti.query('source:heater:state? (@1)'))
         if value == init_state:
             print('The desired operation is already started')
@@ -156,7 +167,12 @@ class CryoPasqal(QtCore.QThread):
                 print(f'Turning off the heaters (Heater state : {final_state})')
 
 class UpdateWorker(QtCore.QThread):
-
+    """
+    Purpose : This worker is used to continuously update the temperature values in the parameter 
+              dictionary. It reads the temperature values from the cryostat every 0.1 seconds 
+              and emits a signal with the new temperature values to update the parameter dictionary 
+              in the main thread.
+    """
     new_Temps = QtCore.pyqtSignal(list)
 
     def __init__(self, Opti):

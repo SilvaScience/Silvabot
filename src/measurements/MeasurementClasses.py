@@ -426,15 +426,15 @@ class AcquireSpectrum(QtCore.QThread):
     sendProgress = QtCore.pyqtSignal(float)
     sendParameter = QtCore.pyqtSignal(str, float)
 
-    def __init__(self, devices, parameter):
+    def __init__(self, devices, parameter, start_wl, stop_wl):
         super(AcquireSpectrum, self).__init__()
         self.spectrometer = devices['spectrometer']
         self.wls = np.array([])  # preallocate wls array
         self.spec = np.empty((252, 0)) # preallocate spec array
         self.terminate = False
         self.acquire_measurement = True
-        self.start_wl = self.spectrometer.parameter_dict['start_wl']
-        self.end_wl = self.spectrometer.parameter_dict['end_wl']
+        self.start_wl = start_wl
+        self.end_wl = stop_wl
         self.nb_of_spectra = int(np.ceil((self.end_wl - self.start_wl) / 50) + 1)       # Overestimates the number of individual spectra needed to cover the desired wl range (the 50 comes from the fact that 50 nm is around 200 points and the from each spectra 200 points are kept for the stitching / the + 1 ensures that the full wl range is included in the measurement)
         self.spec_length = (self.spectrometer.spec_length[0], 200 * self.nb_of_spectra) # Definition of the spec_length of the stitched spectrum that will be sent to DataHandling (200 is the number of points for each individual spectra that is kept when stitching them together)
 
