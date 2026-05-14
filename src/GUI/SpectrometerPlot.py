@@ -4,6 +4,10 @@ import pyqtgraph as pg
 import numpy as np
 import time
 import matplotlib.pyplot as plt
+import h5py
+import os
+#from compute.TdepABS_Calibration import load_data
+
 
 
 class SpectrometerPlot(QtWidgets.QMainWindow):
@@ -86,8 +90,13 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         self.maxvalue_label.anchor(itemPos=(1,0), parentPos=(1,0), offset=(-50,35))
 
         # empty array
-        self.y ={}
+        self.y = {}
         self.wls = []
+
+        # Empty array to store the reference values
+        self.y_ref = {}
+        self.y_calib = {}
+
         # connect events
         self.clear_button.clicked.connect(self.clear_plot)
         self.bg_button.clicked.connect(self.load_background)
@@ -156,6 +165,65 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         layout.addWidget(hbox_widget)
         return layout
 
+        # New line added to run the load_data function when load_ref_button is clicked.
+        self.load_ref_button.clicked.connect(self.load_data)
+        self.load_calib_button.clicked.connect(self.load_calib)
+
+    def construct_ROI_input(self):
+        layout = QtWidgets.QVBoxLayout()
+        grid_layout = QtWidgets.QGridLayout()
+
+        for i in range(4):
+            group = QtWidgets.QGroupBox(f"ROI{i}")
+            hbox = QtWidgets.QHBoxLayout()
+
+            min_spin = QtWidgets.QSpinBox()
+            min_spin.setRange(0, 1000)
+            min_spin.setValue(i * 63 + 26)
+
+            max_spin = QtWidgets.QSpinBox()
+            max_spin.setRange(0, 1000)
+            max_spin.setValue(i * 63 + 36)
+
+            hbox.addWidget(QtWidgets.QLabel("Min:"))
+            hbox.addWidget(min_spin)
+            hbox.addWidget(QtWidgets.QLabel("Max:"))
+            hbox.addWidget(max_spin)
+            group.setLayout(hbox)
+
+            row = 0
+            col = i
+            grid_layout.addWidget(group, row, col)
+
+            self.roi_controls.append((min_spin, max_spin))
+
+        layout.addLayout(grid_layout)
+
+        hbox_widget =QtWidgets.QWidget()
+        hbox = QtWidgets.QHBoxLayout()
+        self.input_line = QtWidgets.QLineEdit()
+        self.input_line.setPlaceholderText("Enter math expression using ROI0 to ROI3")
+        self.input_line.setText('y[0]-y[1]') #'np.ones(len(self.y[0])) - self.y[0]/self.y[3] - self.y[1]/self.y[3]'
+        hbox.addWidget(self.input_line)
+        self.input_line_range = QtWidgets.QLineEdit()
+        self.input_line_range.setText("[0,1,2,3,4]")
+        hbox.addWidget(self.input_line_range)
+        hbox.addWidget(QtWidgets.QLabel("Binning:"))
+        self.checkbox_bin = QtWidgets.QCheckBox()
+        self.spinbox_bin = QtWidgets.QSpinBox()
+        self.spinbox_bin.setValue(1)
+        hbox.addWidget(self.checkbox_bin)
+        hbox.addWidget(self.spinbox_bin)
+        hbox.addWidget(QtWidgets.QLabel("Sum mode:"))
+        self.checkbox_image = QtWidgets.QCheckBox()
+        hbox.addWidget(self.checkbox_image)
+        hbox.addWidget(QtWidgets.QLabel("show Limits:"))
+        self.checkbox_limits = QtWidgets.QCheckBox()
+        hbox.addWidget(self.checkbox_limits)
+        hbox_widget.setLayout(hbox)
+        layout.addWidget(hbox_widget)
+        return layout
+
     @QtCore.pyqtSlot()
     def clear_plot(self):
         self.graphWidget.clear()
@@ -165,8 +233,111 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         self.graphWidget.addItem(self.crosshair_h, ignoreBounds=True)
         self.plotcounter = 0
 
+    # New functions that allow to load reference and calibration data
+    def load_data(self):
+        self.data_path = QtWidgets.QFileDialog.getOpenFileName(self)[0]
+        with h5py.File(self.data_path, 'r') as f:
+            self.ref_spec = f['spectra']
+            self.ref_wl = f['spectra'].attrs['xaxis']
+            self.avg_ref_spec = np.average(self.ref_spec[5:,:,:], axis=0)
+    
+    def load_calib(self):
+        self.folder_path = QtWidgets.QFileDialog.getExistingDirectory(self)
+
+    def load_spectra(self):
+        self.spectra = {}
+        with h5py.File(self.path, 'r') as f:
+            self.spec = f['spectra']
+            self.wl = f['spectra'].attrs['xaxis']
+            self.avg_spec = np.average(self.spec[5:,:,:], axis=0)
+            for i in range(len(self.lim1)):
+                self.spectra[i] = np.average(self.avg_spec[self.lim1[i]:self.lim2[i], :], axis=0)
+
+    def gen_calib_spectra(self):
+        # Initialize variables
+        calib_spectra = []
+        self.lim1 = [220, 140, 80, 30]
+        self.lim2 = [230, 150, 90, 40]
+        file_paths = []
+        data_dict = {i: [] for i in range(len(self.lim1))}
+        wl_min = float('inf')
+        wl_max = float('-inf')
+
+        # Create a list of file paths
+        for file_name in sorted(os.listdir(self.folder_path)):
+            if file_name.endswith('.h5'):
+                file_paths.append(os.path.join(self.folder_path, file_name))
+
+        # Place all the data in a dictionary and create a list of all the wavelengths in the loaded files
+        for path in file_paths:
+            self.path = path
+            self.load_spectra()
+            for i in range(len(self.lim1)):
+                data_dict[i].append((self.wl, self.spectra[i]))
+            wl_min = min(wl_min, np.min(self.wl))
+            wl_max = max(wl_max, np.max(self.wl))
+        nb_points = int(1024 * (wl_max - wl_min)/(max(self.wls) - min(self.wls)))
+        wl_axis = np.linspace(wl_min, wl_max, nb_points)
+
+        # Interpolate and average
+        for i, spectra_list in data_dict.items():
+            interpolated_spectra = []
+            for wl, spec in spectra_list:
+                mask = (wl_axis >= wl[0]) & (wl_axis <= wl[-1])
+                interpolated = np.full_like(wl_axis, np.nan)
+                interpolated[mask] = np.interp(wl_axis[mask], wl, spec)
+                interpolated_spectra.append(interpolated)
+            combined_spectra = np.nanmean(interpolated_spectra, axis=0)
+            calib_spectra.append(combined_spectra)
+    
+        # Find the appropriate section of the data to use based on the minimum measured wavelength (linked to the center wavelength)
+        difference_array = np.absolute(wl_axis - min(self.wls))
+        index = difference_array.argmin()
+
+        # Define the calibration arrays
+        self.y_calib[0] = calib_spectra[0][index:index+1024]
+        self.y_calib[1] = calib_spectra[1][index:index+1024]
+        self.y_calib[2] = calib_spectra[1][index:index+1024]
+        self.y_calib[3] = calib_spectra[3][index:index+1024]
+    
+
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
     def set_data(self, wls, spec):
+        self.wls = wls
+        wls_span = np.max(wls) - np.min(wls)
+
+
+        for i in range (4):
+            lim1 = self.roi_controls[i][0].value()
+            lim2 = self.roi_controls[i][1].value()
+            if lim2 > lim1:
+    # Added/Modified section : The average between lim1 and lim2 is now calculated for the reference data 
+    # and the gen_calib_spectra function is used to do the same for the calibration data.
+                try:
+                    ref = np.average(self.avg_ref_spec[lim1:lim2,:],axis=0)
+                except(AttributeError, TypeError):
+                    ref = np.zeros(len(wls))
+                self.y_ref[i] = ref
+
+                try:
+                    if i == 0:
+                        self.gen_calib_spectra()
+                except(AttributeError, TypeError):
+                    self.y_calib[i] = np.zeros(len(wls))
+                self.y[i] = np.average(spec[lim1:lim2,:],axis=0)
+
+            else:
+                self.y[i] = spec[self.roi_controls[i][0].value()]
+        # Arrange arrays for usage in 'eval' expression
+        try:
+            y = self.y
+            y_ref = self.y_ref
+            y_calib = self.y_calib
+            self.y[4] = eval(self.input_line.text())
+        except KeyError:
+            print('Incorrect expression, key out of range')
+        except SyntaxError:
+            print('Incorrect expression, syntax error')
         if self.checkbox_bg.isChecked():
             spec = spec - self.bg_spec
         self.wls = wls
@@ -249,7 +420,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             mousePoint = self.graphWidget.getPlotItem().vb.mapSceneToView(pos)
             self.crosshair_v.setPos(mousePoint.x())
             self.crosshair_h.setPos(mousePoint.y())
-        calibration_mode = True
+        calibration_mode = False
         if calibration_mode:
             pixel = np.argmin(abs(self.wls - mousePoint.x()))
             self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts {pixel:.0f} pixel")
@@ -259,7 +430,3 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot(np.ndarray)
     def update_datareader(self,max):
         self.maxvalue_label.setText(f"Data  : {max[2]:.1f} nm {max[1]:.1f} cts")
-
-
-
-

@@ -17,6 +17,7 @@ from functools import partial
 from GUI.ParameterPlot import ParameterPlot
 from GUI.SpectrometerPlot import SpectrometerPlot
 from drivers.CryoDemo import CryoDemo
+from drivers.CryoPasqal import CryoPasqal
 from drivers.SpectrometerDemo_advanced import SpectrometerDemo
 from drivers.SLMDemo import SLMDemo
 from drivers.StresingDemo import StresingDemo
@@ -35,7 +36,7 @@ from drivers.Arduino import Arduino
 from drivers.ArduinoDemo import ArduinoDemo
 from DataHandling.DataHandling import DataHandling
 from measurements.MeasurementClasses import AcquireMeasurement, RunMeasurement, BackgroundMeasurement, \
-    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement, HelicamBackgroundMeasurement
+    ViewMeasurement, KineticMeasurement, TSeriesMeasurement, TwoDMeasurement, HelicamBackgroundMeasurement, AcquireSpectrum
 
 
 class MainInterface(QtWidgets.QMainWindow):
@@ -52,28 +53,37 @@ class MainInterface(QtWidgets.QMainWindow):
         self.devices = defaultdict(dict)
 
         # initialize cryostat
-        """ This is a demo devices that has read and write parameters.
-        Illustrates use of parameters"""
-        # always try to include communication on important events.
-        # This is extremely useful for debugging and troubleshooting.
-        try:
-            self.cryostat = Cryocore() # launch cryostat interface
-            print('Connected to Montana CryoCore')
-        except:
-            self.cryostat = CryoDemo()
-            print('WARNING you are using a DEMO version of the cryostat')
-        self.devices['cryostat'] = self.cryostat
-
-        # initialize Spectrometer
+        #self.cryostat = CryoPasqal()
         #try:
-        #self.spectrometer = Pixis()
-        #print('Pixis camera connected')
+            #try:
+            #self.cryostat = CryoPasqal()
+            # except:
+            #     self.cryostat = Cryocore()
+            #     print('Connected to Montana CryoCore')
         #except:
-        self.spectrometer = ThorlabsCCS200()
-        print('Pixis connection failed, use DEMO')
+        #    self.cryostat = CryoDemo()
+        #    print('WARNING you are using a DEMO version of the cryostat')
+        #self.devices['cryostat'] = self.cryostat
+            
+        # initialize Spectrometer
+         #try:
+        self.spectrometer = Pixis()
+        print('Pixis camera connected')
+         #except:
+        #self.spectrometer = PixisDemo()
+        #print('WARNING you are using a DEMO version of the Pixis')
         #self.spectrometer = SpectrometerDemo()
         self.spec_length = self.spectrometer.spec_length
         self.devices['spectrometer'] = self.spectrometer
+
+        # initialize Powermeter
+        # try:
+        #     self.powermeter = ThorlabsPM100D()
+        #     print('Thorlabs powermeter connected')
+        # except:
+        #     self.powermeter = ThorlabsPM100DDemo()
+        #     print('WARNING you are using a DEMO version of the powermeter')
+        # self.devices['powermeter'] = self.powermeter
 
         # initialize Powermeter
         try:
@@ -114,16 +124,6 @@ class MainInterface(QtWidgets.QMainWindow):
         #self.devices['Monochrom'] = self.Monochrom
         #print('Monochrom DEMO connected')
 
-        # initialize Piezos
-        self.Piezos = Piezos('COM9')
-        self.devices['Piezos'] = self.Piezos
-        print('Piezos connected')
-       
-        # initialize TCLakeshoreDemo
-        self.TCnHLakeshore = Lakeshore()
-        self.devices['Lakeshore'] = self.TCnHLakeshore
-        print('Lakeshore connected')
-
         # find items to complement in GUI
         self.parameter_tree = self.findChild(QtWidgets.QTreeWidget, 'parameters_treeWidget')
         self.spectro_tab = self.findChild(QtWidgets.QWidget, 'spectro_tab')
@@ -134,6 +134,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.stop_button = self.findChild(QtWidgets.QPushButton, 'stop_pushButton')
         self.save_folder_button = self.findChild(QtWidgets.QPushButton, 'folder_pushButton')
         self.save_button = self.findChild(QtWidgets.QPushButton, 'save_pushButton')
+        self.spectrum_acquire_button = self.findChild(QtWidgets.QPushButton, 'spectrum_acquire_pushButton')
         self.comments_edit = self.findChild(QtWidgets.QTextEdit, 'comments_textEdit')
         self.filename_edit = self.findChild(QtWidgets.QLineEdit, 'filename_lineEdit')
         self.progress_bar = self.findChild(QtWidgets.QProgressBar, 'progressBar')
@@ -245,6 +246,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.view_button.clicked.connect(self.view_measurement)
         self.run_button.clicked.connect(self.run_measurement)
         self.stop_button.clicked.connect(self.stop_measurement)
+        self.spectrum_acquire_button.clicked.connect(self.acquire_spectrum)
         self.filename_edit.editingFinished.connect(self.change_filename)
         self.save_button.clicked.connect(self.save_data)
         self.save_folder_button.clicked.connect(self.change_folder)
@@ -309,6 +311,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.progress_bar.setValue(int(progress))
         if progress == 100.:
             self.measurement_busy = False
+            self.DataHandling.spec_length = self.spec_length #needed to reset DataHandling preallocation after measurements with large spectra
 
     def change_folder(self):
         # select folder to save data
@@ -497,6 +500,22 @@ class MainInterface(QtWidgets.QMainWindow):
         # stop measurement
         self.measurement.stop()
         self.measurement_busy = False
+
+    def acquire_spectrum(self):
+        print('button clicked')
+        if not self.measurement_busy:
+            self.measurement_busy = True
+            start_wl = self.Start_wl_DoubleSpinBox.value()
+            stop_wl = self.Stop_wl_DoubleSpinBox.value()
+            self.measurement = AcquireSpectrum(self.devices, self.parameter, start_wl, stop_wl)
+            self.measurement.sendProgress.connect(self.set_progress)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.sendParameter.connect(self.change_parameter)
+            self.DataHandling.spec_length = self.measurement.spec_length
+            self.DataHandling.clear_data()
+            self.measurement.start()
+        else:
+            print('Measurement not started, devices are busy')
 
 
 class UpdateWorker(QtCore.QThread):
