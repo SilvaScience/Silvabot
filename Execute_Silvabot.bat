@@ -1,3 +1,7 @@
 @echo off
 echo Starting Silvabot ...
-call ".venv\Scripts\python.exe" src\main.py
+
+call "%~dp0\.venv_new\Scripts\activate.bat" 
+python "%~dp0\src\main.py"
+
+pause

@@ -17,6 +17,16 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
         # create Widgets for plot
         self.graphWidget = pg.PlotWidget()
+        self.hist = pg.HistogramLUTItem()
+        self.img = pg.ImageItem()
+        hist_view = pg.GraphicsLayoutWidget()
+        hist_view.addItem(self.hist)
+        hist_view.setMaximumWidth(80)
+        graph_box = QtWidgets.QHBoxLayout()
+        graph_box.addWidget(self.graphWidget)
+        graph_box.addWidget(hist_view)
+        self.graphWidget.addItem(self.img)
+        self.hist.setImageItem(self.img)
         self.clear_button = QtWidgets.QPushButton('Clear')
         self.bg_button = QtWidgets.QPushButton('Select Background')
         self.checkbox_bg = QtWidgets.QCheckBox()
@@ -40,7 +50,10 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         #widget.setLayout(self.construct_ROI_input)
 
 
-        vbox.addWidget(self.graphWidget)
+        #vbox.addWidget(self.graphWidget)
+        graph_widget = QtWidgets.QWidget()
+        graph_widget.setLayout(graph_box)
+        vbox.addWidget(graph_widget)
         widget = QtWidgets.QWidget()
         widget.setLayout(vbox)
         self.setCentralWidget(widget)
@@ -106,7 +119,10 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         with h5py.File(data_path, 'r') as f:
             bg_spec = f['spectra'][:]
             self.bg_xaxis = f['spectra'].attrs['xaxis']
-            self.bg_spec = np.average(bg_spec[1:,:,:],axis=0)
+            if bg_spec.ndim == 2:
+                self.bg_spec = np.average(bg_spec[:, :], axis=1)
+            else:
+                self.bg_spec = np.average(bg_spec[1:,:,:],axis=0)
 
 
 
@@ -231,6 +247,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         # restore crosshair
         self.graphWidget.addItem(self.crosshair_v, ignoreBounds=True)
         self.graphWidget.addItem(self.crosshair_h, ignoreBounds=True)
+        self.graphWidget.addItem(self.img)
         self.plotcounter = 0
 
     # New functions that allow to load reference and calibration data
@@ -362,13 +379,16 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             except SyntaxError:
                 print('Incorrect expression, syntax error')
             if not self.checkbox_image.isChecked():
-                img =pg.ImageItem(np.transpose(spec))
+                #img =pg.ImageItem(np.transpose(spec))
+                levels = self.hist.getLevels()
+                self.img.setImage(np.transpose(spec), autoLevels=False, levels=levels)
                 tr = QtGui.QTransform()  # prepare ImageItem transformation:
                 tr.translate(np.min(wls), 0)  # move 3x3 image to locate center at axis origin
                 tr.scale(wls_span / len(wls), 1)
-                img.setTransform(tr)
-                self.graphWidget.clear()
-                self.graphWidget.addItem(img)
+                self.img.setTransform(tr)
+                #self.hist.setImageItem(self.img)
+                #self.graphWidget.clear()
+                #self.graphWidget.addItem(self.img)
                 if self.checkbox_limits.isChecked():
                     for i in range(4):
                         y1 = self.roi_controls[i][0].value()
@@ -422,8 +442,11 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             self.crosshair_h.setPos(mousePoint.y())
         calibration_mode = False
         if calibration_mode:
-            pixel = np.argmin(abs(self.wls - mousePoint.x()))
-            self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts {pixel:.0f} pixel")
+            try:
+                pixel = np.argmin(abs(self.wls - mousePoint.x()))
+                self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts {pixel:.0f} pixel")
+            except TypeError:
+                print('Cursor deactivated, waiting for first data.')
         else:
             self.value_label.setText(f"Cursor: {mousePoint.x():.1f} nm {mousePoint.y():.1f} cts")
 

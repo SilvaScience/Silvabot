@@ -4,7 +4,7 @@ PyQt5~=5.15.11
 matplotlib~=3.10.1
 pip
 pillow
-joblib
+joblib~=1.5.3
 jki_python_bridge_for_labview
 requests~=2.32.3
 pandas~=2.2.3
@@ -20,3 +20,5 @@ ipywidgets~=8.1.7
 packaging~=25.0
 psutil~=7.0.0
 harvesters~=1.4.3
+genicam~=1.5.1
+numba~=0.61.2

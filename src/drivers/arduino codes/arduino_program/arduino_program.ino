@@ -8,13 +8,18 @@ int rpm = 10;
 
 // initialize stepper library on pins 8 - 11
 // pin order IN1, IN3, IN2, IN4
-Stepper SRV1 (SPR, 8, 10, 9, 11);
-Stepper SRV2 (SPR, 4, 5, 6, 7);
-Stepper SRV3 (SPR, 0, 1, 2, 3);
+Stepper SRV1 (SPR, 8, 10, 9, 11); // 8, 10, 9, 11
+Stepper SRV2 (SPR, 4, 6, 5, 7); // 4, 5, 6, 7
+Stepper SRV3 (SPR, 12, 2, 13, 3);
 
 void setup() {
-  Serial.begin(28800);
+  Serial.begin(115200);
   SRV1.setSpeed(rpm);
+  SRV2.setSpeed(rpm);
+  SRV3.setSpeed(rpm);
+  pinMode(A0, OUTPUT);
+  pinMode(A1, OUTPUT);
+  pinMode(A2, OUTPUT);
 }
 
 void processCommand(String command){
@@ -40,10 +45,36 @@ void processCommand(String command){
        int value = command.substring(equalPos+1,command.length()).toInt();
        SRV3.step(value);
     }
+    else if (servoName == "LM") // Laser Module section. Turns on each number that is contained in LM string
+      {
+        String value = command.substring(equalPos+1,command.length());
+        if (String(value).indexOf('1') != -1) {
+          digitalWrite(A0, HIGH);
+         Serial.println("A0 HIGH");
+        } else {
+          digitalWrite(A0, LOW);
+          Serial.println("A0 LOW");
+        }
+        if (String(value).indexOf('2') != -1) {
+          digitalWrite(A1, HIGH);
+         Serial.println("A1 HIGH");
+        } else {
+          digitalWrite(A1, LOW);
+          Serial.println("A1 LOW");
+        }
+        if (String(value).indexOf('3') != -1) {
+          digitalWrite(A2, HIGH);
+         Serial.println("A2 HIGH");
+        } else {
+          digitalWrite(A2, LOW);
+          Serial.println("A2 LOW");
+        }
+    }
   }}
+
 void loop() {
   // run repeatedly, check if python sent something:
-
+  
   if (Serial.available()) {
   
   // Serial.println(Serial.available());
