@@ -281,6 +281,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.progressBar.setValue(int(progress))
         if progress == 100.:
             self.measurement_busy = False
+            self.DataHandling.spec_length = self.spec_length #needed to reset DataHandling preallocation after measurements with large spectra
 
     def change_folder(self):
         # select folder to save data
