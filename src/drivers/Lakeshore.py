@@ -60,28 +60,28 @@ class Lakeshore(QtCore.QThread):
         self.stop = False
 
         #Values of the temperature A (the sample one)
-        self.parameter_display_dict['temp_A'] = {}
-        self.parameter_display_dict['temp_A']['val'] = self.temperature_reading[0]
-        self.parameter_display_dict['temp_A']['unit'] = 'K'
-        self.parameter_display_dict['temp_A']['max'] = 350
-        self.parameter_display_dict['temp_A']['min'] = 1
-        self.parameter_display_dict['temp_A']['read'] = True
+        self.parameter_display_dict['current_T'] = {}
+        self.parameter_display_dict['current_T']['val'] = self.temperature_reading[0]
+        self.parameter_display_dict['current_T']['unit'] = 'K'
+        self.parameter_display_dict['current_T']['max'] = 350
+        self.parameter_display_dict['current_T']['min'] = 0
+        self.parameter_display_dict['current_T']['read'] = True
 
-        #Values of the temperature B (non sample one)
-        self.parameter_display_dict['temp_B'] = {}
-        self.parameter_display_dict['temp_B']['val'] = self.temperature_reading[1]
-        self.parameter_display_dict['temp_B']['unit'] = 'K'
-        self.parameter_display_dict['temp_B']['max'] = 350
-        self.parameter_display_dict['temp_B']['min'] = 1
-        self.parameter_display_dict['temp_B']['read'] = True
+        #Values of the temperature B (no sample one)
+        self.parameter_display_dict['stage_T'] = {}
+        self.parameter_display_dict['stage_T']['val'] = self.temperature_reading[1]
+        self.parameter_display_dict['stage_T']['unit'] = 'K'
+        self.parameter_display_dict['stage_T']['max'] = 350
+        self.parameter_display_dict['stage_T']['min'] = 0
+        self.parameter_display_dict['stage_T']['read'] = True
 
         #Values of the setpoint
-        self.parameter_display_dict['set_temp'] = {}
-        self.parameter_display_dict['set_temp']['val'] = 300
-        self.parameter_display_dict['set_temp']['unit'] = 'K'
-        self.parameter_display_dict['set_temp']['max'] = 350
-        self.parameter_display_dict['set_temp']['min'] = 1
-        self.parameter_display_dict['set_temp']['read'] = False
+        self.parameter_display_dict['set_T'] = {}
+        self.parameter_display_dict['set_T']['val'] = 300
+        self.parameter_display_dict['set_T']['unit'] = 'K'
+        self.parameter_display_dict['set_T']['max'] = 350
+        self.parameter_display_dict['set_T']['min'] = 1
+        self.parameter_display_dict['set_T']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
@@ -98,16 +98,17 @@ class Lakeshore(QtCore.QThread):
 
     def set_parameter(self, param, value):
 
-        if param == 'set_temp':
-            self.parameter_dict['set_temp'] = value
+        if param == 'set_T':
+            self.parameter_dict['set_T'] = value
+            # need to check that!
             self.my_model_335.set_heater_setup_one(self.my_model_335.HeaterResistance.HEATER_25_OHM, 0.5, self.my_model_335.HeaterOutputDisplay.POWER) #MAX CURRENT 0.7A
             self.my_model_335.set_control_setpoint(1, value)
             self.my_model_335.set_heater_output_mode(1,self.my_model_335.HeaterOutputMode.CLOSED_LOOP,self.my_model_335.InputSensor.CHANNEL_A,powerup_enable=False)
             self.my_model_335.set_heater_range(1, self.my_model_335.HeaterRange.MEDIUM)
 
     def update_temp(self, new_T):
-        self.parameter_dict['temp_A'] = new_T[0]
-        self.parameter_dict['temp_B'] = new_T[1]
+        self.parameter_dict['current_T'] = new_T[0]
+        self.parameter_dict['stage_T'] = new_T[1]
 
 
 class UpdateWorker(QtCore.QThread):

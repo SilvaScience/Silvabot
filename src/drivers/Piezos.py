@@ -48,13 +48,13 @@ class Piezos(QtCore.QThread):
         self.parameter_display_dict['voltage'] = {}
         self.parameter_display_dict['voltage']['val'] = 30
         self.parameter_display_dict['voltage']['unit'] = ' V'
-        self.parameter_display_dict['voltage']['max'] = 30
+        self.parameter_display_dict['voltage']['max'] = 40 # in exceptional cases (piezo stuck), this can be briefly raised to up to 70V. Carefully doublecheck with manual
         self.parameter_display_dict['voltage']['read'] = False
 
         self.parameter_display_dict['velocity'] = {}
         self.parameter_display_dict['velocity']['val'] = 10
         self.parameter_display_dict['velocity']['unit'] = ' um/s'
-        self.parameter_display_dict['velocity']['max'] = 20 #allowing for max 2000 Hz at low T.
+        self.parameter_display_dict['velocity']['max'] = 50 #allowing for max 1000 Hz at high T. in exceptional cases (piezo stuck), this can be briefly raised to up to 8kHz. Carefully doublecheck with manual
         self.parameter_display_dict['velocity']['read'] = False
 
         self.parameter_display_dict['position_x'] = {}
@@ -93,6 +93,7 @@ class Piezos(QtCore.QThread):
             self.parameter_dict['voltage'] = value
             for i in range(3): self.anc.set_voltage(i + 1, value)
         if parameter == 'velocity':
+            self.parameter_dict['velocity'] = value
             freq =round(self.parameter_dict['velocity'] / self.d_min_step)
             for i in range(3): self.anc.set_frequency(i+1, freq)
         if parameter == 'position_x':
