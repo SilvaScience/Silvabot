@@ -312,6 +312,7 @@ p, li { white-space: pre-wrap; }
        <widget class="QTabWidget" name="tabWidget">
         <property name="currentIndex">
          <number>5</number>
+         <number>0</number>
         </property>
         <widget class="QWidget" name="spectro_tab">
          <attribute name="title">

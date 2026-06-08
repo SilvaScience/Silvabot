@@ -12,11 +12,13 @@ from pathlib import Path
 import numpy as np
 import csv
 from time import sleep
+import pyvisa
 from PyQt5 import QtCore, QtWidgets, uic
 from functools import partial
 from GUI.ParameterPlot import ParameterPlot
 from GUI.SpectrometerPlot import SpectrometerPlot
 from drivers.CryoDemo import CryoDemo
+from drivers.CryoPasqal import CryoPasqal
 from drivers.SpectrometerDemo_advanced import SpectrometerDemo
 from drivers.SLMDemo import SLMDemo
 from drivers.StresingDemo import StresingDemo
