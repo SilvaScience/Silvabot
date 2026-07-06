@@ -150,12 +150,15 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # load write parameters from previous session into devices
         for device in self.devices.keys():
-            if device in self.config["session_parameters"]:
-                for param in self.devices[device].parameter_dict.keys():
-                    if not param in self.readonly_parameter:
-                        previous_value = self.config["session_parameters"][device][param]
-                        self.devices[device].parameter_dict[param] = previous_value
-                        self.parameter_widgets[param].setValue(previous_value)
+            try:
+                if device in self.config["session_parameters"]:
+                    for param in self.devices[device].parameter_dict.keys():
+                        if not param in self.readonly_parameter:
+                            previous_value = self.config["session_parameters"][device][param]
+                            self.devices[device].parameter_dict[param] = previous_value
+                            self.parameter_widgets[param].setValue(previous_value)
+            except:
+                pass
 
 
         # start DataHandling

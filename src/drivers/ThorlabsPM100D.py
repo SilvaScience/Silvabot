@@ -15,7 +15,7 @@ NOTES:
 - If connections are changed (either change of PC or of spectrometer) the corresponding devices IDs can be found
 by setting 'debug=True' in the Device Worker.
 - If powermeter is not found in pyvisa.ResourceManager(), likely the driver has changed. Update it to an "IVI" one.
-        # It needs to appear as USB Test and Measurement Device, not as Thorlabs PM.
+        # It needs to appear as USB Test and Measurement Device, not as Thorlabs PM. If this is not the case, update the driver in device manager (choose from list).
         # In rm.list_resources(query='?*'), the port="USB0::0x1313::0x807B::250825519::INSTR" needs to be visible.
         # If this is not the case, there is a driver issue.
 """
