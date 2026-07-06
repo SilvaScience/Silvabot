@@ -43,6 +43,7 @@ class MainInterface(QtWidgets.QMainWindow):
         except FileNotFoundError as e:
             print(f'Config file not found. {e}. \n Consider renaming config_default in src folder.')
 
+        # load each devices indicated in config file with a centralized loading routine
         for name, cfg in self.config["devices"].items():
             if not cfg.get("enabled", False): # check if device should be loaded
                 continue
@@ -213,6 +214,8 @@ class MainInterface(QtWidgets.QMainWindow):
 
     ##### General functions #####
 
+    # Generic replacement to start any measurement defined in MeasurementClasses through a GUI button 
+    # initialized in the "measurements" section below
     def start_measurement(self, cls, *args, extra_connections=None):
         """
         Starts a measurement, clears DataHandling and connects signals to slots
@@ -291,6 +294,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.progressBar.setValue(int(progress))
         if progress == 100.:
             self.measurement_busy = False
+            self.DataHandling.spec_length = self.spec_length #needed to reset DataHandling preallocation after measurements with large spectra
 
     def change_folder(self):
         # select folder to save data
