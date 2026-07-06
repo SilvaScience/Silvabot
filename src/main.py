@@ -147,6 +147,16 @@ class MainInterface(QtWidgets.QMainWindow):
                 self.parameters_treeWidget.setItemWidget(child, 0, name_widget)
                 self.parameters_treeWidget.setItemWidget(child, 1, self.parameter_widgets[param])
 
+        # load write parameters from previous session into devices
+        for device in self.devices.keys():
+            if device in self.config["session_parameters"]:
+                for param in self.devices[device].parameter_dict.keys():
+                    if not param in self.readonly_parameter:
+                        previous_value = self.config["session_parameters"][device][param]
+                        self.devices[device].parameter_dict[param] = previous_value
+                        self.parameter_widgets[param].setValue(previous_value)
+
+
         # start DataHandling
         self.DataHandling = DataHandling(self.parameter, self.spec_length)
         self.DataHandling.sendParameterarray.connect(self.ParameterPlot.set_data)
@@ -435,6 +445,13 @@ class MainInterface(QtWidgets.QMainWindow):
         for device in self.devices:
             if hasattr(self.devices[device], 'close_device'):
                 self.devices[device].close_device()
+            # store device write parameters for next restart
+            self.config["session_parameters"] = {}
+            for device in self.devices.keys(): #loop through all write parameters
+                self.config["session_parameters"][device] = {}
+                for param in self.devices[device].parameter_dict.keys():
+                    if not param in self.readonly_parameter:
+                        self.config["session_parameters"][device][param] = self.devices[device].parameter_dict[param]
 
         # Add/update the comment field
         self.config["comment"] = (self.comments_textEdit.toPlainText())
@@ -456,7 +473,7 @@ class UpdateWorker(QtCore.QThread):
         self.read_only = read_only
         self.stop = False
         self.updated_param = {}
-        self.update_interval = 2
+        self.update_interval = 0.5
 
     def run(self):
         while not self.stop:
