@@ -84,6 +84,7 @@ class ThorlabsPM100D(QtCore.QThread):
     def set_parameter(self, parameter, value):
         if parameter == 'wl':
             self.pm.set_wavelength(value)
+            self.parameter_dict['wl'] = value
         elif parameter == 'offset':
             self.parameter_dict['offset'] = value
         else:

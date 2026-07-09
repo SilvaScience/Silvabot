@@ -36,7 +36,7 @@ if match is None:
 else:
     baseAddress = match['PublicApiRestUrl_Version0']
 
-baseAddress = "http://192.168.1.120:8000/P24909/v0/PublicAPI"
+baseAddress = "http://192.168.1.132:8000/P24909/v0/PublicAPI" # 120
 #shutter = False
 #put(baseAddress, '/ShutterInterlock/OpenCloseShutter', shutter)
 #time.sleep(0.5)
