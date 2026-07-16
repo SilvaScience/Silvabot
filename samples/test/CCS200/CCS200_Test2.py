@@ -68,9 +68,11 @@ class CCSXXX:
 
 # Example usage
 if __name__ == "__main__":
-    spectrometer = CCSXXX('USB0::0x1313::0x8089::M00582935::RAW')
+    spectrometer = CCSXXX('USB0::0x1313::0x8089::M00582935::RAW') #USB\VID_1313&PID_8088\6&75E415A&0&3
+    # Harpia PC: USB0::0x1313::0x8089::M00582935::RAW
     spectrometer.load_library()
     spectrometer.connect()
     spectrometer.set_integration_time(10.0e-3)
     spectrometer.start_scan()
     wavelengths = spectrometer.get_wavelength_data()
+    print(wavelengths)
