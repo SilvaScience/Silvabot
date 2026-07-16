@@ -108,14 +108,14 @@ class Lock_In():
 
             # Configure the signal input
             # Voltage input 1
-            self.device.sigins[0].range(1.0)  # Set input range to be determined
+            self.device.sigins[0].range(1.0)  # Set input range 1.0m (to be determined)
             self.device.sigins[0].scaling(1.0) # Set input scaling to 1.0 V
             self.device.sigins[0].ac(False)     # Set the device to AC or DC coupling, to be determined
-            self.device.sigins[0].imp50()  # Set the input impedance to 50 Ohm, to be determined
+            #self.device.sigins[0].imp50()  # Set the input impedance to 50 Ohm, to be determined
 
             # Current input 1
-            self.device.sigins[1].range()  # Set input range to be determined
-            self.device.sigins[1].ac()     # Set the device to AC or DC
+            self.device.sigins[1].range(10.0)  # Set input range to 10.0m (to be determined)
+            self.device.sigins[1].scaling(1.0)     # Set the scaling of current input 1 to 1.0 A
 
             # Configure the first demodulation (verified the parameters)
             self.device.demods[0].adcselect(0)                                         # Select the input channel to use
@@ -125,7 +125,7 @@ class Lock_In():
             self.device.demods[0].oscselect(0)                                         # Set the oscillator to use
             self.device.demods[0].sinc()                                               # Enable sinc filter
             self.device.demods[0].rate()                                               # Set the sampling rate, to be determined
-            self.device.extrefs[0].enable()                                            # Enable external reference
+            self.device.extrefs[0].enable(1)                                            # Enable external reference
             self.device.demods[0].adcselect()                                          # Select the input channel (to verified) 
 
             # Configure the second demodulation (verified the parameters)
@@ -136,7 +136,7 @@ class Lock_In():
             self.device.demods[1].oscselect(0)                                         # Set the oscillator to use
             self.device.demods[1].sinc()                                               # Enable sinc filter
             self.device.demods[1].rate()                                               # Set the sampling rate, to be determined
-            self.device.extrefs[1].enable()                                            # Enable external reference
+            self.device.extrefs[1].enable(1)                                            # Enable external reference
             self.device.demods[1].adcselect()                                          # Select the input channel (to verified) 
 
             # Configure the scope parameters
