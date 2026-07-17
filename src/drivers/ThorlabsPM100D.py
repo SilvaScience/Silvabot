@@ -7,6 +7,17 @@ parameter_dict (set write and read parameter)
 parameter_display_dict (set Spinbox options)
 set_parameter function (assign set functions)
 
+TO DOs:
+- This driver needs to be cleaned up!
+- Enable automatic device selection (automated port selection).
+
+NOTES:
+- If connections are changed (either change of PC or of spectrometer) the corresponding devices IDs can be found
+by setting 'debug=True' in the Device Worker.
+- If powermeter is not found in pyvisa.ResourceManager(), likely the driver has changed. Update it to an "IVI" one.
+        # It needs to appear as USB Test and Measurement Device, not as Thorlabs PM. If this is not the case, update the driver in device manager (choose from list).
+        # In rm.list_resources(query='?*'), the port="USB0::0x1313::0x807B::250825519::INSTR" needs to be visible.
+        # If this is not the case, there is a driver issue.
 """
 
 from PyQt5 import QtCore, QtWidgets
@@ -73,6 +84,7 @@ class ThorlabsPM100D(QtCore.QThread):
     def set_parameter(self, parameter, value):
         if parameter == 'wl':
             self.pm.set_wavelength(value)
+            self.parameter_dict['wl'] = value
         elif parameter == 'offset':
             self.parameter_dict['offset'] = value
         else:
@@ -98,7 +110,10 @@ class UpdateWorker(QtCore.QThread):
     def run(self):
         while not self.stop:
             # calling the read power function
-            self.current_power = self.pm.measure_power()*1E9
+            try:
+                self.current_power = self.pm.measure_power()*1E9
+            except pyvisa.errors.VisaIOError as e:
+                print('Thorlabs PM VisaIOError', e)
             # waiting to remeasure the power
             time.sleep(self.wait_time)
             self.new_power.emit(self.current_power)
@@ -110,23 +125,33 @@ class ThorlabsPM100DInterface(object):
     Thorlabs PM100D power meter
 
     uses the PyVISA 1.5 library to communicate over USB.
+    # USB ID for screen powermeter is: USB0::0x1313::0x8075::P5002302::INSTR
+    # USB ID for economy powermeter: USB0::0x1313::0x807B::250825519::INSTR
+    # currently, connection is tried for both device ids through and try, except loop.
+    #
+    # there is a bunch of functions at the end of the code that are currently not used, but remain there for reference.
     """
 
-    def __init__(self, port="USB0::0x1313::0x8075::P5002302::INSTR", debug=False):
+    def __init__(self, port="USB0::0x1313::0x807B::250825519::INSTR", debug=True):
         self.name = 'PM100D'
         self.port = port
         self.debug = debug
-        self.TRIES_BEFORE_FAILURE = 10
-        self.RETRY_SLEEP_TIME = 0.010  # in seconds
+        self.tries_before_failure = 10
+        self.reading_sleep_time = 0.010  # in seconds
 
         self.visa_resource_manager = pyvisa.ResourceManager()
 
         if debug:
             print('List of resources')
             print(self.visa_resource_manager.list_resources(query='?*'))
-               
-        self.pm = self.visa_resource_manager.open_resource(port)
-        self.pm.timeout = 10e3
+
+        try:
+            self.pm = self.visa_resource_manager.open_resource(port)
+            print('Economy Powermeter connected')
+        except:
+            port = 'USB0::0x1313::0x8075::P5002302::INSTR'
+            self.pm = self.visa_resource_manager.open_resource(port)
+            print('Display Powermeter connected')
 
         self.idn = self.query("*IDN?")
 
@@ -134,24 +159,18 @@ class ThorlabsPM100DInterface(object):
         if debug:
             print('Device name:' + self.sensor_idn)
 
-        self.write("CONF:POW")  # set to power meaurement
+        self.write("CONF:POW")  # set to power measurement
 
         self.wavelength_min = float(self.query("SENS:CORR:WAV? MIN"))
         self.wavelength_max = float(self.query("SENS:CORR:WAV? MAX"))
         self.get_wavelength()
 
-        self.get_attenuation_dB()  # does not exist
 
         self.write("SENS:POW:UNIT W")  # set to Watts
         self.power_unit = self.query("SENS:POW:UNIT?")
 
-        self.get_auto_range()
-
-        self.get_average_count()  # does not exist
-
         self.get_power_range()
         self.measure_power()
-        self.measure_frequency()  # does not exist
 
     def query(self, cmd):
         resp = self.pm.query(cmd)
@@ -170,7 +189,7 @@ class ThorlabsPM100DInterface(object):
                 if try_count > 9:
                     break
                 else:
-                    time.sleep(self.RETRY_SLEEP_TIME)  # take a rest..
+                    time.sleep(self.reading_sleep_time)  # take a rest
                     try_count = try_count + 1
         return self.wl
 
@@ -186,7 +205,7 @@ class ThorlabsPM100DInterface(object):
                     time.sleep(0.005)  # Sleep for 5 ms before rereading the wl.
                     break
                 else:
-                    time.sleep(self.RETRY_SLEEP_TIME)  # take a rest..
+                    time.sleep(self.reading_sleep_time)  # take a rest
                     try_count = try_count + 1
         return self.get_wavelength()
 
@@ -194,6 +213,8 @@ class ThorlabsPM100DInterface(object):
         # in dB (range for 60db to -60db) gain or attenuation, default 0 dB
         self.attenuation_dB = float(self.query("SENS:CORR:LOSS:INP:MAGN?"))
         return self.attenuation_dB
+
+    ##### UNUSED FUNCTIONS #####
 
     def get_average_count(self):
         """each measurement is approximately 3 ms.
@@ -249,14 +270,9 @@ class ThorlabsPM100DInterface(object):
 
     def run_zero(self):
         self.write("SENS:CORR:COLL:ZERO:INIT")
-        # resp = self.query("SENS:CORR:COLL:ZERO:INIT")
-        # return resp
 
     def get_photodiode_response(self):
         resp = self.query("SENS:CORR:POW:PDIOde:RESP?")
-        # resp = self.query("SENS:CORR:VOLT:RANG?")
-        # resp = self.query("SENS:CURR:RANG?")
-
         self.photodiode_response = float(resp)  # A/W
         return self.photodiode_response
 

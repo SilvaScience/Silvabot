@@ -6,13 +6,31 @@ Created on Mon Apr  7 14:42:48 2025
 """
 
 from pylablib.devices import PrincetonInstruments
+import pylablib as pll
+pll.par["devices/dll/picam"] = r'C:\Program Files\Common Files\Princeton Instruments\Picam\Runtime'
 import time
 import numpy as np
 import matplotlib as plt
+import psutil
+import os
 
 # frame size is (252,1024)
-
 print(PrincetonInstruments.list_cameras())
+def list_loaded_dlls(pid):
+    process = psutil.Process(pid)
+    try:
+        for dll in process.memory_maps():
+            if dll.path.lower().endswith('.dll'):
+                print(dll.path)
+    except psutil.AccessDenied:
+        print("Access denied to process memory maps.")
+
+current_pid = os.getpid()
+print(f"Listing DLLs for PID: {current_pid}")
+list_loaded_dlls(current_pid)
+
+#print(PrincetonInstruments.list_cameras())
+"""
 cam = PrincetonInstruments.PicamCamera()
 print(cam.get_attribute_value("Pixel Format"))
 #cam.open()
@@ -46,4 +64,4 @@ cam.stop_acquisition()
 #plt.pyplot.colorbar()
 #cam.setup_acquisition(mode='snap')
 cam.close()
-
+"""

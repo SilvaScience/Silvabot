@@ -26,7 +26,7 @@ class ThorlabsPM100D(object):
     
     def __init__(self, port="USB0::0x1313::0x8075::P5002302::INSTR", debug=False):
         self.name = 'PM100D'
-        self.port = port
+        self.port = "ASRL4::INSTR" #port
         self.debug = debug
 
         self.visa_resource_manager = pyvisa.ResourceManager()

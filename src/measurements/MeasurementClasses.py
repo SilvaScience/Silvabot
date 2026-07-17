@@ -11,6 +11,9 @@ from PyQt5 import QtCore
 import numpy as np
 from pipython import pitools     # pipython helper used to wait until stage has reached its target position
 
+import h5py
+import os
+from jki_python_bridge_for_labview import labview as lv
 
 
 # Measurement to acquire one spectrum
@@ -99,9 +102,10 @@ class RunMeasurement(QtCore.QThread):
         self.wls = []  # preallocate wls array
         self.spec = []  # preallocate spec array
         self.terminate = False
-        print('emit start time ')
+        print(time.strftime('%H:%M:%S') + 'Run started')
 
     def run(self):
+        self.sendProgress.emit(0)
         if hasattr(self.spectrometer, 'shutter'):
             self.spectrometer.start_acquisition()
         while not self.terminate:  # loop runs until requested stop
@@ -287,7 +291,7 @@ class TSeriesMeasurement(QtCore.QThread):
     def __init__(self, devices, parameter, T_series, T_stab_time, two_sources, ref_power, int_time_WL, int_time_orpheus,
                  spectra_avg, power_dep, filter_pos, int_times):
         super(TSeriesMeasurement, self).__init__()
-        self.Spectrometer = devices['spectrometer']
+        self.spectrometer = devices['spectrometer']
         self.cryostat = devices['cryostat']
         self.T_series = T_series
         self.T_stab_time = T_stab_time
@@ -315,14 +319,18 @@ class TSeriesMeasurement(QtCore.QThread):
     def run(self):
         print(time.strftime('%H:%M:%S') + ' Run T Series Measurement')
         if not self.terminate:
+
+            # initialize T dependent measurement
             self.sendProgress.emit(1)
-            self.wls = np.array(self.Spectrometer.get_wavelength())
+            self.wls = np.array(self.spectrometer.get_wavelength())
             n = 0
+
+            # loop over temperatures
             for temperature in self.T_series:
                 n = n + 1
                 self.sendParameter.emit('set_T', temperature)
 
-                # wait for temperature
+                # wait to reach temperature
                 T_current = self.cryostat.parameter_dict['current_T']
                 while not abs(T_current - temperature) < 0.5:
                     if not self.terminate:
@@ -337,33 +345,37 @@ class TSeriesMeasurement(QtCore.QThread):
 
                 # measure
                 if not self.terminate:
-                    if not self.two_sources:
-                        self.Spectrometer.start_acquisition()
-                        for m in range(self.spectra_avg):
-                            self.spec = np.array(self.Spectrometer.get_intensities())
+                    if not self.two_sources: # case of one single source
+                        if hasattr(self.spectrometer, 'shutter'):
+                            self.spectrometer.start_acquisition()
+                        for m in range(self.spectra_avg): # take several spectra for each acquistion
+                            self.spec = np.array(self.spectrometer.get_intensities())
                             self.sendSpectrum.emit(self.wls, self.spec)
                             print(time.strftime('%H:%M:%S') + ' Spectrum acquired')
-                        self.Spectrometer.stop_acquisition()
+                        if hasattr(self.spectrometer, 'shutter'):
+                            self.spectrometer.stop_acquisition()
 
                         progress = n / len(self.T_series) * 100
                         self.sendProgress.emit(progress)
 
-                    else:
-                        if not self.power_dep:
-                            #self.sendParameter.emit('int_time', self.int_time_orpheus)
-                            #self.sendParameter.emit('shutter1', 100)  # open Orpheus shutter
+                    else: # case of two sources (Orpheus and WL)
+                        if not self.power_dep: # power INdependent case
+                            self.sendParameter.emit('int_time', self.int_time_orpheus)
+                            self.sendParameter.emit('shutter', 100)  # open Orpheus shutter
                             time.sleep(2)
                             for m in range(self.spectra_avg):
-                                self.Spectrometer.start_acquisition()
-                                self.spec = np.array(self.Spectrometer.get_intensities())
+                                if hasattr(self.spectrometer, 'shutter'):
+                                    self.spectrometer.start_acquisition()
+                                self.spec = np.array(self.spectrometer.get_intensities())
                                 self.sendSpectrum.emit(self.wls, self.spec)
-                                self.Spectrometer.stop_acquisition()
+                                if hasattr(self.spectrometer, 'shutter'):
+                                    self.spectrometer.stop_acquisition()
                                 print(time.strftime('%H:%M:%S') + ' PL Spectrum acquired')
 
-                            #self.sendParameter.emit('int_time', self.int_time_WL)
-                            #self.sendParameter.emit('shutter1', 0)  # close Orpheus shutter
-                            #time.sleep(2)
-                        else:
+                            self.sendParameter.emit('int_time', self.int_time_WL)
+                            self.sendParameter.emit('shutter', 0)  # close Orpheus shutter
+                            time.sleep(2)
+                        else: # power dependent case, currently NOT IMPLEMENTED (filter wheel missing)
                             for k in range(len(self.int_times)):
                                 if not self.terminate:
                                     #self.sendParameter.emit('int_time', self.int_times[k])
@@ -371,11 +383,12 @@ class TSeriesMeasurement(QtCore.QThread):
                                     #self.sendParameter.emit('filter_wheel', self.filter_ard_pos[k])
                                     #self.sendParameter.emit('filter_pos', self.filter_thor_pos[k])
                                     # trigger spectrometer to settle to new int time
-                                    self.Spectrometer.start_acquisition()
+                                    if hasattr(self.spectrometer, 'shutter'):
+                                        self.spectrometer.start_acquisition()
                                     if not self.int_time_orpheus == self.int_times[k]:
                                         print(time.strftime('%H:%M:%S') + ' Int time changed, trigger spectrometer and '
                                                                           'wait to stabilize changes')
-                                        self.Spectrometer.get_intensities()
+                                        self.spectrometer.get_intensities()
                                         time.sleep(2)
                                     self.int_time_orpheus = self.int_times[k]
                                     waittime = 1 + self.int_times[k] / 1000
@@ -385,29 +398,31 @@ class TSeriesMeasurement(QtCore.QThread):
                                     #self.sendParameter.emit('shutter1', 100)  # open Orpheus shutter
                                     #time.sleep(2)
                                     for m in range(self.spectra_avg):
-                                        self.spec = np.array(self.Spectrometer.get_intensities())
+                                        self.spec = np.array(self.spectrometer.get_intensities())
                                         self.sendSpectrum.emit(self.wls, self.spec)
                                         print(time.strftime('%H:%M:%S') + ' PL Spectrum acquired')
                                     #self.sendParameter.emit('shutter1', 0)  # close Orpheus shutter
                                     #time.sleep(2)
-                                    self.Spectrometer.stop_acquisition()
+                                    if hasattr(self.spectrometer, 'shutter'):
+                                        self.spectrometer.stop_acquisition()
                             self.sendParameter.emit('int_time', self.int_time_WL)
 
-                        #self.sendParameter.emit('shutter2', 100)  # open WL shutter
-                        #time.sleep(2)
-                        #self.sendParameter.emit('shutter1', 0)  # close Orpheus shutter again
-
-                        self.Spectrometer.start_acquisition()
+                        # take WL measurements
+                        self.sendParameter.emit('filter_wheel_1', 0)  # open WL shutter
                         time.sleep(2)
+                        self.sendParameter.emit('shutter', 0)  # close Orpheus shutter again
 
-                        for m in range(self.spectra_avg):
-                            self.spec = np.array(self.Spectrometer.get_intensities())
+                        if hasattr(self.spectrometer, 'shutter'):
+                            self.spectrometer.start_acquisition()
+                        for m in range(self.spectra_avg): # take several WL measurements
+                            self.spec = np.array(self.spectrometer.get_intensities())
                             self.sendSpectrum.emit(self.wls, self.spec)
                             print(time.strftime('%H:%M:%S') + ' WL Spectrum acquired')
-                        self.Spectrometer.stop_acquisition()
+                        if hasattr(self.spectrometer, 'shutter'):
+                            self.spectrometer.stop_acquisition()
                         progress = n / len(self.T_series) * 100
                         self.sendProgress.emit(progress)
-                        #self.sendParameter.emit('shutter2', 0)  # close WL shutter
+                        self.sendParameter.emit('filter_wheel_1', 100)  # close WL shutter
                         time.sleep(2)
                         if self.terminate:
                             self.sendProgress.emit(100)
@@ -674,3 +689,302 @@ class Autocorrelation(QtCore.QThread):
         return False
 
         
+class AcquireSpectrum(QtCore.QThread):
+    # set used signal types, destination is set in main script
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendParameter = QtCore.pyqtSignal(str, float)
+
+    def __init__(self, devices, parameter, start_wl, stop_wl):
+        super(AcquireSpectrum, self).__init__()
+        self.spectrometer = devices['spectrometer']
+        self.wls = np.array([])  # preallocate wls array
+        self.spec = np.empty((252, 0)) # preallocate spec array
+        self.terminate = False
+        self.acquire_measurement = True
+        self.start_wl = start_wl
+        self.end_wl = stop_wl
+        self.nb_of_spectra = int(np.ceil((self.end_wl - self.start_wl) / 50) + 1)       # Overestimates the number of individual spectra needed to cover the desired wl range (the 50 comes from the fact that 50 nm is around 200 points and the from each spectra 200 points are kept for the stitching / the + 1 ensures that the full wl range is included in the measurement)
+        self.spec_length = (self.spectrometer.spec_length[0], 200 * self.nb_of_spectra) # Definition of the spec_length of the stitched spectrum that will be sent to DataHandling (200 is the number of points for each individual spectra that is kept when stitching them together)
+
+    def run(self):
+        print(self.spectrometer.parameter_dict['start_wl'])
+        if not self.terminate:
+            self.sendProgress.emit(50)
+            nb_iter = 0
+            while nb_iter < self.nb_of_spectra:
+                # move grating to select wavelength range
+                if nb_iter == 0:                         # First iteration of the while loop
+                    center_wl = self.start_wl + 25       # Adjust the center wl 25 nm after the starting wavelength position
+                else:                                    # Subsequent iterations of the while loop
+                    center_wl = self.wls[-1] + 25        # Adjust the center wl 25 nm after the starting wavelength position
+
+                self.sendParameter.emit('center_wl', center_wl)    # Send signal to move the grating
+                time.sleep(5)                                      # Wait to ensure the grating is in position before taking the next spectra
+
+                # acquire spectrum
+                if hasattr(self.spectrometer, 'shutter'):
+                    self.spectrometer.start_acquisition()
+                new_wls = np.array(self.spectrometer.get_wavelength())    # Get wavelength range of the spectrometer for the new grating position
+                new_spec = np.array(self.spectrometer.get_intensities())  # Get the spectrum for the new grating position
+                mid_idx = len(new_wls) // 2 # Find the index of the middle of the wavelength range
+                self.wls = np.concatenate((self.wls, new_wls[mid_idx-100:mid_idx+100]), axis=0)   # Concatenate the center 200 points of the new wavelengths to the self.wls array
+                self.spec = np.concatenate((self.spec, new_spec[:, mid_idx-100:mid_idx+100]), axis = 1)  # Concatenate the center 200 points of the new spectrum to the self.spec array
+                if hasattr(self.spectrometer, 'shutter'):
+                    self.spectrometer.stop_acquisition()
+
+                # Add 1 to the iteration counter
+                nb_iter += 1
+
+            # Send signals to DataHandling
+            self.sendSpectrum.emit(np.array(self.wls), np.array(self.spec))
+            self.sendProgress.emit(100)
+
+class PowerSeriesMeasurement(QtCore.QThread):
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendParameter = QtCore.pyqtSignal(str, float)
+
+    def __init__(self, devices, parameter, filter_select,spectra_avg, filter_pos):
+        super(PowerSeriesMeasurement, self).__init__()
+        self.spectrometer = devices['spectrometer']
+        self.cryostat = devices['cryostat']
+        self.terminate = False
+        self.spectra_avg = spectra_avg
+        if filter_select == 1:
+            self.filter_wheel = 'filter_wheel_1'
+        elif filter_select == 2:
+            self.filter_wheel = 'filter_wheel_2'
+        elif filter_select == 3:
+            self.filter_wheel = 'filter_wheel_3'
+        else:
+            print('WARNING. Filter wheel selection not valid')
+        self.filter_ard_pos = []
+        try:
+            for s in re.split(',', filter_pos):
+                self.filter_ard_pos = np.append(self.filter_ard_pos, int(s))
+        except ValueError:
+            print('WARNING: Assigning filter pos did not work')
+
+    def run(self):
+        print(time.strftime('%H:%M:%S') + ' Run Power Series Measurement')
+        if not self.terminate:
+
+            # initialize power dependent measurement
+            self.sendProgress.emit(1)
+            self.wls = np.array(self.spectrometer.get_wavelength())
+            n = 0
+
+            # loop over filter positions
+            for filter_pos in self.filter_ard_pos:
+                n = n + 1
+                if not self.terminate:
+                    self.sendParameter.emit(self.filter_wheel, filter_pos)
+                    print(time.strftime('%H:%M:%S') + f' Filter set to {filter_pos} degrees')
+                    time.sleep(2)
+
+                    # measure
+                    if hasattr(self.spectrometer, 'shutter'):
+                        self.spectrometer.start_acquisition()
+                    for m in range(self.spectra_avg):  # take several spectra for each acquistion
+                        if not self.terminate:
+                            spec = np.array(self.spectrometer.get_intensities())
+                            self.sendSpectrum.emit(self.wls, spec)
+                    if hasattr(self.spectrometer, 'shutter'):
+                        self.spectrometer.stop_acquisition()
+
+                    # send progress
+                    progress = n / len(self.filter_ard_pos) * 100
+                    self.sendProgress.emit(progress)
+
+             # Return to initial filter pos
+            self.sendParameter.emit(self.filter_wheel, self.filter_ard_pos[0])
+
+            # Indicate that measurement is finished
+            self.sendProgress.emit(100)
+            print(time.strftime('%H:%M:%S') + ' Finished')
+        return
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+
+class TwoDMeasurement(QtCore.QThread):
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)  # Final averaged image (e.g., A_opt)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendSave = QtCore.pyqtSignal(str, str)
+    sendParameter = QtCore.pyqtSignal(str, float)
+
+    def __init__(self, devices, tau_max_value, tau_step_value,twoD_step_start_value,avg_value):
+        super(TwoDMeasurement, self).__init__()
+        self.spectrometer = devices['spectrometer']
+        self.Bigfoot = devices['bigfoot']
+        self.wls = []  # preallocate wls array
+        self.spec = []  # preallocate spec array
+        lv.connect()
+        step = tau_step_value #lv.LV_Control.read_scan_params()[1] #### can be changed if needed, or added with a button in the interface
+        self.tau_array =  np.arange(twoD_step_start_value, tau_max_value + step, step)
+        self.avg_value = avg_value
+        print('Measure 2D map with following tau array:', self.tau_array)
+        self.terminate = False
+
+    def run(self):
+        self.wls = np.array(self.spectrometer.get_wavelength())
+        for i,tau_value in enumerate(self.tau_array):
+            if not self.terminate:  # check whether stopping measurement is called
+                self.sendProgress.emit(i/len(self.tau_array)*100)
+                print(time.strftime('%H:%M:%S') + f' Move tau stage to tau= {tau_value} fs')
+                self.sendParameter.emit('tau', tau_value)
+                bigfoot_busy = True
+                time.sleep(0.1)
+                while bigfoot_busy: # check for movement of tau stage.
+                    bigfoot_busy = self.Bigfoot.check_stage()
+                    print(time.strftime('%H:%M:%S') + f' tau stage moving. Status: {bigfoot_busy}')
+                    time.sleep(0.1)
+                for j in range(self.avg_value):
+                    self.spec = np.array(self.spectrometer.get_intensities())
+                    self.sendSpectrum.emit(self.wls, self.spec)
+                    print(time.strftime('%H:%M:%S') + f' Spectrum acquired for tau= {tau_value} fs')
+
+        self.sendProgress.emit(100)
+        print(time.strftime('%H:%M:%S') + ' Finished')
+        return
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+
+class ChirpMeasurement(QtCore.QThread):
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)  # Final averaged image (e.g., A_opt)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendSave = QtCore.pyqtSignal(str, str)
+    sendParameter = QtCore.pyqtSignal(str, float)
+
+    def __init__(self, devices, chirp_scan_lineEdit,avg_value):
+        super(ChirpMeasurement, self).__init__()
+        self.spectrometer = devices['spectrometer']
+        self.Bigfoot = devices['bigfoot']
+        self.wls = []  # preallocate wls array
+        self.spec = []  # preallocate spec array
+        line_components = [float(x) for x in re.split(':', chirp_scan_lineEdit)]
+        self.scmp_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
+        self.avg_value = avg_value
+        print('Measure chirp scan with following SCMP positions:', self.scmp_array)
+        self.terminate = False
+
+    def run(self):
+        self.wls = np.array(self.spectrometer.get_wavelength())
+        for i,scmp_value in enumerate(self.scmp_array):
+            if not self.terminate:  # check whether stopping measurement is called
+                self.sendProgress.emit(i/len(self.scmp_array)*100)
+                print(time.strftime('%H:%M:%S') + f' Move SCMP to {scmp_value} um')
+                self.sendParameter.emit('scmp', scmp_value)
+                time.sleep(0.5) # no feedback on when SCMP is set.
+                for j in range(self.avg_value):
+                    self.spec = np.array(self.spectrometer.get_intensities())
+                    self.sendSpectrum.emit(self.wls, self.spec)
+                    print(time.strftime('%H:%M:%S') + f' Spectrum acquired for scmp= {scmp_value} um')
+
+        self.sendProgress.emit(100)
+        print(time.strftime('%H:%M:%S') + ' Finished')
+        return
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+
+class CompressorMeasurement(QtCore.QThread):
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)  # Final averaged image (e.g., A_opt)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendSave = QtCore.pyqtSignal(str, str)
+    sendParameter = QtCore.pyqtSignal(str, float)
+
+    def __init__(self, devices, compr_scan_lineEdit,avg_value):
+        super(CompressorMeasurement, self).__init__()
+        self.spectrometer = devices['spectrometer']
+        self.wls = []  # preallocate wls array
+        self.spec = []  # preallocate spec array
+        line_components = [float(x) for x in re.split(':', compr_scan_lineEdit)]
+        self.compr_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
+        self.avg_value = avg_value
+        print('Measure chirp scan with following compressor positions:', self.compr_array)
+        self.terminate = False
+
+    def run(self):
+        self.wls = np.array(self.spectrometer.get_wavelength())
+        for i,compr_value in enumerate(self.compr_array):
+            if not self.terminate:  # check whether stopping measurement is called
+                self.sendProgress.emit(i/len(self.compr_array)*100)
+                print(time.strftime('%H:%M:%S') + f' Move compressor to {compr_value} um')
+                self.sendParameter.emit('Motor_1', compr_value/1E3) # transform to mm
+                time.sleep(2) # no feedback on when Motor is set.
+                for j in range(self.avg_value):
+                    self.spec = np.array(self.spectrometer.get_intensities())
+                    self.sendSpectrum.emit(self.wls, self.spec)
+                    print(time.strftime('%H:%M:%S') + f' Spectrum acquired for compressor= {compr_value} um')
+
+        self.sendProgress.emit(100)
+        print(time.strftime('%H:%M:%S') + ' Finished')
+        return
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+
+
+
+class HelicamBackgroundMeasurement(QtCore.QThread):
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray)  # Final averaged image (e.g., A_opt)
+    #sendSave = QtCore.pyqtSignal(str, str)
+    #sendParameter = QtCore.pyqtSignal(str, float)
+
+    def __init__(self, devices):
+        super(HelicamBackgroundMeasurement, self).__init__()
+        self.spectrometer = devices['spectrometer']
+        self.wls = []  # preallocate wls array
+        self.spec = []  # preallocate spec array
+        self.terminate = False
+        #self.acquiring = True
+
+    def run(self):
+        print(time.strftime('%H:%M:%S') + "HelicamBackgroundMeasurement started")
+
+        #Stopping the CameraWorker
+        self.spectrometer.worker.pause()
+        while self.spectrometer.worker.processing:
+            time.sleep(0.1)
+
+        #Acquiring data
+        self.wls = np.array(self.spectrometer.get_wavelength())
+        if not self.terminate:
+            rawI, rawQ = self.spectrometer.worker.acquire()
+            twoD_avgI = np.mean(rawI, axis=0)
+            twoD_avgQ = np.mean(rawQ, axis=0)
+            twoD_IdivQ = twoD_avgI / twoD_avgQ
+            self.sendSpectrum.emit(twoD_avgI)
+            print(time.strftime('%H:%M:%S'), ': Acquisition complete')
+            time.sleep(0.5)
+        print(time.strftime('%H:%M:%S') + 'HelicamBackgroundMeasurement done')
+
+        #Downloading the data
+        ty_res = time.localtime(time.time())
+        timestamp = time.strftime("%H_%M_%S", ty_res)
+        folder = r"C:\DATA\BIGFOOT\2025-07-23"
+        filename = os.path.join(folder, "bg_wo_light" + timestamp + '.h5')
+        with h5py.File(filename, 'w') as f:
+            f.create_dataset('averaged_rawI', data=twoD_avgI)
+            f.create_dataset('averaged_rawQ', data=twoD_avgQ)
+        print(time.strftime('%H:%M:%S') + 'HelicamBackgroundMeasurement saved')
+
+        #Restarting the CameraWorker
+        self.spectrometer.worker.resume()
+
+        return
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')

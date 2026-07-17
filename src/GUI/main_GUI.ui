@@ -184,7 +184,7 @@
           <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'MS Shell Dlg 2'; font-size:7.8pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'MS Shell Dlg 2'; font-size:8pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;User:&lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;Sample:&lt;br /&gt;Power:&lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;Wavelength:&lt;/span&gt;&lt;/p&gt;
@@ -284,7 +284,7 @@ p, li { white-space: pre-wrap; }
           <string>Stop</string>
          </property>
         </widget>
-        <widget class="QPushButton" name="Scope_view_pushButton">
+        <widget class="QPushButton" name="spectrum_acquire_pushButton">
          <property name="geometry">
           <rect>
            <x>330</x>
@@ -294,7 +294,7 @@ p, li { white-space: pre-wrap; }
           </rect>
          </property>
          <property name="text">
-          <string>Scope view</string>
+          <string>Acquire spectrum</string>
          </property>
         </widget>
         <widget class="QPushButton" name="view_pushButton">
@@ -326,7 +326,7 @@ p, li { white-space: pre-wrap; }
       <item>
        <widget class="QTabWidget" name="tabWidget">
         <property name="currentIndex">
-         <number>0</number>
+         <number>5</number>
         </property>
         <widget class="QWidget" name="spectro_tab">
          <attribute name="title">
@@ -427,7 +427,7 @@ p, li { white-space: pre-wrap; }
           <property name="title">
            <string>Background </string>
           </property>
-          <widget class="QPushButton" name="Acquire_bg_pushButton">
+          <widget class="QPushButton" name="acquire_bg_pushButton">
            <property name="geometry">
             <rect>
              <x>10</x>
@@ -927,6 +927,390 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
             <string>Integration times (ms)</string>
            </property>
           </widget>
+          <widget class="QPushButton" name="Powerseries_run_pushButton">
+           <property name="geometry">
+            <rect>
+             <x>10</x>
+             <y>180</y>
+             <width>241</width>
+             <height>23</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Run Power dependent Measurement</string>
+           </property>
+          </widget>
+          <widget class="QSpinBox" name="Powerseries_filter_selection_spinBox">
+           <property name="geometry">
+            <rect>
+             <x>290</x>
+             <y>180</y>
+             <width>61</width>
+             <height>22</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="suffix">
+            <string> wheel</string>
+           </property>
+           <property name="maximum">
+            <number>3</number>
+           </property>
+           <property name="value">
+            <number>1</number>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_22">
+           <property name="geometry">
+            <rect>
+             <x>390</x>
+             <y>180</y>
+             <width>211</width>
+             <height>21</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Select power wheel (power dep only)</string>
+           </property>
+          </widget>
+         </widget>
+         <widget class="QGroupBox" name="groupBox_5">
+          <property name="geometry">
+           <rect>
+            <x>10</x>
+            <y>520</y>
+            <width>851</width>
+            <height>201</height>
+           </rect>
+          </property>
+          <property name="title">
+           <string>Bigfoot related Measurements</string>
+          </property>
+          <widget class="QPushButton" name="twoD_run_pushButton">
+           <property name="geometry">
+            <rect>
+             <x>150</x>
+             <y>30</y>
+             <width>75</width>
+             <height>23</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Run 2D Scan</string>
+           </property>
+          </widget>
+          <widget class="QDoubleSpinBox" name="twoD_tau_spinBox">
+           <property name="geometry">
+            <rect>
+             <x>20</x>
+             <y>30</y>
+             <width>61</width>
+             <height>21</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="suffix">
+            <string> fs</string>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="maximum">
+            <double>500000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>2000.000000000000000</double>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_3">
+           <property name="geometry">
+            <rect>
+             <x>90</x>
+             <y>30</y>
+             <width>47</width>
+             <height>13</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>tau</string>
+           </property>
+          </widget>
+          <widget class="QPushButton" name="helicam_bg_pushButton">
+           <property name="geometry">
+            <rect>
+             <x>10</x>
+             <y>120</y>
+             <width>241</width>
+             <height>23</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Run background measurement</string>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_7">
+           <property name="geometry">
+            <rect>
+             <x>10</x>
+             <y>150</y>
+             <width>391</width>
+             <height>21</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Go to Spectrum View to save the data once sufficient measures have been taken</string>
+           </property>
+          </widget>
+          <widget class="QDoubleSpinBox" name="twoD_step_spinBox">
+           <property name="geometry">
+            <rect>
+             <x>20</x>
+             <y>60</y>
+             <width>61</width>
+             <height>21</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="suffix">
+            <string> fs</string>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="maximum">
+            <double>10000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000000000000000</double>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_8">
+           <property name="geometry">
+            <rect>
+             <x>90</x>
+             <y>60</y>
+             <width>47</width>
+             <height>13</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>step size</string>
+           </property>
+          </widget>
+          <widget class="QSpinBox" name="twoD_avg_spinBox">
+           <property name="geometry">
+            <rect>
+             <x>20</x>
+             <y>90</y>
+             <width>101</width>
+             <height>22</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="suffix">
+            <string>  avg</string>
+           </property>
+           <property name="maximum">
+            <number>10000</number>
+           </property>
+           <property name="value">
+            <number>1</number>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_10">
+           <property name="geometry">
+            <rect>
+             <x>130</x>
+             <y>90</y>
+             <width>47</width>
+             <height>13</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>averages</string>
+           </property>
+          </widget>
+          <widget class="QDoubleSpinBox" name="twoD_tau_start_spinBox">
+           <property name="geometry">
+            <rect>
+             <x>150</x>
+             <y>60</y>
+             <width>61</width>
+             <height>21</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="suffix">
+            <string> fs</string>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="minimum">
+            <double>-100000.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>100000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000000000000000</double>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_11">
+           <property name="geometry">
+            <rect>
+             <x>220</x>
+             <y>60</y>
+             <width>81</width>
+             <height>16</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>tau delay start</string>
+           </property>
+          </widget>
+          <widget class="QLineEdit" name="chirp_scan_lineEdit">
+           <property name="geometry">
+            <rect>
+             <x>300</x>
+             <y>70</y>
+             <width>141</width>
+             <height>20</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="text">
+            <string>2000:10:3000</string>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_12">
+           <property name="geometry">
+            <rect>
+             <x>300</x>
+             <y>30</y>
+             <width>311</width>
+             <height>41</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Enter SCMP position  in format: 
+Start(μm):Step(μm):Stop(μm)  </string>
+           </property>
+          </widget>
+          <widget class="QPushButton" name="chirp_scan_run_pushButton">
+           <property name="geometry">
+            <rect>
+             <x>300</x>
+             <y>100</y>
+             <width>81</width>
+             <height>23</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Run Chirp Scan</string>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_23">
+           <property name="geometry">
+            <rect>
+             <x>470</x>
+             <y>30</y>
+             <width>191</width>
+             <height>41</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Enter compressor position  in format: 
+Start(μm):Step(μm):Stop(μm)  </string>
+           </property>
+          </widget>
+          <widget class="QLineEdit" name="compressor_scan_lineEdit">
+           <property name="geometry">
+            <rect>
+             <x>470</x>
+             <y>70</y>
+             <width>141</width>
+             <height>20</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="text">
+            <string>0:100:1000</string>
+           </property>
+          </widget>
+          <widget class="QPushButton" name="compressor_scan_run_pushButton">
+           <property name="geometry">
+            <rect>
+             <x>470</x>
+             <y>100</y>
+             <width>121</width>
+             <height>23</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Run Compressor Scan</string>
+           </property>
+          </widget>
+         </widget>
+         <widget class="QPushButton" name="test_pushButton">
+          <property name="geometry">
+           <rect>
+            <x>20</x>
+            <y>730</y>
+            <width>75</width>
+            <height>23</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>Test</string>
+          </property>
+         </widget>
+         <widget class="QGroupBox" name="groupBox_9">
+          <property name="geometry">
+           <rect>
+            <x>20</x>
+            <y>730</y>
+            <width>120</width>
+            <height>80</height>
+           </rect>
+          </property>
+          <property name="title">
+           <string>Acquire spectrum parameters</string>
+          </property>
+          <widget class="QDoubleSpinBox" name="Start_wl_DoubleSpinBox">
+           <property name="geometry">
+            <rect>
+             <x>20</x>
+             <y>20</y>
+             <width>62</width>
+             <height>22</height>
+            </rect>
+           </property>
+          </widget>
+          <widget class="QDoubleSpinBox" name="doubleSpinBox_2">
+           <property name="geometry">
+            <rect>
+             <x>20</x>
+             <y>50</y>
+             <width>62</width>
+             <height>22</height>
+            </rect>
+           </property>
+          </widget>
          </widget>
         </widget>
        </widget>
@@ -941,7 +1325,7 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
      <x>0</x>
      <y>0</y>
      <width>1272</width>
-     <height>26</height>
+     <height>18</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -966,8 +1350,21 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
     <addaction name="separator"/>
     <addaction name="menuDisplay_mode"/>
    </widget>
+   <widget class="QMenu" name="menu_device_settings">
+    <property name="title">
+     <string>Device settings</string>
+    </property>
+    <widget class="QMenu" name="menutest_2">
+     <property name="title">
+      <string>test</string>
+     </property>
+     <addaction name="actiontest_4"/>
+    </widget>
+    <addaction name="menutest_2"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuTransmission"/>
+   <addaction name="menu_device_settings"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <action name="actionMeasure_absorption">
@@ -1029,6 +1426,16 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
   <action name="actionChoose_reference_spectrum">
    <property name="text">
     <string>Choose reference spectrum</string>
+   </property>
+  </action>
+  <action name="actiontest_2">
+   <property name="text">
+    <string>test</string>
+   </property>
+  </action>
+  <action name="actiontest_4">
+   <property name="text">
+    <string>test</string>
    </property>
   </action>
  </widget>

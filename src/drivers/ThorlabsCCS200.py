@@ -6,6 +6,11 @@ Hardware class to control spectrometer. All hardware classes require a definitio
 parameter_display_dict (set Spinbox options and read/write)
 set_parameter function (assign set functions)
 
+IMPORTANT: DEVICE ID might need to be adapted in Update Worker (currently line 149) if different PC/device is used
+IMPORTANT: If CCS200 is not detected in ThorSpectra, carefully check drivers. It needs to be exactly as shown in:
+https://openproject.silvascience.org/projects/silvabot/wiki/thorlabs-ccs200-drivers
+
+If driuer is not correct, consider reinstalling ThorSpectra, even though it is already installed on the PC.
 """
 
 import numpy as np
@@ -19,7 +24,7 @@ from ctypes import *
 class ThorlabsCCS200(QtCore.QThread):
     name = 'Spectrometer'
 
-    def __init__(self):
+    def __init__(self, port =None):
         super(ThorlabsCCS200, self).__init__()
 
         # load and initialize  spectrometerWorker
@@ -52,7 +57,7 @@ class ThorlabsCCS200(QtCore.QThread):
         self.parameter_display_dict = defaultdict(dict)
         self.parameter_display_dict['int_time']['val'] = 500
         self.parameter_display_dict['int_time']['unit'] = ' ms'
-        self.parameter_display_dict['int_time']['max'] = 10000
+        self.parameter_display_dict['int_time']['max'] = 20000
         self.parameter_display_dict['int_time']['read'] = False
         self.parameter_display_dict['binning']['val'] = 1
         self.parameter_display_dict['binning']['unit'] = ' px'
@@ -118,7 +123,6 @@ class ThorlabsCCS200(QtCore.QThread):
     def do_binning(self, spectrum):
         """ Manual binning of the spectra. Some cameras might allow to readout pixel together to increase
         signal-to-noise at the cost of lower resolution. """
-        # print(spectrum)
         for i in range(self.spec_length):
             if i > self.spec_length - self.binning:
                 self.binned_spec[i] = np.sum(spectrum[self.spec_length - self.binning:self.spec_length])
@@ -130,7 +134,7 @@ class ThorlabsCCS200(QtCore.QThread):
 
 
 class SpectrometerWorker(QtCore.QThread):
-    """ This is a DemoWorker for the spectrometer.
+    """ This is the Worker for the spectrometer.
     It continously acquires spectra and emits them to the Interface.
     It interrupts data acquisition if an int_time change is requested. Its important because most
     hardware can only handle one command at a time, acquiring or changeing settings.  """
@@ -141,12 +145,14 @@ class SpectrometerWorker(QtCore.QThread):
         super(SpectrometerWorker, self).__init__()  # Elevates this thread to be independent.
 
         # definition of some parameters
-        os.chdir(r"C:\Program Files\IVI Foundation\VISA\Win64\Bin")
+        os.chdir(os.path.join(os.getcwd(),"src\\drivers\\dlls"))
         self.lib = cdll.LoadLibrary("TLCCS_64.dll")
         self.ccs_handle = c_int(0)
+        # windows device manager -> NI-VISA USB Device -> Spectrometer -> Properties -> Details -> Device Instance ID
+        self.lib.tlccs_init(b"USB0::0x1313::0x8089::M00582935::RAW", 1, 1, byref(self.ccs_handle))
 
         self.spec_length = 3648
-        self.int_time = 10
+        self.int_time = 500
         integration_time = c_double(10.0e-3)
         integration_time = c_double(0.2)
         self.lib.tlccs_setIntegrationTime(self.ccs_handle, c_double(self.int_time/1E3))
@@ -158,7 +164,6 @@ class SpectrometerWorker(QtCore.QThread):
         self.spectrum_c = (c_double * self.spec_length)()
         self.lib.tlccs_getWavelengthData(self.ccs_handle, 0, byref(self.wavelengths_c), c_void_p(None), c_void_p(None))
         self.wavelengths = np.ctypeslib.as_array(self.wavelengths_c)
-        print(self.wavelengths)
 
         self.spec_range = np.r_[0:2048]
         self.change_int_time = False
@@ -166,36 +171,32 @@ class SpectrometerWorker(QtCore.QThread):
         self.updated_int_time = 500
         self.avg_scans = 1
         self.terminate = False
-        print("CCS200 init finished")
 
     def run(self):
         """" Continuous tasks of the Worker are defined here.
         If loops check for requested changes in settings prior each acquisition. """
         while not self.terminate:  # infinite loop
-            print("Enter run")
             if not self.change_int_time:
                 self.spectrum = self.getIntensities()
-                print("after intensities")
                 if not self.change_int_time:
                     self.sendSpectrum.emit(self.spectrum, self.int_time)
-                print("First spectrum")
             else:
                 if self.int_time == self.updated_int_time:
                     self.change_int_time = False
                 else:
+                    print('Spectro Worker: Acquisition stopped to change int time')
+                    self.set_int_time(self.updated_int_time)
+                    self.change_int_time = True
                     time.sleep(0.1)
-            print("while loop")
-                # Here needs to go a command that changes the int time at the spectrometer.
-                # print(time.strftime('%H:%M:%S') + ' PL Spectrum acquired')
         return
 
     def getIntensities(self):
         # create random spectrum. Some varying random signal helps to check functionality.
-        print("in intensities")
         self.lib.tlccs_startScan(self.ccs_handle)
         status = c_int(0)
         while (status.value & 0x0010) == 0:
             self.lib.tlccs_getDeviceStatus(self.ccs_handle, byref(status))
+            time.sleep(0.01)
         self.lib.tlccs_getScanData(self.ccs_handle, byref(self.spectrum_c))
         self.spectrum = np.ctypeslib.as_array(self.spectrum_c)
         return self.spectrum
@@ -205,5 +206,6 @@ class SpectrometerWorker(QtCore.QThread):
         # It prepares the change of the integration before the next spectrum is acquired.
         self.change_int_time = True
         self.updated_int_time = int_time
-        self.lib.tlccs_setIntegrationTime(self.ccs_handle, int_time)
+        time.sleep(self.int_time*1E-3)
+        self.lib.tlccs_setIntegrationTime(self.ccs_handle, c_double(int_time*1E-3)) # int. time in s
         self.int_time = self.updated_int_time
