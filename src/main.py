@@ -4,6 +4,7 @@ import sys
 import time
 import numpy as np
 import re
+import os
 from collections import defaultdict
 from pathlib import Path
 from PyQt5 import QtCore, QtWidgets, uic
@@ -186,11 +187,14 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # set variables
         self.measurement_busy = False
-        self.save_folder_path = r'C:/TEMP'
+        #self.save_folder_path = r'C:/TEMP'
+        self.save_folder_path = os.path.join(os.path.expanduser("~"), "Silvabot_data")
         #a default data folder is always required and it would be good to keep it seperated from the code.
         #can everyone simply create a C:/Data/test' path on their device? # Not sure how to handle different OS here.
-        self.filename = r'C:/TEMP/test'
-        self.ref_filename = r'C:/TEMP/ref'
+        #self.filename = r'C:/TEMP/test'
+        self.filename = os.path.join(self.save_folder_path, "test")
+        #self.ref_filename = r'C:/TEMP/ref'
+        self.ref_filename = os.path.join(self.save_folder_path, "ref")
         self.power_calib_array = []
 
         # set connect events
@@ -213,10 +217,10 @@ class MainInterface(QtWidgets.QMainWindow):
         self.kinetic_lineEdit.editingFinished.connect(self.change_kinetic_interval)
         self.kinetic_run_pushButton.clicked.connect(self.kinetic_measurement)
         self.Tseries_lineEdit.editingFinished.connect(self.change_Tseries)
-        self.Tseries_run_button.clicked.connect(self.Tseries_measurement)
+        self.Tseries_run_pushButton.clicked.connect(self.Tseries_measurement)
         # THz tab button connections
         self.thz_acquisition_pushButton.clicked.connect(self.thz_acquisition_measurement)
-        self.autocorrelation_pushButton.clicked.connect(self.Autocorrelation_measurement) 
+        #self.autocorrelation_pushButton.clicked.connect(self.Autocorrelation_measurement) 
         self.thz_clear_pushButton.clicked.connect(self.THz_clear)
         self.Powerseries_run_pushButton.clicked.connect(self.Powerseries_measurement)
         self.chirp_scan_run_pushButton.clicked.connect(self.chirp_scan_measurement)

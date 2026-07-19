@@ -365,7 +365,7 @@ p, li { white-space: pre-wrap; }
             </property>
             <layout class="QHBoxLayout" name="thz_buttons_layout">
              <item>
-              <widget class="QPushButton" name="thz_acquisition">
+              <widget class="QPushButton" name="thz_acquisition_pushButton">
                <property name="text">
                 <string>THz acquisition</string>
                </property>
@@ -379,7 +379,7 @@ p, li { white-space: pre-wrap; }
               </widget>
              </item>
              <item>
-              <widget class="QPushButton" name="thz_clear">
+              <widget class="QPushButton" name="thz_clear_pushButton">
                <property name="text">
                 <string>Clear</string>
                </property>

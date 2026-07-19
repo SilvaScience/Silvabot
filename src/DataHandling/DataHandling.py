@@ -14,6 +14,7 @@ import numpy as np
 import os.path
 from collections import deque
 import shutil
+
 """TO DOs: 
 - consider implementing data storage for several data acquiring devices (e.g. 2 spectrometer simultaneously) 
 """
@@ -63,7 +64,8 @@ class DataHandling(QtCore.QThread):
         self.parameter_matrix_full = False
         self.data_in_flash = 0
         self.firstbuffer = True
-        self.temp_filename = r"C:\TEMP\temp.h5"
+        self.temp_filename = os.path.join(os.path.expanduser("~"),"Silvabot_temp","temp.h5")
+        #self.temp_filename = r"C:\TEMP\temp.h5"
         self.filename = 'test'
 
         # initialize Calibration dict
@@ -294,7 +296,7 @@ class BufferWorker(QtCore.QObject):
         self.terminate = False
 
         # check if folder for buffer exists
-        temp_folder = os.path.dirname(temp_filename)
+        temp_folder = os.path.dirname(self.temp_filename)
         if not os.path.isdir(temp_folder):
             print(f'No {temp_folder} folder, create folder')
             os.makedirs(temp_folder)
