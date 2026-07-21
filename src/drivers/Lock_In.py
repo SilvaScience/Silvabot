@@ -103,7 +103,7 @@ class Lock_In():
         # Connect to appropriate lock-in device
         if lock_in_type == 'MFLI':
             self.session = Session("localhost")                     # Create a session with the Data Server
-            self.device = self.session.connect_device("")           # Connect to the MFLI, ID is to be defined
+            self.device = self.session.connect_device("DEV7797")           # Connect to the MFLI, ID is to be defined
             print('Connection established with the Lock-In')
 
             # Configure the signal input
