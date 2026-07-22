@@ -14,6 +14,9 @@ harpia = Harpia(ip_address)
 if not harpia.connected:
     sys.exit("Could not connect to Harpia")
 
+# test shutter
+print("Pump open")
+harpia.open_pump_shutter()
 
 
 # test delay line
