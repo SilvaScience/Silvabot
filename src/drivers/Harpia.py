@@ -46,8 +46,8 @@ class HarpiaDevice():
         self.parameter_display_dict["scan_final_position"]["val"] = 0.0
         self.parameter_display_dict["scan_final_position"]["unit"] = "ps"
         #self.parameter_display_dict["scan_final_position"]["max"] = 10000 # to be verified
-        self.parameter_display_dict["scan_final_position"]["read"] = False  
-        
+        self.parameter_display_dict["scan_final_position"]["read"] = False
+
 
 
 
