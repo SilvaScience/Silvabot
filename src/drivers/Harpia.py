@@ -1,7 +1,7 @@
 """
 Code to control Harpia's delay line and shutters
 """
-from lightcon import Harpia
+from lightcon.harpia import Harpia
 import time
 from PyQt5 import QtCore
 from collections import defaultdict
