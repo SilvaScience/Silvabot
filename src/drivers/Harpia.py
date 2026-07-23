@@ -67,33 +67,90 @@ class HarpiaDevice():
         self.UpdateWorker_Delay.new_Delay.connect(self.update_delay)
         self.UpdateWorker_Delay.start()  
 
-        # Silvabot parameters interface
-        def set_parameter(self, parameter, value):
-            if parameter == "pump_shutter":
-                self.update_pump_shutter(value)
+    # Silvabot parameters interface
+    def set_parameter(self, parameter, value):
+        if parameter == "pump_shutter":
+            self.update_pump_shutter(value)
 
-            elif parameter == "third_beam_shutter":
-                self.update_third_beam_shutter(value)
+        elif parameter == "third_beam_shutter":
+            self.update_third_beam_shutter(value)
             
-            elif parameter == "target_delay":
-                self.update_target_delay(value)
+        elif parameter == "target_delay":
+            self.update_target_delay(value)
             
-            elif parameter == "scan_initial_position":
-                self.update_scan_initial_position(value)
+        elif parameter == "scan_initial_position":
+            self.update_scan_initial_position(value)
             
-            elif parameter == "scan_final_position":
-                self.update_scan_final_position(value)
+        elif parameter == "scan_final_position":
+            self.update_scan_final_position(value)
             
         
-        # Shutter
-        def update_pump_shutter(self, state):
-            if state:
-                print("Opening pump shutter")
-                self.harpia.open_pump_shutter()
+    # Shutter
+    def update_pump_shutter(self, state):
+        if state:
+            print("Opening pump shutter")
+            self.harpia.open_pump_shutter()
             
-            else:
-                print("Closing pump shutter")
-                self.harpia.close_pump_shutter()
+        else:
+            print("Closing pump shutter")
+            self.harpia.close_pump_shutter()
+            
+        self.parameter_dict["pump_shutter"] = state
+        
+    def update_third_beam_shutter(self, state):
+        if state:
+            print("Opening third beam shutter")
+            self.harpia.open_third_beam_shutter()
+            
+        # There is no close function for the third beam shutter in the Harpia API, so we will close all shutters instead
+        else:
+            print("Closing all shutters")
+            self.harpia.close_all_shutter()
+
+        self.parameter_dict["third_beam_shutter"] = state
+        
+    # Delay line
+    def update_target_delay(self, target):
+        print(f"Moving delay line to {target} ps")
+        self.harpia.set_delay_line_target_delay(target)
+
+    def update_delay(self,delay):
+        self.parameter_dict["delay_position"] = delay
+
+    def position_delay(self, target, tolerance=0.001):
+        while True:
+            current = self.harpia.delay_line_actual_delay()
+            if abs(current-target) < tolerance:
+                break
+            time.sleep(0.2)
+
+class UpdateWorker_Delay(QtCore.QThread):
+    new_Delay = QtCore.puqtSignal(float)
+    
+    def __init__(self, harpia):
+        super().__init__()
+        self.harpia = harpia
+        self.stop = False
+        self.waitTime = 0.05
+
+    def run(self):
+        while not self.stop:
+            delay = self.read_delay()
+            if delay is not None:
+                self.new_Delay.emit(delay)
+                time.sleep(self.waitTime)
+    
+    def read_delay(self):
+        try:
+            return self.harpia.delay_line_actual_delay()
+        except:
+            return None
+        
+
+    
+
+        
+
 
 
 
