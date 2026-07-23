@@ -84,7 +84,7 @@ class UpdateWorker_Delay(QtCore.QThread):
             elif self.current > self.target:
                 self.current -= 0.1
             
-            self.new_Delay.emit(self.current_delay)
+            self.new_Delay.emit(self.current)
             time.sleep(self.waitTime)
 
     
