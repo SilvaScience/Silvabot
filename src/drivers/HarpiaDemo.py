@@ -87,3 +87,5 @@ class UpdateWorker_Delay(QtCore.QThread):
             self.new_Delay.emit(self.current_delay)
             time.sleep(self.waitTime)
 
+    
+
