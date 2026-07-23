@@ -34,7 +34,7 @@ devices:
     enabled: true
     driver: drivers.Harpia.Harpia
     fallback: drivers.HarpiaDemo.HarpiaDemo
-    
+
 comment: 'User: DT
 
   Sample:
