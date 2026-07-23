@@ -5,6 +5,7 @@ from lightcon.harpia import Harpia
 import time
 from PyQt5 import QtCore
 from collections import defaultdict
+import sys
 
 class HarpiaDevice():
 
@@ -55,10 +56,10 @@ class HarpiaDevice():
 
         # Initialize connection to Harpia
         ip_address = "192.168.1.134"
-        self.harpia = Harpia(ip_address)
+        harpia = Harpia(ip_address)
 
-        if not self.harpia.connected:
-            raise Exception("Could not connect to Harpia")
+        if not harpia.connected:
+            sys.exit("Could not connect to Harpia")
         
         print("Connected to Harpia")
 
