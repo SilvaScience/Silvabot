@@ -54,8 +54,8 @@ class HarpiaDevice():
             self.parameter_dict[key] = self.parameter_display_dict[key]["val"]
 
         # Initialize connection to Harpia
-        ip_adress = "192.168.1.134"
-        self.harpia = Harpia(ip_adress)
+        ip_address = "192.168.1.134"
+        self.harpia = Harpia(ip_address)
 
         if not self.harpia.connected:
             raise Exception("Could not connect to Harpia")
