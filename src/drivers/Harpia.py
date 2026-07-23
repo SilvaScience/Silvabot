@@ -26,10 +26,10 @@ class HarpiaDevice():
         self.parameter_display_dict["third_beam_shutter"]["read"] = False
 
         # Delay position
-        self.parameter_display_dict["delay_position"]["val"] = 0.0
-        self.parameter_display_dict["delay_position"]["unit"] = "ps"
-        #self.parameter_display_dict['position']['max'] = 10000 # to be verified
-        self.parameter_display_dict["delay_position"]["read"] = True
+        self.parameter_display_dict["delay"]["val"] = 0.0
+        self.parameter_display_dict["delay"]["unit"] = "ps"
+        #self.parameter_display_dict['delay']['max'] = 10000 # to be verified
+        self.parameter_display_dict["delay"]["read"] = True
 
         # Target delay
         self.parameter_display_dict["target_delay"]["val"] = 0.0
@@ -115,7 +115,7 @@ class HarpiaDevice():
         self.harpia.set_delay_line_target_delay(target)
 
     def update_delay(self,delay):
-        self.parameter_dict["delay_position"] = delay
+        self.parameter_dict["delay"] = delay
 
     def position_delay(self, target, tolerance=0.001):
         while True:
