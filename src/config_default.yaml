@@ -30,6 +30,11 @@ devices:
   lakeshore:
     enabled: false
     driver: drivers.lakeshore.Lakeshore
+  harpia:
+    enabled: true
+    driver: drivers.Harpia.Harpia
+    fallback: drivers.HarpiaDemo.HarpiaDemo
+    
 comment: 'User: DT
 
   Sample:
