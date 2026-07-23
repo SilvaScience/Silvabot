@@ -1,13 +1,13 @@
 """
 Code to control Harpia's delay line and shutters
 """
-from lightcon.harpia import Harpia
+from lightcon.harpia import Harpia as HarpiaController
 import time
 from PyQt5 import QtCore
 from collections import defaultdict
 import sys
 
-class Harpia():
+class HarpiaDevice():
 
     name = "Harpia"
 
@@ -56,9 +56,9 @@ class Harpia():
 
         # Initialize connection to Harpia
         ip_address = "192.168.1.134"
-        harpia = Harpia(ip_address)
+        self.harpia = HarpiaController(ip_address)
 
-        if not harpia.connected:
+        if not self.harpia.connected:
             sys.exit("Could not connect to Harpia")
         
         print("Connected to Harpia")
