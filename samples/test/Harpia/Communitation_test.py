@@ -18,6 +18,14 @@ if not harpia.connected:
 print("Pump open")
 harpia.open_pump_shutter()
 
+print("Third beam open")
+harpia.open_third_beam_shutter()
+time.sleep(2)
+print("Third beam close")
+harpia.close_third_beam_shutter()
+
+
+
 
 # test delay line
 # Read actual delay line position
