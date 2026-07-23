@@ -7,7 +7,7 @@ from PyQt5 import QtCore
 from collections import defaultdict
 import sys
 
-class HarpiaDevice():
+class Harpia():
 
     name = "Harpia"
 
