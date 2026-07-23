@@ -7,12 +7,12 @@ from PyQt5 import QtCore
 from collections import defaultdict
 import sys
 
-class HarpiaDevice():
+class Harpia():
 
     name = "Harpia"
 
     def __init__(self):
-        super(HarpiaDevice, self).__init__()
+        super(Harpia, self).__init__()
         
         # setting up the parameter dict
         self.parameter_display_dict = defaultdict(dict)
