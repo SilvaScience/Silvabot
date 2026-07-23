@@ -48,6 +48,54 @@ class HarpiaDevice():
         #self.parameter_display_dict["scan_final_position"]["max"] = 10000 # to be verified
         self.parameter_display_dict["scan_final_position"]["read"] = False
 
+        # Fast access dictionary
+        self.parameter_dict = {}
+        for key in self.parameter_display_dict.keys():
+            self.parameter_dict[key] = self.parameter_display_dict[key]["val"]
+
+        # Initialize connection to Harpia
+        ip_adress = "192.168.1.134"
+        self.harpia = Harpia(ip_adress)
+
+        if not self.harpia.connected:
+            raise Exception("Could not connect to Harpia")
+        
+        print("Connected to Harpia")
+
+        # start updating position
+        self.UpdateWorker_Delay = UpdateWorker_Delay(self.harpia)
+        self.UpdateWorker_Delay.new_Delay.connect(self.update_delay)
+        self.UpdateWorker_Delay.start()  
+
+        # Silvabot parameters interface
+        def set_parameter(self, parameter, value):
+            if parameter == "pump_shutter":
+                self.update_pump_shutter(value)
+
+            elif parameter == "third_beam_shutter":
+                self.update_third_beam_shutter(value)
+            
+            elif parameter == "target_delay":
+                self.update_target_delay(value)
+            
+            elif parameter == "scan_initial_position":
+                self.update_scan_initial_position(value)
+            
+            elif parameter == "scan_final_position":
+                self.update_scan_final_position(value)
+            
+        
+        # Shutter
+        def update_pump_shutter(self, state):
+            if state:
+                print("Opening pump shutter")
+                self.harpia.open_pump_shutter()
+            
+            else:
+                print("Closing pump shutter")
+                self.harpia.close_pump_shutter()
+
+
 
 
 
