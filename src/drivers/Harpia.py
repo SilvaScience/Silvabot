@@ -77,13 +77,13 @@ class HarpiaDevice():
             
         elif parameter == "target_delay":
             self.update_target_delay(value)
-            
+        """    
         elif parameter == "scan_initial_position":
             self.update_scan_initial_position(value)
             
         elif parameter == "scan_final_position":
             self.update_scan_final_position(value)
-            
+        """    
         
     # Shutter
     def update_pump_shutter(self, state):
@@ -105,7 +105,7 @@ class HarpiaDevice():
         # There is no close function for the third beam shutter in the Harpia API, so we will close all shutters instead
         else:
             print("Closing all shutters")
-            self.harpia.close_all_shutter()
+            self.harpia.close_all_shutters()
 
         self.parameter_dict["third_beam_shutter"] = state
         
@@ -125,7 +125,7 @@ class HarpiaDevice():
             time.sleep(0.2)
 
 class UpdateWorker_Delay(QtCore.QThread):
-    new_Delay = QtCore.puqtSignal(float)
+    new_Delay = QtCore.pyqtSignal(float)
     
     def __init__(self, harpia):
         super().__init__()
