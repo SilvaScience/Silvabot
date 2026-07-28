@@ -34,6 +34,9 @@ devices:
     enabled: true
     driver: drivers.Harpia.Harpia
     fallback: drivers.HarpiaDemo.HarpiaDemo
+  lock-in:
+    enabled: true
+    driver: drivers.Lock_In.Lock_In
 
 comment: 'User: DT
 
