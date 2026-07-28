@@ -42,7 +42,7 @@ class Lock_In():
         self.parameter_dict = {}
         for key in self.parameter_display_dict.keys():
             self.parameter_dict[key] = self.parameter_display_dict[key]['val']
-
+        """""
         # Connect to the appropriate lock-in device
         if self.lock_in_type == 'UHF':
             self.session = Session("localhost")                     # Create a session with the Data Server
@@ -99,65 +99,65 @@ class Lock_In():
             self.clockbase = self.device.clockbase()     # Definition of the internal clock frequency
 
             print('Configuration of the Lock-In completed')
-       
+       """
 
         # Connect to appropriate lock-in device
-        if self.lock_in_type == 'MFLI':
-            self.session = Session("localhost")                     # Create a session with the Data Server
-            self.device = self.session.connect_device("DEV7797")           # Connect to the MFLI, ID is to be defined
-            print('Connection established with the Lock-In')
+        self.lock_in_type == 'MFLI'
+        self.session = Session("localhost")                     # Create a session with the Data Server
+        self.device = self.session.connect_device("DEV7797")           # Connect to the MFLI, ID is to be defined
+        print('Connection established with the Lock-In')
 
-            # Configure the signal input
-            # Voltage input 1
-            self.device.sigins[0].range(1.0)  # Set input range 1.0m (to be determined)
-            self.device.sigins[0].scaling(1.0) # Set input scaling to 1.0 V
-            self.device.sigins[0].ac(False)     # Set the device to AC or DC coupling, to be determined
-            #self.device.sigins[0].imp50()  # Set the input impedance to 50 Ohm, to be determined
+        # Configure the signal input
+        # Voltage input 1
+        self.device.sigins[0].range(1.0)  # Set input range 1.0m (to be determined)
+        self.device.sigins[0].scaling(1.0) # Set input scaling to 1.0 V
+        self.device.sigins[0].ac(False)     # Set the device to AC or DC coupling, to be determined
+        #self.device.sigins[0].imp50()  # Set the input impedance to 50 Ohm, to be determined
 
-            # Current input 1
-            self.device.sigins[1].range(10.0)  # Set input range to 10.0m (to be determined)
-            self.device.sigins[1].scaling(1.0)     # Set the scaling of current input 1 to 1.0 A
+        # Current input 1
+        self.device.sigins[1].range(10.0)  # Set input range to 10.0m (to be determined)
+        self.device.sigins[1].scaling(1.0)     # Set the scaling of current input 1 to 1.0 A
 
-            # Configure the first demodulation (verified the parameters)
-            self.device.demods[0].adcselect(0)                                         # Select the input channel to use
-            self.device.demods[0].enable(True)                                         # Enable the demodulator
-            self.device.demods[0].order(self.parameter_dict['filter_order'])           # Set the filter order
-            self.device.demods[0].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
-            self.device.demods[0].oscselect(0)                                         # Set the oscillator to use
-            self.device.demods[0].sinc()                                               # Enable sinc filter
-            self.device.demods[0].rate()                                               # Set the sampling rate, to be determined
-            self.device.extrefs[0].enable(1)                                            # Enable external reference
-            self.device.demods[0].adcselect()                                          # Select the input channel (to verified) 
+        # Configure the first demodulation (verified the parameters)
+        self.device.demods[0].adcselect(0)                                         # Select the input channel to use
+        self.device.demods[0].enable(True)                                         # Enable the demodulator
+        self.device.demods[0].order(self.parameter_dict['filter_order'])           # Set the filter order
+        self.device.demods[0].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
+        self.device.demods[0].oscselect(0)                                         # Set the oscillator to use
+        self.device.demods[0].sinc()                                               # Enable sinc filter
+        self.device.demods[0].rate()                                               # Set the sampling rate, to be determined
+        self.device.extrefs[0].enable(1)                                            # Enable external reference
+        self.device.demods[0].adcselect()                                          # Select the input channel (to verified) 
 
-            # Configure the second demodulation (verified the parameters)
-            self.device.demods[1].adcselect(1)                                         # Select the input channel to use
-            self.device.demods[1].enable(True)                                         # Enable the demodulator
-            self.device.demods[1].order(self.parameter_dict['filter_order'])           # Set the filter order
-            self.device.demods[1].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
-            self.device.demods[1].oscselect(0)                                         # Set the oscillator to use
-            self.device.demods[1].sinc()                                               # Enable sinc filter
-            self.device.demods[1].rate()                                               # Set the sampling rate, to be determined
-            self.device.extrefs[1].enable(1)                                            # Enable external reference
-            self.device.demods[1].adcselect()                                          # Select the input channel (to verified) 
+        # Configure the second demodulation (verified the parameters)
+        self.device.demods[1].adcselect(1)                                         # Select the input channel to use
+        self.device.demods[1].enable(True)                                         # Enable the demodulator
+        self.device.demods[1].order(self.parameter_dict['filter_order'])           # Set the filter order
+        self.device.demods[1].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
+        self.device.demods[1].oscselect(0)                                         # Set the oscillator to use
+        self.device.demods[1].sinc()                                               # Enable sinc filter
+        self.device.demods[1].rate()                                               # Set the sampling rate, to be determined
+        self.device.extrefs[1].enable(1)                                            # Enable external reference
+        self.device.demods[1].adcselect()                                          # Select the input channel (to verified) 
 
-            # Configure the scope parameters
-            self.scope_module = self.session.modules.scope # Create scope module
-            self.scope_module.mode(1)                      # Select the mode of operation (1 = time domain and triggered acquisition)
-            self.wave_node = self.device.scopes[0].wave    # Define node to acquire data from
-            self.scope_module.subscribe(self.wave_node)    # Subscribe to the scope wave node
-            with self.device.set_transaction():
-                self.device.scopes[0].channel(self.parameter_dict['Displayed_signal_input']) # Select the input channel to acquire
-                self.device.scopes[0].trigenable(True)   # Enable the scope trigger
-                self.device.scopes[0].trigchannel()     # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 2: ref trigger 1, 3: ref trigger 2) (to verified)
-                self.device.scopes[0].trigrising(1)      # Trigger on rising edge
-                self.device.scopes[0].triglevel()        # Trigger level in V (to be determined)
-                self.device.scopes[0].length()           # Set the number of points in the scope (65536 is the maximum number of points) (to be determined)
+        # Configure the scope parameters
+        self.scope_module = self.session.modules.scope # Create scope module
+        self.scope_module.mode(1)                      # Select the mode of operation (1 = time domain and triggered acquisition)
+        self.wave_node = self.device.scopes[0].wave    # Define node to acquire data from
+        self.scope_module.subscribe(self.wave_node)    # Subscribe to the scope wave node
+        with self.device.set_transaction():
+            self.device.scopes[0].channel(self.parameter_dict['Displayed_signal_input']) # Select the input channel to acquire
+            self.device.scopes[0].trigenable(True)   # Enable the scope trigger
+            self.device.scopes[0].trigchannel()     # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 2: ref trigger 1, 3: ref trigger 2) (to verified)
+            self.device.scopes[0].trigrising(1)      # Trigger on rising edge
+            self.device.scopes[0].triglevel()        # Trigger level in V (to be determined)
+            self.device.scopes[0].length()           # Set the number of points in the scope (65536 is the maximum number of points) (to be determined)
 
 
-            # Get the internal clock frequency of the device
-            self.clockbase = self.device.clockbase()     # Definition of the internal clock frequency
+        # Get the internal clock frequency of the device
+        self.clockbase = self.device.clockbase()     # Definition of the internal clock frequency
 
-            print('Configuration of the Lock-In completed')
+        print('Configuration of the Lock-In completed')
 
             
 
