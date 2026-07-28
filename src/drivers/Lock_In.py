@@ -11,10 +11,10 @@ class Lock_In():
     name = 'Lock-In'
     sendProgress = QtCore.pyqtSignal(float)
 
-    def __init__(self, lock_in_type):
+    def __init__(self):
         super(Lock_In, self).__init__()
         # Define the type of lock-in used
-        self.lock_in_type = lock_in_type
+        #self.lock_in_type = lock_in_type
 
         # setting up the parameter dict
         self.parameter_dict = defaultdict()
@@ -44,7 +44,7 @@ class Lock_In():
             self.parameter_dict[key] = self.parameter_display_dict[key]['val']
 
         # Connect to the appropriate lock-in device
-        if lock_in_type == 'UHF':
+        if self.lock_in_type == 'UHF':
             self.session = Session("localhost")                     # Create a session with the Data Server
             self.device = self.session.connect_device("DEV2037")    # Connect to the UHF device (ID DEV2037)
             print('Connection established with the Lock-In')    
@@ -99,9 +99,10 @@ class Lock_In():
             self.clockbase = self.device.clockbase()     # Definition of the internal clock frequency
 
             print('Configuration of the Lock-In completed')
-        
+       
+
         # Connect to appropriate lock-in device
-        if lock_in_type == 'MFLI':
+        if self.lock_in_type == 'MFLI':
             self.session = Session("localhost")                     # Create a session with the Data Server
             self.device = self.session.connect_device("DEV7797")           # Connect to the MFLI, ID is to be defined
             print('Connection established with the Lock-In')
