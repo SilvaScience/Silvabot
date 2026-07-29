@@ -15,6 +15,7 @@ class Lock_In():
         super(Lock_In, self).__init__()
         # Define the type of lock-in used
         #self.lock_in_type = lock_in_type
+        self.lock_in_type = 'MFLI'
 
         # setting up the parameter dict
         self.parameter_dict = defaultdict()
@@ -102,9 +103,9 @@ class Lock_In():
        """
 
         # Connect to appropriate lock-in device
-        self.lock_in_type == 'MFLI'
+        #self.lock_in_type == 'MFLI'
         self.session = Session("localhost")                     # Create a session with the Data Server
-        self.device = self.session.connect_device("DEV7797")           # Connect to the MFLI, ID is to be defined
+        self.device = self.session.connect_device("MF-DEV7797")           # Connect to the MFLI, ID is to be defined
         print('Connection established with the Lock-In')
 
         # Configure the signal input
