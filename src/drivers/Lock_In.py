@@ -104,8 +104,9 @@ class Lock_In():
 
         # Connect to appropriate lock-in device
         #self.lock_in_type == 'MFLI'
-        self.session = Session("localhost")                     # Create a session with the Data Server
-        self.device = self.session.connect_device("dev7797")           # Connect to the MFLI
+        self.session = Session("localhost")   # Create a session with the Data Server
+        #self.session = Session("127.0.0.1")
+        self.device = self.session.connect_device("DEV7797", interface="1GbE")           # Connect to the MFLI
         print('Connection established with the Lock-In')
 
         # Configure the signal input
@@ -116,8 +117,8 @@ class Lock_In():
         #self.device.sigins[0].imp50()  # Set the input impedance to 50 Ohm, to be determined
 
         # Current input 1
-        self.device.sigins[1].range(10.0)  # Set input range to 10.0m (to be determined)
-        self.device.sigins[1].scaling(1.0)     # Set the scaling of current input 1 to 1.0 A
+        #self.device.sigins[1].range(10.0)  # Set input range to 10.0m (to be determined)
+        #self.device.sigins[1].scaling(1.0)     # Set the scaling of current input 1 to 1.0 A
 
         # Configure the first demodulation (verified the parameters)
         self.device.demods[0].adcselect(0)                                         # Select the input channel to use
@@ -127,8 +128,8 @@ class Lock_In():
         self.device.demods[0].oscselect(0)                                         # Set the oscillator to use
         self.device.demods[0].sinc()                                               # Enable sinc filter
         self.device.demods[0].rate()                                               # Set the sampling rate, to be determined
-        self.device.extrefs[0].enable(1)                                            # Enable external reference
-        self.device.demods[0].adcselect()                                          # Select the input channel (to verified) 
+        #self.device.extrefs[0].enable(1)                                            # Enable external reference
+
 
         # Configure the second demodulation (verified the parameters)
         self.device.demods[1].adcselect(1)                                         # Select the input channel to use
@@ -138,8 +139,8 @@ class Lock_In():
         self.device.demods[1].oscselect(0)                                         # Set the oscillator to use
         self.device.demods[1].sinc()                                               # Enable sinc filter
         self.device.demods[1].rate()                                               # Set the sampling rate, to be determined
-        self.device.extrefs[1].enable(1)                                            # Enable external reference
-        self.device.demods[1].adcselect()                                          # Select the input channel (to verified) 
+        #self.device.extrefs[1].enable(1)                                            # Enable external reference
+
 
         # Configure the scope parameters
         self.scope_module = self.session.modules.scope # Create scope module
