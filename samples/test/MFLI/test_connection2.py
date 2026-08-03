@@ -1,12 +1,13 @@
+
+
 from zhinst.toolkit import Session
 
-# Connect to LabOne Data Server
 session = Session("localhost")
+device = session.connect_device("DEV7797", interface="1GbE")
 
-print("Connected to Data Server")
+print(device)
+print(device.root)
 
-devices = session.devices
+from pprint import pprint
 
-# List available devices
-print("Available devices:")
-print(list(devices))
+pprint(session.daq_server.listNodes("/DEV7797/sigins", 0))
