@@ -434,7 +434,7 @@ class MainInterface(QtWidgets.QMainWindow):
             self.Tseries_ref_power_doubleSpinBox.value(), self.Tseries_int_time_WL_doubleSpinBox.value(),
             self.Tseries_int_time_orpheus_doubleSpinBox.value(), self.Tseries_spectra_avg_spinBox.value(),
             self.Tseries_power_dep_checkBox.isChecked(), self.Tseries_filter_pos_lineEdit.text(),
-            self.Tseries_int_time_lineEdit.text())
+            self.Tseries_int_time_lineEdit.text(),self.Tseries_sequence_checkBox.isChecked(),self.Tseries_sequence_lineEdit.text())
 
     def Powerseries_measurement(self):
         # take power dependent measurements as defined in automation GUI section

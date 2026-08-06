@@ -184,7 +184,7 @@
           <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'MS Shell Dlg 2'; font-size:8pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'MS Shell Dlg 2'; font-size:7.8pt; font-weight:400; font-style:normal;&quot;&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;User:&lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;Sample:&lt;br /&gt;Power:&lt;/span&gt;&lt;/p&gt;
 &lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;Wavelength:&lt;/span&gt;&lt;/p&gt;
@@ -324,26 +324,11 @@ p, li { white-space: pre-wrap; }
       <item>
        <widget class="QTabWidget" name="tabWidget">
         <property name="currentIndex">
-         <number>5</number>
+         <number>0</number>
         </property>
         <widget class="QWidget" name="spectro_tab">
          <attribute name="title">
           <string>Spectrum View</string>
-         </attribute>
-        </widget>
-        <widget class="QWidget" name="SLM_tab">
-         <attribute name="title">
-          <string>SLM View</string>
-         </attribute>
-        </widget>
-        <widget class="QWidget" name="spatial_tab">
-         <attribute name="title">
-          <string>Spatial Calibration</string>
-         </attribute>
-        </widget>
-        <widget class="QWidget" name="temporal_tab">
-         <attribute name="title">
-          <string>Temporal Calibration</string>
          </attribute>
         </widget>
         <widget class="QWidget" name="parameter_tab">
@@ -546,7 +531,7 @@ Start:Stepnumber:Stop  Start:Stepnum...
             <x>10</x>
             <y>290</y>
             <width>851</width>
-            <height>221</height>
+            <height>291</height>
            </rect>
           </property>
           <property name="title">
@@ -915,12 +900,54 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
             <string>Select power wheel (power dep only)</string>
            </property>
           </widget>
+          <widget class="QCheckBox" name="Tseries_sequence_checkBox">
+           <property name="geometry">
+            <rect>
+             <x>280</x>
+             <y>220</y>
+             <width>201</width>
+             <height>23</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Sequence measurement</string>
+           </property>
+          </widget>
+          <widget class="QLineEdit" name="Tseries_sequence_lineEdit">
+           <property name="geometry">
+            <rect>
+             <x>450</x>
+             <y>220</y>
+             <width>381</width>
+             <height>20</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="text">
+            <string>f1:180,int:10,a,f1:0,f2:90,int:2000,l1,a,l0</string>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_24">
+           <property name="geometry">
+            <rect>
+             <x>280</x>
+             <y>240</y>
+             <width>561</width>
+             <height>41</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Enter in format: &lt;br/&gt;action1,action2,....   &amp;quot;f1:180&amp;quot; for wheel1 at 180deg    &amp;quot;int:10&amp;quot; for int. time in ms    &amp;quot;l1&amp;quot; for laser diode 1 on&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+          </widget>
          </widget>
          <widget class="QGroupBox" name="groupBox_5">
           <property name="geometry">
            <rect>
             <x>10</x>
-            <y>520</y>
+            <y>580</y>
             <width>851</width>
             <height>201</height>
            </rect>
@@ -1209,8 +1236,8 @@ Start(μm):Step(μm):Stop(μm)  </string>
          <widget class="QPushButton" name="test_pushButton">
           <property name="geometry">
            <rect>
-            <x>20</x>
-            <y>730</y>
+            <x>260</x>
+            <y>800</y>
             <width>75</width>
             <height>23</height>
            </rect>
@@ -1223,9 +1250,9 @@ Start(μm):Step(μm):Stop(μm)  </string>
           <property name="geometry">
            <rect>
             <x>20</x>
-            <y>730</y>
-            <width>120</width>
-            <height>80</height>
+            <y>780</y>
+            <width>221</width>
+            <height>51</height>
            </rect>
           </property>
           <property name="title">
@@ -1244,8 +1271,8 @@ Start(μm):Step(μm):Stop(μm)  </string>
           <widget class="QDoubleSpinBox" name="doubleSpinBox_2">
            <property name="geometry">
             <rect>
-             <x>20</x>
-             <y>50</y>
+             <x>100</x>
+             <y>20</y>
              <width>62</width>
              <height>22</height>
             </rect>
@@ -1265,7 +1292,7 @@ Start(μm):Step(μm):Stop(μm)  </string>
      <x>0</x>
      <y>0</y>
      <width>1272</width>
-     <height>18</height>
+     <height>26</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
