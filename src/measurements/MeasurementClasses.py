@@ -776,7 +776,6 @@ class HelicamBackgroundMeasurement(QtCore.QThread):
 
         #Restarting the CameraWorker
         self.spectrometer.worker.resume()
-
         return
 
     def stop(self):
