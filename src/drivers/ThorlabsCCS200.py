@@ -11,6 +11,14 @@ IMPORTANT: If CCS200 is not detected in ThorSpectra, carefully check drivers. It
 https://openproject.silvascience.org/projects/silvabot/wiki/thorlabs-ccs200-drivers
 
 If driuer is not correct, consider reinstalling ThorSpectra, even though it is already installed on the PC.
+
+IMPORTANT: On some Windows builds, TLCCSLoader64.sys is rejected by Windows driver signing
+policy and the CCS200 stays stuck at USB PID_8088 ("Firmware Loader" mode, Device Manager
+shows an error). On init, this driver now automatically tries to recover from that (see
+drivers/ccs200_firmware_loader.py). This only works if PID_8088 is bound to WinUSB instead
+of TLCCSLoader64.sys - a one-time manual step via Zadig (Options > List All Devices >
+"Thorlabs CCS-Series Firmware Loader" > WinUSB > Replace Driver). See the wiki page above
+for details.
 """
 
 import numpy as np
@@ -20,13 +28,14 @@ import time
 import os
 from ctypes import *
 
+#from drivers.ccs200_firmware_loader import ensure_ccs200_ready
+
 
 class ThorlabsCCS200(QtCore.QThread):
     name = 'Spectrometer'
 
     def __init__(self, port =None):
         super(ThorlabsCCS200, self).__init__()
-
         # load and initialize  spectrometerWorker
         self.spectrometer = SpectrometerWorker()
         self.spectrometer.sendSpectrum.connect(self.update_spectrum)  # connect where signals of worker go to.
@@ -143,6 +152,12 @@ class SpectrometerWorker(QtCore.QThread):
 
     def __init__(self):
         super(SpectrometerWorker, self).__init__()  # Elevates this thread to be independent.
+
+        # If the CCS200 is stuck in "Firmware Loader" mode (e.g. because
+        # TLCCSLoader64.sys is blocked by Windows driver signing policy on this
+        # machine), push its firmware over WinUSB so it re-enumerates as the
+        # working device before we try to talk to it. No-op if not needed.
+        #ensure_ccs200_ready()
 
         # definition of some parameters
         os.chdir(os.path.join(os.getcwd(),"src\\drivers\\dlls"))

@@ -374,7 +374,7 @@ class TSeriesMeasurement(QtCore.QThread):
                                     filter_string = 'filter_wheel_' + filter_number
                                     self.sendParameter.emit(filter_string, value)
                                     print(time.strftime('%H:%M:%S') + f' {filter_string} set to {value}')
-                                    time.sleep(3)
+                                    time.sleep(7)
                                 except ValueError:
                                     print(f'WARNING, unexpected {s} argument')
                             elif s[0] == 'l':
