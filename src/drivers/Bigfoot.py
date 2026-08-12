@@ -8,6 +8,7 @@ parameter_dict (set write and read parameter)
 parameter_display_dict (set Spinbox options)
 set_parameter function (assign set functions)
 
+NOTEL: REQUIRES PYTHON 3.12 (not higher) to work!
 This driver can:
 manage scan commands
 give feedback if motors are idle or not

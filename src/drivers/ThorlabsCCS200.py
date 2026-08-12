@@ -7,6 +7,10 @@ parameter_display_dict (set Spinbox options and read/write)
 set_parameter function (assign set functions)
 
 IMPORTANT: DEVICE ID might need to be adapted in Update Worker (currently line 149) if different PC/device is used
+IMPORTANT: If CCS200 is not detected in ThorSpectra, carefully check drivers. It needs to be exactly as shown in:
+https://openproject.silvascience.org/projects/silvabot/wiki/thorlabs-ccs200-drivers
+
+If driuer is not correct, consider reinstalling ThorSpectra, even though it is already installed on the PC.
 """
 
 import numpy as np

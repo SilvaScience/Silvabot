@@ -83,6 +83,11 @@ class Piezos(QtCore.QThread):
         for key in self.parameter_display_dict.keys():
             self.parameter_dict[key] = self.parameter_display_dict[key]['val']
 
+        # additional functions
+        self.device_setting_function = dict()
+        self.device_setting_function['reset_piezos'] = ('Action', self.reset_positions)
+        self.device_setting_function['stop_piezos'] = ('Action', self.reset_positions)
+
         #Minimum step size
         self.d_min_step = self.set_temp(self.parameter_dict['temperature'])# TO BE REVIEWED/calibrated properly
 
@@ -111,6 +116,16 @@ class Piezos(QtCore.QThread):
             self.parameter_dict['position_z'] = value
             self.anc.wait_move(3) # check if stage is still moving from previous command
             self.anc.move_by(3,round(delta_z/self.d_min_step,5))
+
+    def reset_positions(self):
+        # resets all write parameter to 0.
+        self.parameter_dict['position_x'] = 0
+        self.parameter_dict['position_y'] = 0
+        self.parameter_dict['position_z'] = 0
+
+    def stop_piezo(self):
+        # stops movement of all piezos
+        self.anc.stop()
 
     #This function sets the minimum step according to the temperature
     # THIS NEEDS TO BE REVIEWED 

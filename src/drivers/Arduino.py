@@ -59,6 +59,10 @@ class Arduino(QtCore.QThread):
         #defining waitTime
         self.WaitTime = 0.1
 
+        # additional functions
+        self.device_setting_function = dict()
+        self.device_setting_function['reset_filters'] = ('Action', self.reset_positions)
+
         # PROTOCOL FOR HOMING TO BE IMPLEMENTED
         #close all shutters to initialize
         #self.set_parameter('filter_wheel_1', 50)
@@ -92,6 +96,12 @@ class Arduino(QtCore.QThread):
                 print(time.strftime('%H:%M:%S') + 'Arduino serial timeout exception')
                 self.restart()
             self.parameter_dict['laser_diode'] = value
+
+    def reset_positions(self):
+        # resets all write parameter to 0.
+        self.parameter_dict['filter_wheel_1'] = 0
+        self.parameter_dict['filter_wheel_2'] = 0
+        self.parameter_dict['filter_wheel_3'] = 0
 
     def update_shutter(self,shutter, set_angle):
         # set a shutter to some degree

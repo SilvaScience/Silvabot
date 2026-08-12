@@ -323,38 +323,39 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         self.wls = wls
         wls_span = np.max(wls) - np.min(wls)
 
+        if spec.ndim > 1:
+            for i in range (4):
+                lim1 = self.roi_controls[i][0].value()
+                lim2 = self.roi_controls[i][1].value()
+                if lim2 > lim1:
+        # Added/Modified section : The average between lim1 and lim2 is now calculated for the reference data
+        # and the gen_calib_spectra function is used to do the same for the calibration data.
+                    try:
+                        ref = np.average(self.avg_ref_spec[lim1:lim2,:],axis=0)
+                    except(AttributeError, TypeError):
+                        ref = np.zeros(len(wls))
+                    self.y_ref[i] = ref
 
-        for i in range (4):
-            lim1 = self.roi_controls[i][0].value()
-            lim2 = self.roi_controls[i][1].value()
-            if lim2 > lim1:
-    # Added/Modified section : The average between lim1 and lim2 is now calculated for the reference data 
-    # and the gen_calib_spectra function is used to do the same for the calibration data.
-                try:
-                    ref = np.average(self.avg_ref_spec[lim1:lim2,:],axis=0)
-                except(AttributeError, TypeError):
-                    ref = np.zeros(len(wls))
-                self.y_ref[i] = ref
+                    try:
+                        if i == 0:
+                            self.gen_calib_spectra()
+                    except(AttributeError, TypeError):
+                        self.y_calib[i] = np.zeros(len(wls))
+                    self.y[i] = np.average(spec[lim1:lim2,:],axis=0)
 
-                try:
-                    if i == 0:
-                        self.gen_calib_spectra()
-                except(AttributeError, TypeError):
-                    self.y_calib[i] = np.zeros(len(wls))
-                self.y[i] = np.average(spec[lim1:lim2,:],axis=0)
+                else:
+                    self.y[i] = spec[self.roi_controls[i][0].value()]
+            # Arrange arrays for usage in 'eval' expression
+            try:
+                y = self.y
+                y_ref = self.y_ref
+                y_calib = self.y_calib
+                self.y[4] = eval(self.input_line.text())
+            except KeyError:
+                print('Incorrect expression, key out of range')
+            except SyntaxError:
+                print('Incorrect expression, syntax error')
 
-            else:
-                self.y[i] = spec[self.roi_controls[i][0].value()]
-        # Arrange arrays for usage in 'eval' expression
-        try:
-            y = self.y
-            y_ref = self.y_ref
-            y_calib = self.y_calib
-            self.y[4] = eval(self.input_line.text())
-        except KeyError:
-            print('Incorrect expression, key out of range')
-        except SyntaxError:
-            print('Incorrect expression, syntax error')
         if self.checkbox_bg.isChecked():
             spec = spec - self.bg_spec
         self.wls = wls

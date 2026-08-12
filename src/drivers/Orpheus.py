@@ -35,7 +35,7 @@ class Orpheus(QtCore.QObject):
         self.match = None
         if self.match is None:
             print('Device with serial number %s not found. Try connect with base address' % serialNumber)
-            self.baseAddress =  "http://192.168.1.120:8000/P24909/v0/PublicAPI"
+            self.baseAddress =  "http://192.168.1.134:8000/P24909/v0/PublicAPI"
         else:
             self.baseAddress = self.match['PublicApiRestUrl_Version0']
 
@@ -94,9 +94,11 @@ class Orpheus(QtCore.QObject):
 
     def set_parameter(self, parameter, value):
         if parameter == 'set_wl':
+            self.parameter_dict['set_wl'] = value
             self.put('/Optical/WavelengthControl/SetWavelengthUsingAnyInteraction', json.dumps(value))
             self.wait_till_wl_is_set()
         if parameter == "shutter":
+            self.parameter_dict['shutter']  = value
             if value < 100:
                 self.put('/ShutterInterlock/OpenCloseShutter', False)
             else:

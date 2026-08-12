@@ -148,6 +148,19 @@ class MainInterface(QtWidgets.QMainWindow):
                 self.parameters_treeWidget.setItemWidget(child, 0, name_widget)
                 self.parameters_treeWidget.setItemWidget(child, 1, self.parameter_widgets[param])
 
+        # load write parameters from previous session into devices
+        for device in self.devices.keys():
+            try:
+                if device in self.config["session_parameters"]:
+                    for param in self.devices[device].parameter_dict.keys():
+                        if not param in self.readonly_parameter:
+                            previous_value = self.config["session_parameters"][device][param]
+                            self.devices[device].parameter_dict[param] = previous_value
+                            self.parameter_widgets[param].setValue(previous_value)
+            except:
+                pass
+
+
         # start DataHandling
         self.DataHandling = DataHandling(self.parameter, self.spec_length)
         self.DataHandling.sendParameterarray.connect(self.ParameterPlot.set_data)
@@ -180,9 +193,6 @@ class MainInterface(QtWidgets.QMainWindow):
         self.acquire_bg_pushButton.clicked.connect(self.background_measurement)
         self.select_bg_pushButton.clicked.connect(self.load_bg)
         self.bg_checkBox.stateChanged.connect(self.update_check_bg)
-        #self.twoD_tau_lineEdit.editingFinished.connect(self.twoD_tau_positions)
-        self.twoD_run_pushButton.clicked.connect(self.twoD_measurement)
-        #self.helicam_bg_button.clicked.connect(self.helicam_background_measurement)
         self.ParameterPlot.send_idx_change.connect(self.DataHandling.change_send_idx)
         self.ParameterPlot.send_parameter_filename.connect(self.DataHandling.save_parameter)
         self.kinetic_lineEdit.editingFinished.connect(self.change_kinetic_interval)
@@ -192,6 +202,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.Powerseries_run_pushButton.clicked.connect(self.Powerseries_measurement)
         self.chirp_scan_run_pushButton.clicked.connect(self.chirp_scan_measurement)
         self.compressor_scan_run_pushButton.clicked.connect(self.compressor_scan_measurement)
+        self.BF_scan_run_pushButton.clicked.connect(self.BF_measurement)
 
         # run some functions once to define default values
         self.change_filename()
@@ -391,10 +402,10 @@ class MainInterface(QtWidgets.QMainWindow):
             self.bg_scans_spinBox.value(), self.filename, self.comments_textEdit.toPlainText(),
             extra_connections={"sendSave": self.DataHandling.save_data})
 
-    def twoD_measurement(self):
+    def BF_measurement(self):
         # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
-        self.start_measurement('TwoDMeasurement', self.devices, self.twoD_tau_spinBox.value(),
-            self.twoD_step_spinBox.value(), self.twoD_tau_start_spinBox.value(),self.twoD_avg_spinBox.value())
+        self.start_measurement('BFMeasurement', self.devices, self.BF_scan_lineEdit.text(),
+                               self.BF_axis_spinBox.value())
 
     def chirp_scan_measurement(self):
         # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
@@ -405,9 +416,6 @@ class MainInterface(QtWidgets.QMainWindow):
         # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
         self.start_measurement('CompressorMeasurement',self.devices,self.compressor_scan_lineEdit.text(),
                                self.twoD_avg_spinBox.value())
-
-    def helicam_background_measurement(self):
-        self.start_measurement('HelicamBackgroundMeasurement',self.devices)
 
     def kinetic_measurement(self):
         # take time dependent measurement as defined in autmoation GUI section
@@ -439,6 +447,13 @@ class MainInterface(QtWidgets.QMainWindow):
         for device in self.devices:
             if hasattr(self.devices[device], 'close_device'):
                 self.devices[device].close_device()
+            # store device write parameters for next restart
+            self.config["session_parameters"] = {}
+            for device in self.devices.keys(): #loop through all write parameters
+                self.config["session_parameters"][device] = {}
+                for param in self.devices[device].parameter_dict.keys():
+                    if not param in self.readonly_parameter:
+                        self.config["session_parameters"][device][param] = self.devices[device].parameter_dict[param]
 
         # Add/update the comment field
         self.config["comment"] = (self.comments_textEdit.toPlainText())
@@ -460,7 +475,7 @@ class UpdateWorker(QtCore.QThread):
         self.read_only = read_only
         self.stop = False
         self.updated_param = {}
-        self.update_interval = 2
+        self.update_interval = 0.5
 
     def run(self):
         while not self.stop:

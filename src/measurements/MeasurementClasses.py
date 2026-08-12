@@ -552,43 +552,39 @@ class PowerSeriesMeasurement(QtCore.QThread):
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
 
-
-class TwoDMeasurement(QtCore.QThread):
+class BFMeasurement(QtCore.QThread):
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)  # Final averaged image (e.g., A_opt)
     sendProgress = QtCore.pyqtSignal(float)
     sendSave = QtCore.pyqtSignal(str, str)
     sendParameter = QtCore.pyqtSignal(str, float)
 
-    def __init__(self, devices, tau_max_value, tau_step_value,twoD_step_start_value,avg_value):
-        super(TwoDMeasurement, self).__init__()
+    def __init__(self, devices, BF_scan_lineEdit,t_axis_value):
+        super(BFMeasurement, self).__init__()
         self.spectrometer = devices['spectrometer']
         self.Bigfoot = devices['bigfoot']
         self.wls = []  # preallocate wls array
         self.spec = []  # preallocate spec array
-        lv.connect()
-        step = tau_step_value #lv.LV_Control.read_scan_params()[1] #### can be changed if needed, or added with a button in the interface
-        self.tau_array =  np.arange(twoD_step_start_value, tau_max_value + step, step)
-        self.avg_value = avg_value
-        print('Measure 2D map with following tau array:', self.tau_array)
+        line_components = [float(x) for x in re.split(':', BF_scan_lineEdit)]
+        self.BF_scan_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
+        if t_axis_value ==1:
+            self.scan_axis = 'tau'
+        elif t_axis_value ==2:
+            self.scan_axis = 'T_pop'
+        elif t_axis_value ==3:
+            self.scan_axis = 't'
+        print(f'Measure BF scan at axis {self.scan_axis} following delays:', self.BF_scan_array)
         self.terminate = False
 
     def run(self):
         self.wls = np.array(self.spectrometer.get_wavelength())
-        for i,tau_value in enumerate(self.tau_array):
+        for i,t_value in enumerate(self.BF_scan_array):
             if not self.terminate:  # check whether stopping measurement is called
-                self.sendProgress.emit(i/len(self.tau_array)*100)
-                print(time.strftime('%H:%M:%S') + f' Move tau stage to tau= {tau_value} fs')
-                self.sendParameter.emit('tau', tau_value)
-                bigfoot_busy = True
-                time.sleep(0.1)
-                while bigfoot_busy: # check for movement of tau stage.
-                    bigfoot_busy = self.Bigfoot.check_stage()
-                    print(time.strftime('%H:%M:%S') + f' tau stage moving. Status: {bigfoot_busy}')
-                    time.sleep(0.1)
-                for j in range(self.avg_value):
-                    self.spec = np.array(self.spectrometer.get_intensities())
-                    self.sendSpectrum.emit(self.wls, self.spec)
-                    print(time.strftime('%H:%M:%S') + f' Spectrum acquired for tau= {tau_value} fs')
+                self.sendProgress.emit(i/len(self.BF_scan_array)*100)
+                self.sendParameter.emit(self.scan_axis, t_value)
+                #time.sleep(0.5) # no feedback on when SCMP is set.
+                self.spec = np.array(self.spectrometer.get_intensities())
+                self.sendSpectrum.emit(self.wls, self.spec)
+                print(time.strftime('%H:%M:%S') + f' Spectrum acquired for {self.scan_axis}= {t_value} fs')
 
         self.sendProgress.emit(100)
         print(time.strftime('%H:%M:%S') + ' Finished')
@@ -671,61 +667,6 @@ class CompressorMeasurement(QtCore.QThread):
 
         self.sendProgress.emit(100)
         print(time.strftime('%H:%M:%S') + ' Finished')
-        return
-
-    def stop(self):
-        self.terminate = True
-        print(time.strftime('%H:%M:%S') + ' Request Stop')
-
-
-
-
-class HelicamBackgroundMeasurement(QtCore.QThread):
-    sendSpectrum = QtCore.pyqtSignal(np.ndarray)  # Final averaged image (e.g., A_opt)
-    #sendSave = QtCore.pyqtSignal(str, str)
-    #sendParameter = QtCore.pyqtSignal(str, float)
-
-    def __init__(self, devices):
-        super(HelicamBackgroundMeasurement, self).__init__()
-        self.spectrometer = devices['spectrometer']
-        self.wls = []  # preallocate wls array
-        self.spec = []  # preallocate spec array
-        self.terminate = False
-        #self.acquiring = True
-
-    def run(self):
-        print(time.strftime('%H:%M:%S') + "HelicamBackgroundMeasurement started")
-
-        #Stopping the CameraWorker
-        self.spectrometer.worker.pause()
-        while self.spectrometer.worker.processing:
-            time.sleep(0.1)
-
-        #Acquiring data
-        self.wls = np.array(self.spectrometer.get_wavelength())
-        if not self.terminate:
-            rawI, rawQ = self.spectrometer.worker.acquire()
-            twoD_avgI = np.mean(rawI, axis=0)
-            twoD_avgQ = np.mean(rawQ, axis=0)
-            twoD_IdivQ = twoD_avgI / twoD_avgQ
-            self.sendSpectrum.emit(twoD_avgI)
-            print(time.strftime('%H:%M:%S'), ': Acquisition complete')
-            time.sleep(0.5)
-        print(time.strftime('%H:%M:%S') + 'HelicamBackgroundMeasurement done')
-
-        #Downloading the data
-        ty_res = time.localtime(time.time())
-        timestamp = time.strftime("%H_%M_%S", ty_res)
-        folder = r"C:\DATA\BIGFOOT\2025-07-23"
-        filename = os.path.join(folder, "bg_wo_light" + timestamp + '.h5')
-        with h5py.File(filename, 'w') as f:
-            f.create_dataset('averaged_rawI', data=twoD_avgI)
-            f.create_dataset('averaged_rawQ', data=twoD_avgQ)
-        print(time.strftime('%H:%M:%S') + 'HelicamBackgroundMeasurement saved')
-
-        #Restarting the CameraWorker
-        self.spectrometer.worker.resume()
-
         return
 
     def stop(self):
