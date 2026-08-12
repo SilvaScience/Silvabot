@@ -134,78 +134,224 @@ class ThorlabsCCS200(QtCore.QThread):
 
 
 class SpectrometerWorker(QtCore.QThread):
-    """ This is the Worker for the spectrometer.
-    It continously acquires spectra and emits them to the Interface.
-    It interrupts data acquisition if an int_time change is requested. Its important because most
-    hardware can only handle one command at a time, acquiring or changeing settings.  """
-    # These are signals that allow to send data from a child thread to the parent hierarchy.
+    """
+    Worker for the Thorlabs CCS200 spectrometer.
+
+    Continuously acquires spectra and emits them to the interface.
+
+    If an acquisition does not complete within acquisition_timeout,
+    the USB connection to the spectrometer is closed and reinitialized.
+    """
+
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, float)
 
+    DEVICE_ID = b"USB0::0x1313::0x8089::M00582935::RAW"
+
     def __init__(self):
-        super(SpectrometerWorker, self).__init__()  # Elevates this thread to be independent.
+        super(SpectrometerWorker, self).__init__()
 
-        # definition of some parameters
-        os.chdir(os.path.join(os.getcwd(),"src\\drivers\\dlls"))
+        # Load DLL
+        os.chdir(os.path.join(os.getcwd(), "src\\drivers\\dlls"))
         self.lib = cdll.LoadLibrary("TLCCS_64.dll")
-        self.ccs_handle = c_int(0)
-        # windows device manager -> NI-VISA USB Device -> Spectrometer -> Properties -> Details -> Device Instance ID
-        self.lib.tlccs_init(b"USB0::0x1313::0x8089::M00582935::RAW", 1, 1, byref(self.ccs_handle))
 
+        # Parameters
         self.spec_length = 3648
         self.int_time = 500
-        integration_time = c_double(10.0e-3)
-        integration_time = c_double(0.2)
-        self.lib.tlccs_setIntegrationTime(self.ccs_handle, c_double(self.int_time/1E3))
-        # start scan
-        self.lib.tlccs_startScan(self.ccs_handle)
-
-
-        self.wavelengths_c = (c_double * self.spec_length)()
-        self.spectrum_c = (c_double * self.spec_length)()
-        self.lib.tlccs_getWavelengthData(self.ccs_handle, 0, byref(self.wavelengths_c), c_void_p(None), c_void_p(None))
-        self.wavelengths = np.ctypeslib.as_array(self.wavelengths_c)
-
-        self.spec_range = np.r_[0:2048]
-        self.change_int_time = False
-        self.spectrum = np.zeros(self.spec_length)
         self.updated_int_time = 500
-        self.avg_scans = 1
+
+        self.change_int_time = False
         self.terminate = False
 
+        self.spectrum = np.zeros(self.spec_length)
+
+        # Connection parameters
+        self.ccs_handle = c_int(0)
+        self.connected = False
+
+        # Number of reconnect attempts
+        self.max_reconnect_attempts = 3
+
+        # Acquisition timeout:
+        # integration time + additional margin
+        self.acquisition_timeout = 3.0
+
+        # ctypes arrays
+        self.wavelengths_c = (c_double * self.spec_length)()
+        self.spectrum_c = (c_double * self.spec_length)()
+
+        # Connect to spectrometer
+        if not self.connect_spectrometer():
+            print("Spectro Worker: Initial connection failed.")
+
+    # ------------------------------------------------------------------
+    # CONNECTION MANAGEMENT
+    # ------------------------------------------------------------------
+
+    def connect_spectrometer(self):
+        """
+        Initialize/reinitialize the CCS200 connection.
+
+        Returns
+        -------
+        bool
+            True if connection was successfully initialized.
+        """
+        try:
+            print("Spectro Worker: Connecting to CCS200...")
+            self.ccs_handle = c_int(0)
+            status = self.lib.tlccs_init(self.DEVICE_ID,1,1,byref(self.ccs_handle))
+            # A zero/negative handle generally indicates failure
+            if self.ccs_handle.value <= 0:
+                self.connected = False
+                return False
+
+            # Set integration time
+            status = self.lib.tlccs_setIntegrationTime(self.ccs_handle,c_double(self.int_time * 1E-3))
+
+            # Get wavelength calibration
+            status = self.lib.tlccs_getWavelengthData(self.ccs_handle ,0 ,
+                byref(self.wavelengths_c), c_void_p(None), c_void_p(None))
+            self.wavelengths = np.ctypeslib.as_array(self.wavelengths_c).copy()
+            self.connected = True
+            print("Spectro Worker: CCS200 connected successfully.")
+            return True
+        except Exception as e:
+            print(f"Spectro Worker: Connection error: {e}")
+            self.connected = False
+            return False
+
+    def disconnect_spectrometer(self):
+        """
+        Close the CCS200 connection.
+        """
+        if not self.connected:
+            return
+        try:
+            print("Spectro Worker: Closing CCS200 connection...")
+            self.lib.tlccs_close(self.ccs_handle)
+        except Exception as e:
+            print(f"Spectro Worker: Error while closing CCS200: {e}")
+        finally:
+            self.connected = False
+            self.ccs_handle = c_int(0)
+
+    def reconnect_spectrometer(self):
+        """
+        Close and reinitialize the CCS200 connection.
+        """
+        print("Spectro Worker: Restarting spectrometer connection...")
+        self.disconnect_spectrometer()
+        # Give Windows/USB driver some time to release the device
+        time.sleep(0.5)
+        for attempt in range(1, self.max_reconnect_attempts + 1):
+            print(f"Spectro Worker: Reconnect attempt {attempt}/{self.max_reconnect_attempts}")
+            if self.connect_spectrometer():
+                # Give the spectrometer a moment to stabilize
+                time.sleep(0.2)
+                print("Spectro Worker: Reconnection successful.")
+                return True
+            time.sleep(1.0)
+        print("Spectro Worker: Reconnection FAILED.")
+        return False
+
+    # ------------------------------------------------------------------
+    # THREAD
+    # ------------------------------------------------------------------
+
     def run(self):
-        """" Continuous tasks of the Worker are defined here.
-        If loops check for requested changes in settings prior each acquisition. """
-        while not self.terminate:  # infinite loop
-            if not self.change_int_time:
-                self.spectrum = self.getIntensities()
-                if not self.change_int_time:
-                    self.sendSpectrum.emit(self.spectrum, self.int_time)
-            else:
+        """
+        Continuous acquisition loop.
+        """
+        while not self.terminate:
+            # Handle integration-time changes
+            if self.change_int_time:
                 if self.int_time == self.updated_int_time:
                     self.change_int_time = False
                 else:
-                    print('Spectro Worker: Acquisition stopped to change int time')
+                    print("Spectro Worker: Acquisition stopped to change int time")
                     self.set_int_time(self.updated_int_time)
-                    self.change_int_time = True
+                    # Give hardware some time to settle
                     time.sleep(0.1)
+                continue
+            # Acquire spectrum
+            spectrum = self.getIntensities()
+            # getIntensities returns None when acquisition failed
+            if spectrum is None:
+                print("Spectro Worker: Spectrum acquisition failed. Attempting reconnect...")
+
+                if self.reconnect_spectrometer():
+                    print("Spectro Worker: Reconnected. Resuming acquisition.")
+                    spectrum = self.getIntensities()
+                else:
+                    print("Spectro Worker: Could not reconnect. Retrying in 2 s.")
+                    time.sleep(2.0)
+                    spectrum = np.zeros(3648)
+                continue
+
+            # Only emit if integration time has not changed
+            if not self.change_int_time:
+                self.sendSpectrum.emit(spectrum,self.int_time)
         return
 
+    # ------------------------------------------------------------------
+    # ACQUISITION
+    # ------------------------------------------------------------------
+
     def getIntensities(self):
-        # create random spectrum. Some varying random signal helps to check functionality.
-        self.lib.tlccs_startScan(self.ccs_handle)
-        status = c_int(0)
-        while (status.value & 0x0010) == 0:
-            self.lib.tlccs_getDeviceStatus(self.ccs_handle, byref(status))
-            time.sleep(0.01)
-        self.lib.tlccs_getScanData(self.ccs_handle, byref(self.spectrum_c))
-        self.spectrum = np.ctypeslib.as_array(self.spectrum_c)
-        return self.spectrum
+        """
+        Acquire one spectrum.
+
+        If the spectrometer does not finish the acquisition within
+        acquisition_timeout, return None so that the worker can reconnect.
+        """
+
+        if not self.connected:
+            return None
+
+        try:
+            # Start scan
+            status_start = self.lib.tlccs_startScan(self.ccs_handle)
+            # Maximum allowed waiting time
+            timeout = self.int_time * 1E-3 + 2.0
+            start_time = time.monotonic()
+            status = c_int(0)
+            while not self.terminate:
+                self.lib.tlccs_getDeviceStatus(self.ccs_handle,byref(status))
+                # 0x0010 = scan complete
+                if status.value & 0x0010:
+                    break
+                # Timeout
+                if time.monotonic() - start_time > timeout:
+                    print(f"Spectro Worker: Acquisition timeout. Status = 0x{status.value:04X}")
+                    return None
+                time.sleep(0.01)
+            # Check termination
+            if self.terminate:
+                return None
+            # Retrieve spectrum
+            status_data = self.lib.tlccs_getScanData(self.ccs_handle,byref(self.spectrum_c))
+            self.spectrum = np.ctypeslib.as_array(self.spectrum_c).copy()
+            return self.spectrum
+        except Exception as e:
+            print(f"Spectro Worker: Acquisition exception: {e}")
+            return None
+
+    # ------------------------------------------------------------------
+    # INTEGRATION TIME
+    # ------------------------------------------------------------------
 
     def set_int_time(self, int_time):
-        # This function is called from the interface.
-        # It prepares the change of the integration before the next spectrum is acquired.
+        """
+        Prepare and apply a new integration time.
+        """
         self.change_int_time = True
         self.updated_int_time = int_time
-        time.sleep(self.int_time*1E-3)
-        self.lib.tlccs_setIntegrationTime(self.ccs_handle, c_double(int_time*1E-3)) # int. time in s
-        self.int_time = self.updated_int_time
+        # Wait approximately until current acquisition has finished
+        time.sleep(self.int_time * 1E-3)
+        try:
+            status = self.lib.tlccs_setIntegrationTime(self.ccs_handle,c_double(int_time * 1E-3))
+            self.int_time = self.updated_int_time
+        except Exception as e:
+            print(f"Spectro Worker: Error changing integration time: {e}")
+            # Force reconnection
+            self.connected = False
