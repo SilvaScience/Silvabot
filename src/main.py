@@ -193,9 +193,6 @@ class MainInterface(QtWidgets.QMainWindow):
         self.acquire_bg_pushButton.clicked.connect(self.background_measurement)
         self.select_bg_pushButton.clicked.connect(self.load_bg)
         self.bg_checkBox.stateChanged.connect(self.update_check_bg)
-        #self.twoD_tau_lineEdit.editingFinished.connect(self.twoD_tau_positions)
-        self.twoD_run_pushButton.clicked.connect(self.twoD_measurement)
-        #self.helicam_bg_button.clicked.connect(self.helicam_background_measurement)
         self.ParameterPlot.send_idx_change.connect(self.DataHandling.change_send_idx)
         self.ParameterPlot.send_parameter_filename.connect(self.DataHandling.save_parameter)
         self.kinetic_lineEdit.editingFinished.connect(self.change_kinetic_interval)
@@ -205,6 +202,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.Powerseries_run_pushButton.clicked.connect(self.Powerseries_measurement)
         self.chirp_scan_run_pushButton.clicked.connect(self.chirp_scan_measurement)
         self.compressor_scan_run_pushButton.clicked.connect(self.compressor_scan_measurement)
+        self.BF_scan_run_pushButton.clicked.connect(self.BF_measurement)
 
         # run some functions once to define default values
         self.change_filename()
@@ -404,10 +402,10 @@ class MainInterface(QtWidgets.QMainWindow):
             self.bg_scans_spinBox.value(), self.filename, self.comments_textEdit.toPlainText(),
             extra_connections={"sendSave": self.DataHandling.save_data})
 
-    def twoD_measurement(self):
+    def BF_measurement(self):
         # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
-        self.start_measurement('TwoDMeasurement', self.devices, self.twoD_tau_spinBox.value(),
-            self.twoD_step_spinBox.value(), self.twoD_tau_start_spinBox.value(),self.twoD_avg_spinBox.value())
+        self.start_measurement('BFMeasurement', self.devices, self.BF_scan_lineEdit.text(),
+                               self.BF_axis_spinBox.value())
 
     def chirp_scan_measurement(self):
         # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
@@ -418,9 +416,6 @@ class MainInterface(QtWidgets.QMainWindow):
         # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
         self.start_measurement('CompressorMeasurement',self.devices,self.compressor_scan_lineEdit.text(),
                                self.twoD_avg_spinBox.value())
-
-    def helicam_background_measurement(self):
-        self.start_measurement('HelicamBackgroundMeasurement',self.devices)
 
     def kinetic_measurement(self):
         # take time dependent measurement as defined in autmoation GUI section
