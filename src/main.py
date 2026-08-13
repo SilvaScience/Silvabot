@@ -69,6 +69,14 @@ class MainInterface(QtWidgets.QMainWindow):
             # Add device to device dictionary
             self.devices[name] = device
 
+        # Link the spectrometer to a monochromator when the setup provides both (Pixis, Stresing).
+        # Done after the loop above so it doesn't depend on the order devices are listed in config.yaml.
+        spectrometer = self.devices.get('spectrometer')
+        monochromator = self.devices.get('monochromator')
+        if monochromator and spectrometer is not None and hasattr(spectrometer, 'attach_to_monochromator'):
+            spectrometer.attach_to_monochromator(monochromator)
+            print(f"spectrometer: attached to monochromator ({monochromator.name})")
+
         # initial parameter values, retrieved from devices
         self.parameter_dic = defaultdict(lambda: defaultdict(dict))
         for device in self.devices.keys():
