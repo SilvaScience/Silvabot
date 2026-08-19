@@ -304,9 +304,24 @@ class MainInterface(QtWidgets.QMainWindow):
                 for signal_name, slot in extra_connections.items():
                     if hasattr(self.measurement, signal_name):
                         getattr(self.measurement, signal_name).connect(slot)
+
+            """ Safety net: QThread.finished always fires when run() returns, whether it completed
+            normally or ended via an uncaught exception (e.g. a driver's TimeoutError). The normal
+            path already resets measurement_busy/DataHandling via set_progress(100); this catches
+            every case where run() ends without ever reaching that -- which otherwise left
+            measurement_busy stuck at True, rejecting every later measurement as "devices are busy"
+            until the app was restarted, since a QThread's own exceptions aren't visible to the
+            try/except below (that only wraps construction and the non-blocking call to .start()). """
+            self.measurement.finished.connect(self.on_measurement_finished)
             self.measurement.start()
 
         except Exception as e:
+            # Without this, a measurement that fails during construction (e.g. a missing driver
+            # module) leaves measurement_busy stuck at True forever, since it's normally only
+            # cleared by set_progress() reaching 100% -- which a measurement that never started
+            # will never send. Every later start_measurement() call would then be rejected with
+            # "devices are busy" until the app was restarted.
+            self.measurement_busy = False
             print(f'Measurement not started, Exception: {e}')
 
     def create_parameter_array(self):
@@ -367,6 +382,14 @@ class MainInterface(QtWidgets.QMainWindow):
             # assigned DataHandling.spec_length, an attribute DataHandling never reads (it uses
             # .speclength), so the reset was silently a no-op.
             self.DataHandling.resize_spec_length(self.spec_length)
+
+    def on_measurement_finished(self):
+        """ Safety-net slot for QThread.finished (see start_measurement()). Redundant with
+        set_progress(100) on the normal completion path -- both just end up setting the same two
+        things -- but it's the only one of the two that also runs when a measurement's run() raises
+        before ever emitting sendProgress(100). """
+        self.measurement_busy = False
+        self.DataHandling.resize_spec_length(self.spec_length)
 
     def change_folder(self):
         # select folder to save data
@@ -511,7 +534,10 @@ class MainInterface(QtWidgets.QMainWindow):
     ### stopping functions ###
     def stop_measurement(self):
         # stop measurement
-        self.measurement.stop()
+        # self.measurement is only set once construction in start_measurement() succeeds, so a stop
+        # requested when no measurement ever started (or the last one failed) has nothing to stop.
+        if hasattr(self, 'measurement'):
+            self.measurement.stop()
         self.measurement_busy = False
 
     def closeEvent(self, event):
