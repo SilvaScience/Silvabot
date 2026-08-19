@@ -113,6 +113,31 @@ class MainInterface(QtWidgets.QMainWindow):
         # create parameter array for easy access
         self.create_parameter_array()
 
+        """ Grating selector for the monochromator, as a labelled dropdown instead of the bare
+        numeric spinbox the generic parameter tree would otherwise show. Only built when a
+        monochromator device is present AND exposes grating_densities -- setups without a
+        monochromator (most existing experiments) or with a different monochromator driver that
+        doesn't expose this attribute get no dropdown and no change in behaviour: the tree below
+        falls back to showing 'grating' the same way it shows every other parameter. """
+        self.grating_combo = None
+        monochromator = self.devices.get('monochromator')
+        if monochromator is not None and hasattr(monochromator, 'grating_densities'):
+            self.grating_combo = QtWidgets.QComboBox()
+            blazes = getattr(monochromator, 'grating_blazes', None)
+            for index, density in enumerate(monochromator.grating_densities, start=1):
+                # Density alone doesn't always disambiguate: two gratings on the same turret can
+                # share a groove density and differ only by blaze wavelength.
+                if blazes is not None and len(blazes) >= index:
+                    label = f'{index}  ({density:.0f} g/mm, blaze {blazes[index - 1]:.0f} nm)'
+                else:
+                    label = f'{index}  ({density:.0f} g/mm)'
+                self.grating_combo.addItem(label, index)
+            current = int(round(getattr(monochromator, 'grating', 1)))
+            position = self.grating_combo.findData(current)
+            if position >= 0:
+                self.grating_combo.setCurrentIndex(position)
+            self.grating_combo.currentIndexChanged.connect(self.change_grating)
+
         # add items to GUI
         self.SpectrometerPlot = SpectrometerPlot()
         vbox = QtWidgets.QVBoxLayout()
@@ -137,6 +162,13 @@ class MainInterface(QtWidgets.QMainWindow):
                 child =QtWidgets.QTreeWidgetItem()
                 item.addChild(child)
                 name_widget = QtWidgets.QLabel(param)
+                # 'grating' gets the labelled dropdown built above instead of a bare spinbox, when
+                # that dropdown exists. Placed directly in its normal tree row (under Monochromator)
+                # rather than elsewhere in the GUI, so it reads like every other hardware parameter.
+                if device == 'monochromator' and param == 'grating' and self.grating_combo is not None:
+                    self.parameters_treeWidget.setItemWidget(child, 0, name_widget)
+                    self.parameters_treeWidget.setItemWidget(child, 1, self.grating_combo)
+                    continue
                 self.parameter_widgets[param] = QtWidgets.QDoubleSpinBox()
                 #self.parameter_widgets[param].setFixedSize(self.parameter_widgets[param].__sizeof__(), 16)
                 self.parameter_widgets[param].setReadOnly(self.parameter_dic[device][param]['read'])
@@ -166,7 +198,11 @@ class MainInterface(QtWidgets.QMainWindow):
                         if not param in self.readonly_parameter:
                             previous_value = self.config["session_parameters"][device][param]
                             self.devices[device].parameter_dict[param] = previous_value
-                            self.parameter_widgets[param].setValue(previous_value)
+                            # 'grating' has no tree widget when the dropdown owns it (see above) --
+                            # skip rather than raise, so restoring the rest of this device's
+                            # parameters (e.g. central_wave, mirror) still runs to completion.
+                            if param in self.parameter_widgets:
+                                self.parameter_widgets[param].setValue(previous_value)
             except:
                 pass
 
@@ -294,6 +330,18 @@ class MainInterface(QtWidgets.QMainWindow):
                 self.devices[device].set_parameter(new_parameter, value)
                 # change parameter in DataHandling
                 self.parameter[new_parameter] = value
+
+    def change_grating(self, index):
+        """ Slot for the grating dropdown built in __init__ (only exists when the monochromator
+        exposes grating_densities). Mirrors set_parameter's device lookup / DataHandling update,
+        since 'grating' is excluded from the generic parameter tree that set_parameter reads from. """
+        value = self.grating_combo.itemData(index)
+        if value is None:
+            return
+        monochromator = self.devices.get('monochromator')
+        if monochromator is not None:
+            monochromator.set_parameter('grating', value)
+            self.parameter['grating'] = value
 
     def test_button_clicked(self):
         # test function to test anything
