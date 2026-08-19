@@ -116,6 +116,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
         # add firstplot for Acquire mode
         self.first_plot = True
+        self.preview_plot = None
 
         # create random example data set
         sigma = 40
@@ -437,6 +438,11 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         self.graphWidget.addItem(self.crosshair_v, ignoreBounds=True)
         self.graphWidget.addItem(self.crosshair_h, ignoreBounds=True)
         self.graphWidget.addItem(self.img)
+        # clear() removes every item, bin_region included. Put it back the same way img is, or the
+        # sensor view's draggable region is gone for the rest of the session after one Clear.
+        self.graphWidget.addItem(self.bin_region, ignoreBounds=True)
+        self.preview_plot = None
+        self.first_plot = True
         self.plotcounter = 0
 
     # New functions that allow to load reference and calibration data
@@ -509,6 +515,15 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
     def set_data(self, wls, spec):
+        """ A stitched acquisition leaves its last live preview on the plot: set_data_preview only
+        removes the previous preview when the next one arrives, and the last one has no successor.
+        This finished result supersedes it. Leaving both drew the uncorrected preview on top of the
+        corrected result, which looked exactly like the background correction having done nothing --
+        the two curves overlap everywhere except by the background level. """
+        if self.preview_plot is not None:
+            self.graphWidget.removeItem(self.preview_plot)
+            self.preview_plot = None
+            self.first_plot = True
         self.wls = wls
         wls_span = np.max(wls) - np.min(wls)
 
