@@ -140,6 +140,13 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # add items to GUI
         self.SpectrometerPlot = SpectrometerPlot()
+        # Shows the camera mode button only for spectrometers that can read a full 2D frame as well
+        # as an on-chip binned region; hidden for everything else. See set_spectrometer().
+        self.SpectrometerPlot.set_spectrometer(self.devices.get('spectrometer'))
+        # Lets the sensor view share the same busy gate as every other hardware-touching action:
+        # it won't open while a measurement runs, and marks the app busy while it streams.
+        self.SpectrometerPlot.is_busy = lambda: self.measurement_busy
+        self.SpectrometerPlot.set_busy = lambda busy: setattr(self, 'measurement_busy', busy)
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(self.SpectrometerPlot)
         self.spectro_tab.setLayout(vbox)
@@ -249,6 +256,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.chirp_scan_run_pushButton.clicked.connect(self.chirp_scan_measurement)
         self.compressor_scan_run_pushButton.clicked.connect(self.compressor_scan_measurement)
         self.BF_scan_run_pushButton.clicked.connect(self.BF_measurement)
+        self.SpectrometerPlot.readout_region_changed.connect(self.set_readout_region)
 
         # run some functions once to define default values
         self.change_filename()
@@ -354,6 +362,22 @@ class MainInterface(QtWidgets.QMainWindow):
                 self.devices[device].set_parameter(new_parameter, value)
                 # change parameter in DataHandling
                 self.parameter[new_parameter] = value
+
+    def set_readout_region(self, y0, height):
+        """ Slot for SpectrometerPlot.readout_region_changed -- a drag in the sensor view. Writes
+        into the roi_y0/roi_height tree widgets and pushes them through set_parameter, the same route
+        a typed change takes, so the drag can't leave the tree showing one region and the camera
+        holding another. setValue alone would not do it: the widgets fire on editingFinished, which
+        is a user action only. """
+        for param, value in (('roi_y0', y0), ('roi_height', height)):
+            if param in self.parameter_widgets:
+                self.parameter_widgets[param].setValue(value)
+                self.set_parameter(param)
+        # set_parameter's device call clips to the sensor, so show back what was actually applied.
+        spectrometer = self.devices.get('spectrometer')
+        if spectrometer is not None and hasattr(spectrometer, 'get_roi'):
+            applied_y0, applied_height, _ = spectrometer.get_roi()
+            self.SpectrometerPlot.set_region_display(applied_y0, applied_height)
 
     def change_grating(self, index):
         """ Slot for the grating dropdown built in __init__ (only exists when the monochromator

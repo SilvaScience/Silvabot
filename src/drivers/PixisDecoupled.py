@@ -138,6 +138,24 @@ class PixisDecoupled(QtCore.QThread):
         self.roi_height = int(self.hardware_params.get('roi_height', self.sensor_height))
         self.roi_binning = int(self.hardware_params.get('roi_binning', self.roi_height))
         self.set_roi(self.roi_y0, self.roi_height, self.roi_binning, restart=False)
+        """ Exposed as ordinary hardware parameters so the readout region is set from the parameter
+        tree like int_time, and is saved/restored with the rest of the session. Declared here rather
+        than with the others above because their bounds depend on sensor_height, which is only known
+        once the camera has been queried. """
+        self.parameter_display_dict['roi_y0']['val'] = self.roi_y0
+        self.parameter_display_dict['roi_y0']['unit'] = ' row'
+        self.parameter_display_dict['roi_y0']['max'] = max(self.sensor_height - 1, 0)
+        self.parameter_display_dict['roi_y0']['read'] = False
+        self.parameter_display_dict['roi_height']['val'] = self.roi_height
+        self.parameter_display_dict['roi_height']['unit'] = ' rows'
+        self.parameter_display_dict['roi_height']['max'] = self.sensor_height
+        self.parameter_display_dict['roi_height']['read'] = False
+        self.parameter_dict['roi_y0'] = self.roi_y0
+        self.parameter_dict['roi_height'] = self.roi_height
+        """ True while the sensor view holds the camera at full frame. The readout region stays
+        settable from the tree during that time, but applying it would collapse the very image the
+        view exists to show, so it is only recorded until the view closes (see set_parameter). """
+        self.full_frame_view = False
 
         # initialize camera
         self.worker = CameraWorker(self.camera,self.int_time)
@@ -164,6 +182,12 @@ class PixisDecoupled(QtCore.QThread):
         elif parameter == 'avg_scan':
             self.parameter_dict['avg_scan'] = value
             self.avg_scan = int(value)
+        elif parameter in ('roi_y0', 'roi_height'):
+            self.parameter_dict[parameter] = value
+            if self.full_frame_view:
+                # Sensor view is open: recording only. apply_readout_region() runs on close.
+                return
+            self.apply_readout_region()
 
 
     def update_spectrum(self, spec, int_time):
@@ -324,13 +348,26 @@ class PixisDecoupled(QtCore.QThread):
                 - y0 (int): index of the first sensor row of the signal
                 - height (int): number of rows the signal spans
         """
+        self.full_frame_view = False
         return self.set_roi(y0, height, binning=height)
+
+    def apply_readout_region(self):
+        """
+            Applies roi_y0/roi_height from the parameter dict as the on-chip binned readout region,
+            and writes back what was actually applied -- set_roi() clips to the sensor, so the tree
+            would otherwise keep showing a region the camera never accepted.
+        """
+        self.set_binned_roi(int(self.parameter_dict['roi_y0']), int(self.parameter_dict['roi_height']))
+        self.parameter_dict['roi_y0'] = self.roi_y0
+        self.parameter_dict['roi_height'] = self.roi_height
+        return self.roi_y0, self.roi_height
 
     def set_full_frame(self):
         """
             Alignment mode: read every sensor row separately, giving the full 2D image.
             Slower and noisier per row, but shows where the signal actually sits on the slit.
         """
+        self.full_frame_view = True
         return self.set_roi(0, self.sensor_height, binning=1)
 
     def get_roi(self):
