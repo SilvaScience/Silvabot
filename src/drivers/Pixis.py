@@ -3,9 +3,22 @@
 Created on Mon Apr  28 15:09:53 2025
 
 @author: David Tiede
+
 Hardware class to control spectrometer. All hardware classes require a definition of
 parameter_display_dict (set Spinbox options and read/write)
 set_parameter function (assign set functions)
+
+RELATION TO PixisDecoupled.py
+-----------------------------
+Same camera, different wiring. This driver opens the monochromator's serial port itself
+(see write_command) and speaks SP2150 commands, so camera, monochromator and this table's
+optical calibration all live here -- the calibration constants are literals in
+calculate_wavelength_array().
+
+PixisDecoupled.py drives only the camera, takes the monochromator as a separate device in
+config.yaml, and reads its calibration from hardware_params. Use that one for a new setup.
+This one is kept as-is for setups already running against it: it is unchanged, so nothing
+needs to be migrated. Neither driver imports the other.
 
 NOTE:
 - Communication with Pixis is kind of slow (150ms), such that in the current interface a new image is acquired every 150ms
