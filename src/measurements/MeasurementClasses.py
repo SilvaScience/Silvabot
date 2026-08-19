@@ -567,6 +567,12 @@ class AcquireSpectrum(QtCore.QThread):
     keep a real overlap and blend it with a weight that ramps linearly from one segment to the next,
     rather than a hard cut. """
     OVERLAP_FRACTION = 0.2
+    """ Spacing of the wavelength grid the finished spectrum is delivered on, in nm. A constant
+    rather than something measured from the hardware, and that is the whole point: it makes the
+    output a function of the request alone. Slightly finer than Pixis+SP2300i's native ~0.06 nm/px,
+    so the result is mildly oversampled -- the harmless direction. Override per setup with
+    hardware_params['stitch_step_nm'] if a grating is coarse enough that this wastes points. """
+    OUTPUT_STEP_NM = 0.05
 
     def __init__(self, devices, parameter, start_wl, stop_wl):
         super(AcquireSpectrum, self).__init__()
@@ -611,11 +617,25 @@ class AcquireSpectrum(QtCore.QThread):
         # Overestimates the number of positions needed to cover [start_wl, end_wl]; the +1 ensures
         # the full requested range is covered even when it doesn't divide evenly by step_nm.
         self.nb_of_spectra = int(np.ceil((self.end_wl - self.start_wl) / self.step_nm) + 1)
-        # Length of the stitched spectrum this measurement will hand to DataHandling, which
-        # preallocates its buffers to match before this measurement runs (see main.py). The first
-        # position contributes points_kept points; every later one blends over overlap_points of
-        # them (replacing, not adding to, the existing tail) and appends only the rest.
-        self.spec_length = self.points_kept + (self.nb_of_spectra - 1) * (self.points_kept - self.overlap_points)
+        """ The wavelength grid the result is delivered on, fixed by the request alone: same
+        start, same stop, same number of points for the same [start_wl, stop_wl], every run.
+
+        Everything above is measured from the spectrometer at whichever position the monochromator
+        happened to be sitting when the run started, and a grating's window is not the same width
+        in nm at every wavelength (~60 nm near 500, ~54 nm near 780 on this one). Deriving the
+        output grid from that made two runs of the same request disagree on their length, their
+        last wavelength, or -- worst -- agree on length while covering different ranges, which is
+        what let a background be subtracted point-for-point from a spectrum recorded up to several
+        nm away. Those measurements still decide how far the grating moves and how many exposures
+        are taken; they no longer decide what the result is sampled on.
+
+        It also makes spec_length exactly right by construction. It used to be predicted from
+        points_kept and the overlap, and DataHandling preallocates its buffers from it before the
+        measurement runs, so an off-by-one there was a shape mismatch at save time. """
+        step_nm = float(getattr(self.spectrometer, 'hardware_params', {}) .get('stitch_step_nm', self.OUTPUT_STEP_NM))
+        n_points = max(int(round((self.end_wl - self.start_wl) / step_nm)) + 1, 2)
+        self.out_wls = np.linspace(self.start_wl, self.end_wl, n_points)
+        self.spec_length = len(self.out_wls)
 
     """ Widest correction a single seam is allowed to apply, as a factor. Grating efficiency changes
     gently between adjacent positions, so a genuine correction sits near 1.0; anything far outside
@@ -781,8 +801,27 @@ class AcquireSpectrum(QtCore.QThread):
         # partial, unevenly-spaced spectrum, not something DataHandling/a saved file should receive
         # as if it were the complete requested range.
         if not self.terminate:
-            self.sendSpectrum.emit(np.array(self.wls), np.array(self.spec))
+            self.sendSpectrum.emit(self.out_wls, self._resample(np.array(self.wls), np.array(self.spec)))
         self.sendProgress.emit(100)
+
+    def _resample(self, wls, spec):
+        """
+            Puts the stitched spectrum on out_wls, the grid fixed by the request.
+            The sweep is planned to overshoot stop_wl, so out_wls sits inside what was actually
+            measured and this interpolates rather than extrapolates. np.interp clamps to the end
+            values outside that range, which at most affects a point or two at the very start if
+            rounding put the first segment marginally above start_wl.
+            input:
+                - wls (np.ndarray): stitched wavelengths, as measured
+                - spec (np.ndarray): stitched spectrum, same length
+            output:
+                - np.ndarray: spec on out_wls
+        """
+        if len(wls) == 0:
+            return np.zeros(len(self.out_wls))
+        # np.interp needs increasing x, and a grating can run either way depending on calibration.
+        order = np.argsort(wls)
+        return np.interp(self.out_wls, wls[order], spec[order])
 
     def stop(self):
         self.terminate = True
