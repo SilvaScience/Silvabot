@@ -282,6 +282,15 @@ class MainInterface(QtWidgets.QMainWindow):
             cls = load_class(f"{'measurements.MeasurementClasses'}.{cls}")
             self.measurement = cls(*args)
 
+            if hasattr(self.measurement, 'spec_length'):
+                # DataHandling's buffers were just preallocated (clear_data() above) for the
+                # device's default spec_length. A measurement whose output is a different length
+                # needs DataHandling resized to match before any data arrives, or
+                # concatenate_data's np.c_[self.spec, spec] raises on the shape mismatch. Reset
+                # back to the device default in set_progress() once it reaches 100%.
+                self.DataHandling.resize_spec_length(self.measurement.spec_length)
+                self.DataHandling.clear_data()
+
             # standard connections
             if hasattr(self.measurement, "sendProgress"):
                 self.measurement.sendProgress.connect(self.set_progress)
@@ -353,7 +362,11 @@ class MainInterface(QtWidgets.QMainWindow):
         self.progressBar.setValue(int(progress))
         if progress == 100.:
             self.measurement_busy = False
-            self.DataHandling.spec_length = self.spec_length #needed to reset DataHandling preallocation after measurements with large spectra
+            # Resets DataHandling's buffer size back to the device default after measurements
+            # with large/variable-length spectra (see start_measurement()). This previously
+            # assigned DataHandling.spec_length, an attribute DataHandling never reads (it uses
+            # .speclength), so the reset was silently a no-op.
+            self.DataHandling.resize_spec_length(self.spec_length)
 
     def change_folder(self):
         # select folder to save data

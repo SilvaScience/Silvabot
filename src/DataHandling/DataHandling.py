@@ -35,6 +35,7 @@ class DataHandling(QtCore.QThread):
         # initialize data arrays, their uses are explained in the corresponding functions
         self.speclength = speclength
         self.data_dim = np.size(speclength) #dimension of data
+        # kept in sync with speclength -- see resize_spec_length()
         self.parameter_queue = {} # initialize FIFO queues for parameter storage
         self.parameter_queue['time'] = deque(maxlen=200000)
         self.parameter_queue['absolute_time'] = deque(maxlen=200000)
@@ -79,6 +80,17 @@ class DataHandling(QtCore.QThread):
         self.BufferWorker.moveToThread(self.thread)
         self.thread.start()
         self.bufferSaveSignal.connect(self.BufferWorker.save_buffer)
+
+    def resize_spec_length(self, speclength):
+        """ Changes the spectrum length DataHandling preallocates for, e.g. when a measurement's
+        output doesn't match the configured device's own spec_length. speclength and data_dim must
+        always change together -- data_dim is only computed from speclength once, in __init__, so a
+        caller that set self.speclength directly without also updating self.data_dim left them out
+        of sync: switching from a 2D device's tuple spec_length (e.g. Heliotis' (542,512)) to a
+        measurement's scalar spec_length kept data_dim==2, and clear_data()'s data_dim==2 branch
+        then evaluated self.speclength[0] on a plain int. """
+        self.speclength = speclength
+        self.data_dim = np.size(speclength)
 
     # main update device parameter function
     def update_parameter(self, parameter):
