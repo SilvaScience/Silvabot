@@ -11,7 +11,6 @@ from PyQt5 import QtCore
 import numpy as np
 import h5py
 import os
-from jki_python_bridge_for_labview import labview as lv
 
 
 # Measurement to acquire one spectrum
