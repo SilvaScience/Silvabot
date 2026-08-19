@@ -12,6 +12,11 @@ import os
 
 class SpectrometerPlot(QtWidgets.QMainWindow):
 
+    """ Emitted when the readout region is dragged in the sensor view, as (y0, height). This widget
+    has no access to the parameter tree -- main.py connects this to the same path a typed change to
+    roi_y0/roi_height takes, so the drag and the tree stay one setting rather than two. """
+    readout_region_changed = QtCore.pyqtSignal(int, int)
+
     def __init__(self, *args, **kwargs):
         super(SpectrometerPlot, self).__init__(*args, **kwargs)
 
@@ -22,10 +27,30 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         hist_view = pg.GraphicsLayoutWidget()
         hist_view.addItem(self.hist)
         hist_view.setMaximumWidth(80)
+
+        """ Live sensor view, for cameras that can read their full 2D frame as well as an on-chip
+        binned region (currently PixisDecoupled: set_full_frame/set_binned_roi). It reuses the
+        ImageItem and histogram already above rather than adding a panel, so the layout is
+        unchanged, and stays hidden for every camera that doesn't support it -- see
+        set_spectrometer(). The readout region itself is NOT set here: it lives in the Hardware
+        parameter tree as roi_y0/roi_height, like int_time. This view only shows where to put it,
+        and dragging writes back into those parameters. """
+        self.spectrometer = None
+        self.sensor_height = None
+        """ Set by main.py to callables reading/writing its measurement_busy flag -- the same gate
+        every hardware-touching action goes through, so the sensor view can't stream while a real
+        measurement uses the same camera, or vice versa. None until main.py wires them up. """
+        self.is_busy = None
+        self.set_busy = None
+        self.bin_region = pg.LinearRegionItem(orientation='horizontal', movable=True)
+        self.bin_region.setVisible(False)
+        self.bin_region.sigRegionChangeFinished.connect(self._on_bin_region_changed)
+        self._live_frame_shape = None  # forces one autoLevels pass on the first frame of a session
         graph_box = QtWidgets.QHBoxLayout()
         graph_box.addWidget(self.graphWidget)
         graph_box.addWidget(hist_view)
         self.graphWidget.addItem(self.img)
+        self.graphWidget.addItem(self.bin_region, ignoreBounds=True)
         self.hist.setImageItem(self.img)
         self.clear_button = QtWidgets.QPushButton('Clear')
         self.bg_button = QtWidgets.QPushButton('Select Background')
@@ -35,6 +60,30 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         bg_hbox.addWidget(self.bg_button)
         bg_hbox.addWidget(QtWidgets.QLabel("Correct background:"))
         bg_hbox.addWidget(self.checkbox_bg)
+        """ Wavelength range for the 'Acquire spectrum' button, which sweeps the monochromator and
+        stitches the spectra taken at each position (see AcquireSpectrum). Put here, at the top of
+        the plot it produces, rather than in Quick Control next to the button: that group box has a
+        fixed 55px height with its five buttons on the only row that fits, so a second row there
+        would have grown a bar every experiment sees. Hidden unless the spectrometer has a
+        monochromator to move -- see set_spectrometer(). """
+        self.stitch_label = QtWidgets.QLabel('Scan range (nm):')
+        self.stitch_start_spinBox = QtWidgets.QDoubleSpinBox()
+        self.stitch_start_spinBox.setRange(0, 2000)
+        self.stitch_start_spinBox.setDecimals(1)
+        self.stitch_start_spinBox.setValue(500)
+        self.stitch_dash_label = QtWidgets.QLabel('-')
+        self.stitch_stop_spinBox = QtWidgets.QDoubleSpinBox()
+        self.stitch_stop_spinBox.setRange(0, 2000)
+        self.stitch_stop_spinBox.setDecimals(1)
+        self.stitch_stop_spinBox.setValue(660)
+        self.stitch_widgets = (self.stitch_label, self.stitch_start_spinBox,
+                               self.stitch_dash_label, self.stitch_stop_spinBox)
+        for w in self.stitch_widgets:
+            w.setVisible(False)
+            bg_hbox.addWidget(w)
+        # Absorbs the row's slack, so the background controls sit together on the left instead of
+        # the button stretching across and pushing its own checkbox to the far right.
+        bg_hbox.addStretch(1)
         bg_widget = QtWidgets.QWidget()
         bg_widget.setLayout(bg_hbox)
         vbox.addWidget(self.clear_button)
@@ -67,6 +116,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
         # add firstplot for Acquire mode
         self.first_plot = True
+        self.preview_plot = None
 
         # create random example data set
         sigma = 40
@@ -113,6 +163,133 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         # connect events
         self.clear_button.clicked.connect(self.clear_plot)
         self.bg_button.clicked.connect(self.load_background)
+
+    def set_spectrometer(self, spectrometer):
+        """
+            Shows the camera mode button when the given spectrometer can read both its full 2D frame
+            and an on-chip binned region, and can stream live frames (currently PixisDecoupled).
+            Called once from main.py after devices are loaded. For any other spectrometer the button
+            stays hidden and nothing about this widget changes.
+        """
+        self.spectrometer = spectrometer
+        capable = (spectrometer is not None
+                   and hasattr(spectrometer, 'set_binned_roi')
+                   and hasattr(spectrometer, 'set_full_frame')
+                   and hasattr(spectrometer, 'get_roi')
+                   and hasattr(spectrometer, 'worker'))
+        self.camera_mode_button.setVisible(capable)
+        # Stitching needs a monochromator to move between grating positions; without one the range
+        # inputs would feed a button that can only fail. Hidden rather than disabled, so a setup
+        # that can't stitch sees the row exactly as before.
+        can_stitch = getattr(spectrometer, 'monochromator', None) is not None
+        for widget in self.stitch_widgets:
+            widget.setVisible(can_stitch)
+        if capable:
+            self.sensor_height = int(getattr(spectrometer, 'sensor_height', 4096))
+            y0, height, _ = spectrometer.get_roi()
+            self.set_region_display(y0, height)
+
+    def sensor_view_active(self):
+        """ True while the camera is held at full frame for the live view. main.py asks so that
+            finishing a measurement hands the busy flag back to the view instead of clearing it. """
+        return self.camera_mode_button.isChecked()
+
+    def set_region_display(self, y0, height):
+        """ Moves the visual region without echoing back out as a drag. Called from
+            set_spectrometer() and from main.py whenever roi_y0/roi_height change in the tree, so
+            the region on screen always shows the region the camera actually has. """
+        self.bin_region.blockSignals(True)
+        self.bin_region.setRegion((y0, y0 + height))
+        self.bin_region.blockSignals(False)
+
+    def _on_bin_region_changed(self):
+        """ Slot for bin_region.sigRegionChangeFinished -- fires once per drag gesture, not
+            continuously while dragging. Emits rather than driving the camera directly: the readout
+            region is a hardware parameter, and it takes the same route whether it was dragged here
+            or typed into the parameter tree. """
+        y0, y1 = self.bin_region.getRegion()
+        self.readout_region_changed.emit(int(round(y0)), max(int(round(y1 - y0)), 1))
+
+    def toggle_camera_mode(self, checked):
+        """
+            Slot for camera_mode_button. Pressed, the camera reads its full frame and streams it
+            here live, so the signal's position on the slit is visible. Released, the camera returns
+            to the binned readout region held in roi_y0/roi_height.
+
+            The view only shows: it never applies a region of its own. Dragging goes through
+            readout_region_changed like any other change to those parameters, so closing the view
+            can't silently apply something that was never asked for.
+        """
+        if self.spectrometer is None:
+            return
+        if checked:
+            if self.is_busy is not None and self.is_busy():
+                """ Refuse to touch the camera while a real measurement is using it -- switching to
+                full frame here would reconfigure the readout out from under it. Revert the button
+                without re-entering this slot (setChecked(False) would otherwise fire toggled(False)
+                and run the release branch for a mode never actually entered). """
+                print('Sensor view not opened: a measurement is currently using this device.')
+                self.camera_mode_button.blockSignals(True)
+                self.camera_mode_button.setChecked(False)
+                self.camera_mode_button.blockSignals(False)
+                return
+            self.camera_mode_button.setText('Camera: 2D')
+            self.img.setVisible(True)
+            self.bin_region.setVisible(True)
+            self._live_frame_shape = None
+            self.spectrometer.set_full_frame()
+            self.spectrometer.worker.sendSpectrum.connect(self.set_live_frame)
+            self.spectrometer.start_acquisition()
+            """ Locks the Y-axis to the sensor's row range. Left on auto-range it keeps whatever the
+            previous 1D plot set (intensity counts, unrelated to row index), which squeezes the image
+            into a sliver and puts the region nowhere near where a drag needs to land. """
+            self.graphWidget.getViewBox().disableAutoRange(axis=pg.ViewBox.YAxis)
+            self.graphWidget.setYRange(0, self.sensor_height or 256, padding=0)
+            # Busy for as long as the view streams, so a measurement started elsewhere in the GUI is
+            # rejected instead of running concurrently on this camera.
+            if self.set_busy is not None:
+                self.set_busy(True)
+        else:
+            self.camera_mode_button.setText('Camera: 1D')
+            self.spectrometer.stop_acquisition()
+            try:
+                self.spectrometer.worker.sendSpectrum.disconnect(self.set_live_frame)
+            except TypeError:
+                pass  # already disconnected
+            self.bin_region.setVisible(False)
+            self.img.setVisible(False)
+            self.graphWidget.getViewBox().enableAutoRange(axis=pg.ViewBox.YAxis)
+            # Re-applies roi_y0/roi_height, which full-frame was temporarily overriding.
+            self.spectrometer.apply_readout_region()
+            if self.set_busy is not None:
+                self.set_busy(False)
+
+    @QtCore.pyqtSlot(np.ndarray, float)
+    def set_live_frame(self, frame, int_time):
+        """
+            Live feed connected straight to the camera worker while the sensor view is open. Kept
+            separate from set_data()/DataHandling on purpose -- this frame was never requested as a
+            measurement and must never be saved or counted as one.
+        """
+        if frame.ndim < 2:
+            return
+        """ Without this the image keeps ImageItem's identity transform and is plotted against raw
+        pixel index on an axis labelled nm. Recomputed every frame (cheap) rather than cached, since
+        the calibration follows the monochromator and can change while the view is open. """
+        if hasattr(self.spectrometer, 'get_wavelength'):
+            wls = self.spectrometer.get_wavelength()
+            wls_span = np.max(wls) - np.min(wls)
+            tr = QtGui.QTransform()
+            tr.translate(np.min(wls), 0)
+            tr.scale(wls_span / len(wls), 1)
+            self.img.setTransform(tr)
+        auto = frame.shape != self._live_frame_shape
+        self._live_frame_shape = frame.shape
+        if auto:
+            self.img.setImage(np.transpose(frame), autoLevels=True)
+            self.hist.setLevels(*self.img.getLevels())
+        else:
+            self.img.setImage(np.transpose(frame), autoLevels=False, levels=self.hist.getLevels())
 
     def load_background(self):
         data_path = QtWidgets.QFileDialog.getOpenFileName()[0]
@@ -236,6 +413,19 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         hbox.addWidget(QtWidgets.QLabel("show Limits:"))
         self.checkbox_limits = QtWidgets.QCheckBox()
         hbox.addWidget(self.checkbox_limits)
+        """ A button rather than another checkbox on purpose: the two neighbours above are display
+        choices about data already acquired, this one changes what the camera reads out. Its label
+        names the camera's current state so the two can't be confused. Hidden unless the camera
+        supports it (set_spectrometer), so nothing changes for any other experiment. """
+        self.camera_mode_button = QtWidgets.QPushButton('Camera: 1D')
+        self.camera_mode_button.setCheckable(True)
+        self.camera_mode_button.setVisible(False)
+        self.camera_mode_button.setToolTip(
+            "Show the live 2D sensor frame, to see where the signal sits on the slit.\n"
+            "Drag the horizontal region to set the camera's readout region -- the same\n"
+            "roi_y0/roi_height shown under Hardware. Press again to return to 1D.")
+        self.camera_mode_button.toggled.connect(self.toggle_camera_mode)
+        hbox.addWidget(self.camera_mode_button)
         hbox_widget.setLayout(hbox)
         layout.addWidget(hbox_widget)
         return layout
@@ -248,6 +438,11 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         self.graphWidget.addItem(self.crosshair_v, ignoreBounds=True)
         self.graphWidget.addItem(self.crosshair_h, ignoreBounds=True)
         self.graphWidget.addItem(self.img)
+        # clear() removes every item, bin_region included. Put it back the same way img is, or the
+        # sensor view's draggable region is gone for the rest of the session after one Clear.
+        self.graphWidget.addItem(self.bin_region, ignoreBounds=True)
+        self.preview_plot = None
+        self.first_plot = True
         self.plotcounter = 0
 
     # New functions that allow to load reference and calibration data
@@ -320,6 +515,15 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
     def set_data(self, wls, spec):
+        """ A stitched acquisition leaves its last live preview on the plot: set_data_preview only
+        removes the previous preview when the next one arrives, and the last one has no successor.
+        This finished result supersedes it. Leaving both drew the uncorrected preview on top of the
+        corrected result, which looked exactly like the background correction having done nothing --
+        the two curves overlap everywhere except by the background level. """
+        if self.preview_plot is not None:
+            self.graphWidget.removeItem(self.preview_plot)
+            self.preview_plot = None
+            self.first_plot = True
         self.wls = wls
         wls_span = np.max(wls) - np.min(wls)
 

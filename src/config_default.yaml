@@ -1,14 +1,118 @@
 devices:
   cryostat:
     enabled: false
-    driver: drivers.Cryocore.Cryocore
+    driver: drivers.Cryocore.Cryocore # Options: .CryoPasqal (Pascal cryostat)
     fallback: drivers.CryoDemo.CryoDemo
+  # Shared by the Pixis and Stresing spectrometer options below: both attach to this monochromator
+  # in main.py after all devices are loaded, and read its live grating/central wavelength through
+  # get_monochromator_parameters(). Not needed for ThorlabsCCS200, Heliotis or OceanSpectrometer.
+  monochromator:
+    enabled: false
+    driver: drivers.SpectraPro2300i.SpectraPro2300i
+    fallback: drivers.SpectraPro2300iDemo.SpectraPro2300iDemo
+    init_args:
+      port: COM5
   spectrometer:
     enabled: true
-    driver: drivers.ThorlabsCCS200.ThorlabsCCS200 # Options: .Heliotis, .Pixis, .OceanSpectrometer,
+    driver: drivers.ThorlabsCCS200.ThorlabsCCS200 # Options: .Heliotis, .Pixis, .PixisDecoupled, .OceanSpectrometer, .Stresing.StresingCamera
     fallback: drivers.SpectrometerDemo_advanced.SpectrometerDemo
     init_args:
       port: 'COM10'
+  # To use the Pixis instead: enable the monochromator above, then replace the spectrometer
+  # block with the following. Note this is PixisDecoupled, not Pixis -- Pixis.py drives its
+  # own SP2150 over serial and takes init_args: port instead, and is kept for the setups
+  # already running against it.
+  #
+  # spectrometer:
+  #   enabled: true
+  #   driver: drivers.PixisDecoupled.PixisDecoupled
+  #   fallback: drivers.SpectrometerDemo_advanced.SpectrometerDemo
+  #   init_args:
+  #     hardware_params:
+  #       pixel_size_mm: 0.026
+  #       num_pixels: 1024
+  #       focal_length_mm: 300
+  #       calibrated: true
+  #       # Dispersion-equation constants fit per grating -- different groove density/blaze angle
+  #       # change the optical path enough that one grating's fit doesn't describe another's. Keys
+  #       # are grating numbers as they read on the monochromator (?GRATING).
+  #       # These describe one camera on one table with one monochromator. Move any of the three
+  #       # and they must be refit: the grating numbers still resolve, calibrated stays true, and
+  #       # you get a wrong wavelength axis with no error.
+  #       gratings:
+  #         '1':
+  #           f: 300000000.0
+  #           delta: 0.5
+  #           gamma: 0.1
+  #           n0: 507.14285714285717
+  #           offset_adjust: 0
+  #           d_grating: 833.3333333333334
+  #           x_pixel: 26000
+  #           curvature: 0.0
+  #         '2':
+  #           f: 296772481.19608825
+  #           delta: -0.1011307412781098
+  #           gamma: 0.5254178460808079
+  #           n0: 498.85714285714283
+  #           offset_adjust: 0
+  #           d_grating: 833.3333333333334
+  #           x_pixel: 26000
+  #           curvature: 0.0
+  #         '3':
+  #           f: 305859374.99999994
+  #           delta: 0.021862966763817993
+  #           gamma: 0.5415310171886933
+  #           n0: 507.0
+  #           offset_adjust: 0
+  #           d_grating: 3333.333333333333
+  #           x_pixel: 26000
+  #           curvature: 0.0
+  #
+  # To use Stresing instead: enable monochromator above, then replace the spectrometer block with:
+  #
+  # spectrometer:
+  #   enabled: true
+  #   driver: drivers.Stresing.StresingCamera
+  #   fallback: drivers.SpectrometerDemo_advanced.SpectrometerDemo
+  #   init_args:
+  #     hardware_params:
+  #       pixel_size_mm: 0.024
+  #       num_pixels: 1010
+  #       focal_length_mm: 300
+  #       calibrated: true
+  #       calibrationThirdOrder: -3e-5
+  #       calibrationSlope: 0.9891
+  #       calibrationOffset: -51.163
+  #       # Gratings 1 and 2 are not yet calibrated for Stresing (still the single pre-multi-grating
+  #       # fit, duplicated as a placeholder); only grating 3 has its own real fit.
+  #       gratings:
+  #         '1':
+  #           f: 305381928.6149399
+  #           delta: 0.11432112488955509
+  #           gamma: 0.5337955112241486
+  #           n0: 539.4
+  #           offset_adjust: 0
+  #           d_grating: 833.3333333333334
+  #           x_pixel: 24000.0
+  #           curvature: 5.736575254871788e-07
+  #         '2':
+  #           f: 305381928.6149399
+  #           delta: 0.11432112488955509
+  #           gamma: 0.5337955112241486
+  #           n0: 539.4
+  #           offset_adjust: 0
+  #           d_grating: 833.3333333333334
+  #           x_pixel: 24000.0
+  #           curvature: 5.736575254871788e-07
+  #         '3':
+  #           f: 305859374.99999994
+  #           delta: 0.021862966763817993
+  #           gamma: 0.5415310171886933
+  #           n0: 507.0
+  #           offset_adjust: 0
+  #           d_grating: 3333.333333333333
+  #           x_pixel: 26000
+  #           curvature: 0.0
   orpheus:
     enabled: false
     driver: drivers.orpheus.Orpheus

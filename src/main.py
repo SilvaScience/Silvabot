@@ -69,6 +69,16 @@ class MainInterface(QtWidgets.QMainWindow):
             # Add device to device dictionary
             self.devices[name] = device
 
+        # Link the spectrometer to a monochromator when the setup provides both (PixisDecoupled,
+        # Stresing). Done after the loop above so it doesn't depend on the order devices are listed
+        # in config.yaml. Spectrometers without attach_to_monochromator (ThorlabsCCS200, Heliotis,
+        # OceanSpectrometer, the original Pixis) are left untouched.
+        spectrometer = self.devices.get('spectrometer')
+        monochromator = self.devices.get('monochromator')
+        if monochromator and spectrometer is not None and hasattr(spectrometer, 'attach_to_monochromator'):
+            spectrometer.attach_to_monochromator(monochromator)
+            print(f"spectrometer: attached to monochromator ({monochromator.name})")
+
         # initial parameter values, retrieved from devices
         self.parameter_dic = defaultdict(lambda: defaultdict(dict))
         for device in self.devices.keys():
@@ -103,8 +113,40 @@ class MainInterface(QtWidgets.QMainWindow):
         # create parameter array for easy access
         self.create_parameter_array()
 
+        """ Grating selector for the monochromator, as a labelled dropdown instead of the bare
+        numeric spinbox the generic parameter tree would otherwise show. Only built when a
+        monochromator device is present AND exposes grating_densities -- setups without a
+        monochromator (most existing experiments) or with a different monochromator driver that
+        doesn't expose this attribute get no dropdown and no change in behaviour: the tree below
+        falls back to showing 'grating' the same way it shows every other parameter. """
+        self.grating_combo = None
+        monochromator = self.devices.get('monochromator')
+        if monochromator is not None and hasattr(monochromator, 'grating_densities'):
+            self.grating_combo = QtWidgets.QComboBox()
+            blazes = getattr(monochromator, 'grating_blazes', None)
+            for index, density in enumerate(monochromator.grating_densities, start=1):
+                # Density alone doesn't always disambiguate: two gratings on the same turret can
+                # share a groove density and differ only by blaze wavelength.
+                if blazes is not None and len(blazes) >= index:
+                    label = f'{index}  ({density:.0f} g/mm, blaze {blazes[index - 1]:.0f} nm)'
+                else:
+                    label = f'{index}  ({density:.0f} g/mm)'
+                self.grating_combo.addItem(label, index)
+            current = int(round(getattr(monochromator, 'grating', 1)))
+            position = self.grating_combo.findData(current)
+            if position >= 0:
+                self.grating_combo.setCurrentIndex(position)
+            self.grating_combo.currentIndexChanged.connect(self.change_grating)
+
         # add items to GUI
         self.SpectrometerPlot = SpectrometerPlot()
+        # Shows the camera mode button only for spectrometers that can read a full 2D frame as well
+        # as an on-chip binned region; hidden for everything else. See set_spectrometer().
+        self.SpectrometerPlot.set_spectrometer(self.devices.get('spectrometer'))
+        # Lets the sensor view share the same busy gate as every other hardware-touching action:
+        # it won't open while a measurement runs, and marks the app busy while it streams.
+        self.SpectrometerPlot.is_busy = lambda: self.measurement_busy
+        self.SpectrometerPlot.set_busy = lambda busy: setattr(self, 'measurement_busy', busy)
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(self.SpectrometerPlot)
         self.spectro_tab.setLayout(vbox)
@@ -127,6 +169,13 @@ class MainInterface(QtWidgets.QMainWindow):
                 child =QtWidgets.QTreeWidgetItem()
                 item.addChild(child)
                 name_widget = QtWidgets.QLabel(param)
+                # 'grating' gets the labelled dropdown built above instead of a bare spinbox, when
+                # that dropdown exists. Placed directly in its normal tree row (under Monochromator)
+                # rather than elsewhere in the GUI, so it reads like every other hardware parameter.
+                if device == 'monochromator' and param == 'grating' and self.grating_combo is not None:
+                    self.parameters_treeWidget.setItemWidget(child, 0, name_widget)
+                    self.parameters_treeWidget.setItemWidget(child, 1, self.grating_combo)
+                    continue
                 self.parameter_widgets[param] = QtWidgets.QDoubleSpinBox()
                 #self.parameter_widgets[param].setFixedSize(self.parameter_widgets[param].__sizeof__(), 16)
                 self.parameter_widgets[param].setReadOnly(self.parameter_dic[device][param]['read'])
@@ -156,7 +205,11 @@ class MainInterface(QtWidgets.QMainWindow):
                         if not param in self.readonly_parameter:
                             previous_value = self.config["session_parameters"][device][param]
                             self.devices[device].parameter_dict[param] = previous_value
-                            self.parameter_widgets[param].setValue(previous_value)
+                            # 'grating' has no tree widget when the dropdown owns it (see above) --
+                            # skip rather than raise, so restoring the rest of this device's
+                            # parameters (e.g. central_wave, mirror) still runs to completion.
+                            if param in self.parameter_widgets:
+                                self.parameter_widgets[param].setValue(previous_value)
             except:
                 pass
 
@@ -203,6 +256,8 @@ class MainInterface(QtWidgets.QMainWindow):
         self.chirp_scan_run_pushButton.clicked.connect(self.chirp_scan_measurement)
         self.compressor_scan_run_pushButton.clicked.connect(self.compressor_scan_measurement)
         self.BF_scan_run_pushButton.clicked.connect(self.BF_measurement)
+        self.SpectrometerPlot.readout_region_changed.connect(self.set_readout_region)
+        self.spectrum_acquire_pushButton.clicked.connect(self.acquire_spectrum_stitch)
 
         # run some functions once to define default values
         self.change_filename()
@@ -236,6 +291,15 @@ class MainInterface(QtWidgets.QMainWindow):
             cls = load_class(f"{'measurements.MeasurementClasses'}.{cls}")
             self.measurement = cls(*args)
 
+            if hasattr(self.measurement, 'spec_length'):
+                # DataHandling's buffers were just preallocated (clear_data() above) for the
+                # device's default spec_length. A measurement whose output is a different length
+                # needs DataHandling resized to match before any data arrives, or
+                # concatenate_data's np.c_[self.spec, spec] raises on the shape mismatch. Reset
+                # back to the device default in set_progress() once it reaches 100%.
+                self.DataHandling.resize_spec_length(self.measurement.spec_length)
+                self.DataHandling.clear_data()
+
             # standard connections
             if hasattr(self.measurement, "sendProgress"):
                 self.measurement.sendProgress.connect(self.set_progress)
@@ -249,9 +313,24 @@ class MainInterface(QtWidgets.QMainWindow):
                 for signal_name, slot in extra_connections.items():
                     if hasattr(self.measurement, signal_name):
                         getattr(self.measurement, signal_name).connect(slot)
+
+            """ Safety net: QThread.finished always fires when run() returns, whether it completed
+            normally or ended via an uncaught exception (e.g. a driver's TimeoutError). The normal
+            path already resets measurement_busy/DataHandling via set_progress(100); this catches
+            every case where run() ends without ever reaching that -- which otherwise left
+            measurement_busy stuck at True, rejecting every later measurement as "devices are busy"
+            until the app was restarted, since a QThread's own exceptions aren't visible to the
+            try/except below (that only wraps construction and the non-blocking call to .start()). """
+            self.measurement.finished.connect(self.on_measurement_finished)
             self.measurement.start()
 
         except Exception as e:
+            # Without this, a measurement that fails during construction (e.g. a missing driver
+            # module) leaves measurement_busy stuck at True forever, since it's normally only
+            # cleared by set_progress() reaching 100% -- which a measurement that never started
+            # will never send. Every later start_measurement() call would then be rejected with
+            # "devices are busy" until the app was restarted.
+            self.measurement_busy = False
             print(f'Measurement not started, Exception: {e}')
 
     def create_parameter_array(self):
@@ -285,6 +364,43 @@ class MainInterface(QtWidgets.QMainWindow):
                 # change parameter in DataHandling
                 self.parameter[new_parameter] = value
 
+    def set_readout_region(self, y0, height):
+        """ Slot for SpectrometerPlot.readout_region_changed -- a drag in the sensor view. Writes
+        into the roi_y0/roi_height tree widgets and pushes them through set_parameter, the same route
+        a typed change takes, so the drag can't leave the tree showing one region and the camera
+        holding another. setValue alone would not do it: the widgets fire on editingFinished, which
+        is a user action only. """
+        for param, value in (('roi_y0', y0), ('roi_height', height)):
+            if param in self.parameter_widgets:
+                self.parameter_widgets[param].setValue(value)
+                self.set_parameter(param)
+        """ Echo the region back from the parameters, not from get_roi(). get_roi() reports what
+        the camera currently holds, and while the sensor view is open that is deliberately the full
+        frame -- reading it back there snapped the dragged region to the whole sensor the moment the
+        mouse was released. The parameters hold what was asked for, clipped to the sensor by the
+        driver, in both modes. """
+        spectrometer = self.devices.get('spectrometer')
+        params = getattr(spectrometer, 'parameter_dict', None) or {}
+        if 'roi_y0' in params and 'roi_height' in params:
+            y0, height = params['roi_y0'], params['roi_height']
+            self.SpectrometerPlot.set_region_display(y0, height)
+            # The driver may have clipped; keep the tree from showing a region it rejected.
+            for param, value in (('roi_y0', y0), ('roi_height', height)):
+                if param in self.parameter_widgets:
+                    self.parameter_widgets[param].setValue(value)
+
+    def change_grating(self, index):
+        """ Slot for the grating dropdown built in __init__ (only exists when the monochromator
+        exposes grating_densities). Mirrors set_parameter's device lookup / DataHandling update,
+        since 'grating' is excluded from the generic parameter tree that set_parameter reads from. """
+        value = self.grating_combo.itemData(index)
+        if value is None:
+            return
+        monochromator = self.devices.get('monochromator')
+        if monochromator is not None:
+            monochromator.set_parameter('grating', value)
+            self.parameter['grating'] = value
+
     def test_button_clicked(self):
         # test function to test anything
         print('I am testing')
@@ -294,8 +410,22 @@ class MainInterface(QtWidgets.QMainWindow):
         # set progress bar and define whether a measurement is running. When progess ne 100, no new measurement starts
         self.progressBar.setValue(int(progress))
         if progress == 100.:
-            self.measurement_busy = False
-            self.DataHandling.spec_length = self.spec_length #needed to reset DataHandling preallocation after measurements with large spectra
+            # Back to the sensor view if it is still streaming, otherwise idle. False for every
+            # setup without one, which is the previous behaviour unchanged.
+            self.measurement_busy = self.SpectrometerPlot.sensor_view_active()
+            # Resets DataHandling's buffer size back to the device default after measurements
+            # with large/variable-length spectra (see start_measurement()). This previously
+            # assigned DataHandling.spec_length, an attribute DataHandling never reads (it uses
+            # .speclength), so the reset was silently a no-op.
+            self.DataHandling.resize_spec_length(self.spec_length)
+
+    def on_measurement_finished(self):
+        """ Safety-net slot for QThread.finished (see start_measurement()). Redundant with
+        set_progress(100) on the normal completion path -- both just end up setting the same two
+        things -- but it's the only one of the two that also runs when a measurement's run() raises
+        before ever emitting sendProgress(100). """
+        self.measurement_busy = self.SpectrometerPlot.sensor_view_active()
+        self.DataHandling.resize_spec_length(self.spec_length)
 
     def change_folder(self):
         # select folder to save data
@@ -385,7 +515,29 @@ class MainInterface(QtWidgets.QMainWindow):
     def acquire_measurement(self):
         # Single measurement
         # TO DO implement allow_when_busy condition
+        spectrometer = self.devices.get('spectrometer')
+        if getattr(spectrometer, 'full_frame_view', False):
+            """ What you see is what you acquire: while the sensor view holds the camera at full
+            frame, Acquire saves that frame rather than a 1D spectrum AcquireMeasurement would
+            expect. The sensor view holds measurement_busy while it streams, and an image
+            acquisition is the one measurement meant to run from inside it, so the flag is handed
+            over here and taken back when the measurement ends (see set_progress /
+            on_measurement_finished). getattr defaults to False, so every other spectrometer takes
+            the ordinary path below unchanged. """
+            self.measurement_busy = False
+            self.start_measurement('AcquireImage', self.devices, self.parameter)
+            return
         self.start_measurement('AcquireMeasurement', self.devices, self.parameter)
+
+    def acquire_spectrum_stitch(self):
+        """ Sweeps the monochromator across the Scan range and stitches the spectra taken at each
+        position into one, covering a range wider than a single grating position's window (see
+        AcquireSpectrum). extra_connections gives a live preview after each position: the full
+        sweep takes minutes, and sendSpectrum -- the saved result -- only fires once at the end. """
+        self.start_measurement('AcquireSpectrum', self.devices, self.parameter,
+            self.SpectrometerPlot.stitch_start_spinBox.value(),
+            self.SpectrometerPlot.stitch_stop_spinBox.value(),
+            extra_connections={"sendPreview": self.SpectrometerPlot.set_data_preview})
 
     def view_measurement(self):
         # Continuous measurement
@@ -440,7 +592,10 @@ class MainInterface(QtWidgets.QMainWindow):
     ### stopping functions ###
     def stop_measurement(self):
         # stop measurement
-        self.measurement.stop()
+        # self.measurement is only set once construction in start_measurement() succeeds, so a stop
+        # requested when no measurement ever started (or the last one failed) has nothing to stop.
+        if hasattr(self, 'measurement'):
+            self.measurement.stop()
         self.measurement_busy = False
 
     def closeEvent(self, event):
