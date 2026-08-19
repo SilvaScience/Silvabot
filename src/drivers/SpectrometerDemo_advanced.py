@@ -19,7 +19,12 @@ class SpectrometerDemo(QtCore.QThread):
 
     name = 'Spectrometer'
     
-    def __init__(self, port = None):
+    def __init__(self, port=None, **kwargs):
+        """ main.py calls the fallback with the same init_args as the real driver it replaces,
+        so this has to accept whatever those drivers take: port for ThorlabsCCS200, Heliotis and
+        OceanSpectrometer, hardware_params for PixisDecoupled and Stresing. Accepting and ignoring
+        **kwargs lets this demo stand in for any of them -- otherwise a driver that fails to
+        connect takes the whole app down with a TypeError from its own fallback. """
         super(SpectrometerDemo, self).__init__()
 
         # load and initialize  spectrometerWorker
