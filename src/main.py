@@ -374,11 +374,20 @@ class MainInterface(QtWidgets.QMainWindow):
             if param in self.parameter_widgets:
                 self.parameter_widgets[param].setValue(value)
                 self.set_parameter(param)
-        # set_parameter's device call clips to the sensor, so show back what was actually applied.
+        """ Echo the region back from the parameters, not from get_roi(). get_roi() reports what
+        the camera currently holds, and while the sensor view is open that is deliberately the full
+        frame -- reading it back there snapped the dragged region to the whole sensor the moment the
+        mouse was released. The parameters hold what was asked for, clipped to the sensor by the
+        driver, in both modes. """
         spectrometer = self.devices.get('spectrometer')
-        if spectrometer is not None and hasattr(spectrometer, 'get_roi'):
-            applied_y0, applied_height, _ = spectrometer.get_roi()
-            self.SpectrometerPlot.set_region_display(applied_y0, applied_height)
+        params = getattr(spectrometer, 'parameter_dict', None) or {}
+        if 'roi_y0' in params and 'roi_height' in params:
+            y0, height = params['roi_y0'], params['roi_height']
+            self.SpectrometerPlot.set_region_display(y0, height)
+            # The driver may have clipped; keep the tree from showing a region it rejected.
+            for param, value in (('roi_y0', y0), ('roi_height', height)):
+                if param in self.parameter_widgets:
+                    self.parameter_widgets[param].setValue(value)
 
     def change_grating(self, index):
         """ Slot for the grating dropdown built in __init__ (only exists when the monochromator

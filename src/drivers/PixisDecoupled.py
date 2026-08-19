@@ -184,6 +184,13 @@ class PixisDecoupled(QtCore.QThread):
             self.avg_scan = int(value)
         elif parameter in ('roi_y0', 'roi_height'):
             self.parameter_dict[parameter] = value
+            """ Clipped as a pair, here rather than only in set_roi(), so the requested region is
+            always one the sensor actually has -- including while the sensor view holds the camera
+            at full frame and set_roi() is not reached. The two are coupled: how tall a region can
+            be depends on where it starts. """
+            y0 = int(np.clip(self.parameter_dict['roi_y0'], 0, max(self.sensor_height - 1, 0)))
+            height = int(np.clip(self.parameter_dict['roi_height'], 1, self.sensor_height - y0))
+            self.parameter_dict['roi_y0'], self.parameter_dict['roi_height'] = y0, height
             if self.full_frame_view:
                 # Sensor view is open: recording only. apply_readout_region() runs on close.
                 return
