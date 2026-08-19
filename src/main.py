@@ -257,6 +257,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.compressor_scan_run_pushButton.clicked.connect(self.compressor_scan_measurement)
         self.BF_scan_run_pushButton.clicked.connect(self.BF_measurement)
         self.SpectrometerPlot.readout_region_changed.connect(self.set_readout_region)
+        self.spectrum_acquire_pushButton.clicked.connect(self.acquire_spectrum_stitch)
 
         # run some functions once to define default values
         self.change_filename()
@@ -518,6 +519,16 @@ class MainInterface(QtWidgets.QMainWindow):
             self.start_measurement('AcquireImage', self.devices, self.parameter)
             return
         self.start_measurement('AcquireMeasurement', self.devices, self.parameter)
+
+    def acquire_spectrum_stitch(self):
+        """ Sweeps the monochromator across the Scan range and stitches the spectra taken at each
+        position into one, covering a range wider than a single grating position's window (see
+        AcquireSpectrum). extra_connections gives a live preview after each position: the full
+        sweep takes minutes, and sendSpectrum -- the saved result -- only fires once at the end. """
+        self.start_measurement('AcquireSpectrum', self.devices, self.parameter,
+            self.SpectrometerPlot.stitch_start_spinBox.value(),
+            self.SpectrometerPlot.stitch_stop_spinBox.value(),
+            extra_connections={"sendPreview": self.SpectrometerPlot.set_data_preview})
 
     def view_measurement(self):
         # Continuous measurement

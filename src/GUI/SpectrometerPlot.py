@@ -60,6 +60,30 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         bg_hbox.addWidget(self.bg_button)
         bg_hbox.addWidget(QtWidgets.QLabel("Correct background:"))
         bg_hbox.addWidget(self.checkbox_bg)
+        """ Wavelength range for the 'Acquire spectrum' button, which sweeps the monochromator and
+        stitches the spectra taken at each position (see AcquireSpectrum). Put here, at the top of
+        the plot it produces, rather than in Quick Control next to the button: that group box has a
+        fixed 55px height with its five buttons on the only row that fits, so a second row there
+        would have grown a bar every experiment sees. Hidden unless the spectrometer has a
+        monochromator to move -- see set_spectrometer(). """
+        self.stitch_label = QtWidgets.QLabel('Scan range (nm):')
+        self.stitch_start_spinBox = QtWidgets.QDoubleSpinBox()
+        self.stitch_start_spinBox.setRange(0, 2000)
+        self.stitch_start_spinBox.setDecimals(1)
+        self.stitch_start_spinBox.setValue(500)
+        self.stitch_dash_label = QtWidgets.QLabel('-')
+        self.stitch_stop_spinBox = QtWidgets.QDoubleSpinBox()
+        self.stitch_stop_spinBox.setRange(0, 2000)
+        self.stitch_stop_spinBox.setDecimals(1)
+        self.stitch_stop_spinBox.setValue(660)
+        self.stitch_widgets = (self.stitch_label, self.stitch_start_spinBox,
+                               self.stitch_dash_label, self.stitch_stop_spinBox)
+        for w in self.stitch_widgets:
+            w.setVisible(False)
+            bg_hbox.addWidget(w)
+        # Absorbs the row's slack, so the background controls sit together on the left instead of
+        # the button stretching across and pushing its own checkbox to the far right.
+        bg_hbox.addStretch(1)
         bg_widget = QtWidgets.QWidget()
         bg_widget.setLayout(bg_hbox)
         vbox.addWidget(self.clear_button)
@@ -153,6 +177,12 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
                    and hasattr(spectrometer, 'get_roi')
                    and hasattr(spectrometer, 'worker'))
         self.camera_mode_button.setVisible(capable)
+        # Stitching needs a monochromator to move between grating positions; without one the range
+        # inputs would feed a button that can only fail. Hidden rather than disabled, so a setup
+        # that can't stitch sees the row exactly as before.
+        can_stitch = getattr(spectrometer, 'monochromator', None) is not None
+        for widget in self.stitch_widgets:
+            widget.setVisible(can_stitch)
         if capable:
             self.sensor_height = int(getattr(spectrometer, 'sensor_height', 4096))
             y0, height, _ = spectrometer.get_roi()
