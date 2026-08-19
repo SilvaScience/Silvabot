@@ -158,6 +158,11 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             y0, height, _ = spectrometer.get_roi()
             self.set_region_display(y0, height)
 
+    def sensor_view_active(self):
+        """ True while the camera is held at full frame for the live view. main.py asks so that
+            finishing a measurement hands the busy flag back to the view instead of clearing it. """
+        return self.camera_mode_button.isChecked()
+
     def set_region_display(self, y0, height):
         """ Moves the visual region without echoing back out as a drag. Called from
             set_spectrometer() and from main.py whenever roi_y0/roi_height change in the tree, so

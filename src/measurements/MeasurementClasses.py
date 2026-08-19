@@ -48,6 +48,53 @@ class AcquireMeasurement(QtCore.QThread):
         print(time.strftime('%H:%M:%S') + ' Request Stop')
 
 
+# Measurement to acquire one raw 2D sensor frame
+class AcquireImage(QtCore.QThread):
+    """
+        Acquires one frame exactly as the camera currently reads it, rather than the 1D spectrum
+        AcquireMeasurement expects. Used while the sensor view holds the camera at full frame, so
+        the image on screen can be saved instead of only looked at.
+
+        Nothing here is specific to a camera: any spectrometer reporting frame_shape() gets this.
+        Declaring spec_length is what makes it work -- start_measurement() resizes DataHandling to
+        match before any data arrives, and from there the frame travels the same path a Heliotis
+        image does: stored by concatenate_data's 2D branch, saved in the same format, and displayed
+        by set_data's 2D branch, where the math ROIs and 'Sum mode' already apply to it.
+    """
+    # set used signal types, destination is set in main script
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendProgress = QtCore.pyqtSignal(float)
+
+    def __init__(self, devices, parameter):
+        super(AcquireImage, self).__init__()
+        self.spectrometer = devices['spectrometer']
+        if not hasattr(self.spectrometer, 'frame_shape'):
+            """ Refuse here rather than emitting a frame DataHandling was never sized for: without
+            spec_length, start_measurement leaves the buffers at the device's 1D default and
+            concatenate_data fails on the shape mismatch, well away from the cause. """
+            raise RuntimeError(
+                f"{type(self.spectrometer).__name__} does not report frame_shape(), "
+                "so the size of its frames isn't known ahead of the acquisition.")
+        self.spec_length = self.spectrometer.frame_shape()
+        self.wls = []  # preallocate wls array
+        self.spec = []  # preallocate spec array
+        self.terminate = False
+
+    def run(self):
+        if not self.terminate:  # check whether stopping measurement is called
+            self.sendProgress.emit(50)
+            self.wls = np.array(self.spectrometer.get_wavelength())
+            # Averaging over avg_scan, if set, is done by the driver inside get_intensities().
+            self.spec = np.array(self.spectrometer.get_intensities())
+            self.sendSpectrum.emit(self.wls, self.spec)
+            print(time.strftime('%H:%M:%S') + f' Image acquired {self.spec.shape}')
+            self.sendProgress.emit(100)
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+
 # Measurement to continuously view spectra
 class ViewMeasurement(QtCore.QThread):
     # set used signal types, destination is set in main script

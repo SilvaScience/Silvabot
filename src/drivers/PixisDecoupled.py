@@ -378,6 +378,14 @@ class PixisDecoupled(QtCore.QThread):
         """
         return self.roi_y0, self.roi_height, self.roi_binning
 
+    def frame_shape(self):
+        """
+            Shape of what get_intensities() currently returns, as (rows, wavelength pixels).
+            One row in the binned measurement mode, every sensor row at full frame. Read by
+            AcquireImage to size DataHandling's buffers before the frame arrives.
+        """
+        return (max(self.roi_height // self.roi_binning, 1), self.spec_length)
+
     def acquisition_running(self):
         """
             Whether the camera itself considers an acquisition to be running. Falls back to the

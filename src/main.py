@@ -400,7 +400,9 @@ class MainInterface(QtWidgets.QMainWindow):
         # set progress bar and define whether a measurement is running. When progess ne 100, no new measurement starts
         self.progressBar.setValue(int(progress))
         if progress == 100.:
-            self.measurement_busy = False
+            # Back to the sensor view if it is still streaming, otherwise idle. False for every
+            # setup without one, which is the previous behaviour unchanged.
+            self.measurement_busy = self.SpectrometerPlot.sensor_view_active()
             # Resets DataHandling's buffer size back to the device default after measurements
             # with large/variable-length spectra (see start_measurement()). This previously
             # assigned DataHandling.spec_length, an attribute DataHandling never reads (it uses
@@ -412,7 +414,7 @@ class MainInterface(QtWidgets.QMainWindow):
         set_progress(100) on the normal completion path -- both just end up setting the same two
         things -- but it's the only one of the two that also runs when a measurement's run() raises
         before ever emitting sendProgress(100). """
-        self.measurement_busy = False
+        self.measurement_busy = self.SpectrometerPlot.sensor_view_active()
         self.DataHandling.resize_spec_length(self.spec_length)
 
     def change_folder(self):
@@ -503,6 +505,18 @@ class MainInterface(QtWidgets.QMainWindow):
     def acquire_measurement(self):
         # Single measurement
         # TO DO implement allow_when_busy condition
+        spectrometer = self.devices.get('spectrometer')
+        if getattr(spectrometer, 'full_frame_view', False):
+            """ What you see is what you acquire: while the sensor view holds the camera at full
+            frame, Acquire saves that frame rather than a 1D spectrum AcquireMeasurement would
+            expect. The sensor view holds measurement_busy while it streams, and an image
+            acquisition is the one measurement meant to run from inside it, so the flag is handed
+            over here and taken back when the measurement ends (see set_progress /
+            on_measurement_finished). getattr defaults to False, so every other spectrometer takes
+            the ordinary path below unchanged. """
+            self.measurement_busy = False
+            self.start_measurement('AcquireImage', self.devices, self.parameter)
+            return
         self.start_measurement('AcquireMeasurement', self.devices, self.parameter)
 
     def view_measurement(self):
