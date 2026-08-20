@@ -19,7 +19,7 @@ from drivers.Spectrograph import Spectrograph
 app = QtWidgets.QApplication(sys.argv)
 
 reference = yaml.safe_load(open(ROOT / 'src' / 'calibrations' / 'pixis_sp2300i.yaml'))
-reference.update(camera='Spectrometer', monochromator='SpectraPro2300iDemo')
+reference.update(camera='Spectrometer', monochromator='SpectraPro2300iDemo', num_pixels=2048)
 calib_file = Path(tempfile.gettempdir()) / 'demo_pairing.yaml'
 calib_file.write_text(yaml.dump(reference), encoding='utf-8')
 
@@ -62,6 +62,15 @@ print(f'  axe @700.0nm : {wls_b[0]:.2f} -> {wls_b[-1]:.2f} nm')
 if not hasattr(spec, 'get_intensities') or not hasattr(spec, 'spec_length'):
     failures.append('surface detecteur non deleguee')
 print(f'  delegation camera : spec_length={spec.spec_length}, binning={spec.parameter_dict.get("binning")}')
+
+# 5. a calibration fit for other hardware is reported rather than computed silently
+mismatched = dict(reference, camera='SomeOtherCamera')
+bad_file = Path(tempfile.gettempdir()) / 'mismatched_pairing.yaml'
+bad_file.write_text(yaml.dump(mismatched), encoding='utf-8')
+print('  garde-fou appariement (un WARNING doit suivre) :')
+Spectrograph(camera={'driver': 'drivers.SpectrometerDemo_advanced.SpectrometerDemo'},
+             monochromator={'driver': 'drivers.SpectraPro2300iDemo.SpectraPro2300iDemo'},
+             calibration=str(bad_file))
 
 print()
 if failures:

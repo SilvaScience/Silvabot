@@ -2,9 +2,10 @@
 Created on Fri Feb 07 15:26:53 2025
 
 @author: Simon Daneau
-Hardware class to control spectrometer. All hardware classes require a definition of
-parameter_display_dict (set Spinbox options and read/write)
-set_parameter function (assign set functions)
+Hardware class for the Stresing line camera alone: triggering, timers, gains, readout.
+It has no notion of a monochromator and no optical calibration -- drivers.Spectrograph pairs
+it with one and owns the wavelength axis. All hardware classes require a definition of
+parameter_display_dict (set Spinbox options and read/write) and set_parameter.
 
 """
 """TO DOS:
@@ -56,7 +57,6 @@ class StresingCamera(QtCore.QThread):
 
         # This is the hardware parameters dictionnary. It is provided by hardware-specific configurations and are not changed in operation
         self.hardware_params=hardware_params
-        self.monochromator=None#By default, no spectrometer is attached
         
         # Define spectral range
         self.spec_length = self.hardware_params.get('num_pixels', 1024)
@@ -271,90 +271,6 @@ class StresingCamera(QtCore.QThread):
             self.new_spectrum = False
         init_measure(self) # type: ignore
 
-    def calculate_wavelength_array(self):
-        """
-            Calculate the wavelength array for the pixels of the Stresing camera using the hardware
-            parameters from the camera and the attached monochromator.
-
-        Raises:
-            RuntimeError: if no monochromator is attached (mirrors Pixis.calculate_wavelength_array --
-            see that docstring). Previously fell back to self.wavelengths = hardware_params['num_pixels'],
-            a bare pixel *count* (not an array of pixel indices, despite what the log message claimed),
-            which broke any caller that indexes/slices the return value.
-        """
-        if self.monochromator is None:
-            raise RuntimeError(
-                "Stresing has no monochromator attached: wavelengths can't be calculated. "
-                "Enable the 'monochromator' device in config.yaml, or call attach_to_monochromator().")
-
-        self.center_wavelength,self.grating_lines_per_mm=self.monochromator.get_monochromator_parameters()
-        pixel_size_mm =self.hardware_params['pixel_size_mm']
-        focal_length_mm = self.hardware_params['focal_length_mm']
-        num_pixels = self.hardware_params['num_pixels']
-
-        if self.hardware_params['calibrated']:
-
-            wl_center = self.center_wavelength
-            m_order = 1
-            px = np.linspace(1,num_pixels,num_pixels)
-
-            """ Per-grating, not shared across the turret -- see Pixis.calculate_wavelength_array for
-            why. self.monochromator.grating is read directly rather than adding a per-camera lookup
-            on the monochromator side, so this camera stays reusable on any monochromator exposing a
-            `.grating` attribute. """
-            grating_key = str(int(round(self.monochromator.grating)))
-            gratings = self.hardware_params.get('gratings', {})
-            if grating_key not in gratings:
-                raise RuntimeError(
-                    f"Stresing has no calibration for grating {grating_key} in hardware_params['gratings']. "
-                    f"Calibrated gratings: {sorted(gratings.keys())}.")
-            grating_calib = gratings[grating_key]
-
-            # calibration from notebook
-            f=grating_calib['f']
-            delta=grating_calib['delta']
-            gamma=grating_calib['gamma']
-            n0=grating_calib['n0']
-            offset_adjust=grating_calib['offset_adjust']
-            d_grating=grating_calib['d_grating']
-            x_pixel=grating_calib['x_pixel']
-            curvature=grating_calib['curvature']
-
-            n = px - (n0 + offset_adjust * wl_center)
-
-            psi = np.arcsin(m_order * wl_center / (2 * d_grating * np.cos(gamma / 2)))
-            eta = np.arctan(n * x_pixel * np.cos(delta) / (f + n * x_pixel * np.sin(delta)))
-
-            self.wavelengths = ((d_grating / m_order) * (np.sin(psi - 0.5 * gamma) + np.sin(psi + 0.5 * gamma + eta))) + curvature * n ** 2
-
-        else:
-
-            # Calculate linear dispersion (nm/mm)
-            dispersion = 1e6 / (focal_length_mm * self.grating_lines_per_mm)
-
-            # Center pixel
-            center_pixel = num_pixels // 2
-
-            # Pixel index array
-            pixel_indices = np.arange(num_pixels)
-
-            # Wavelength at each pixel
-            self.wavelengths = self.center_wavelength + (pixel_indices - center_pixel) * dispersion * pixel_size_mm
-
-    def attach_to_monochromator(self,monochromator):
-        """
-            Attaches the camera to a monochromator, letting the camera interface know where to get the monochromator parameters from.
-            input:
-                - monochromator (Monochromator QThread): The interface to the monochromator
-        """
-        """ Only the live grating readout is pulled from the monochromator (via
-        calculate_wavelength_array -> get_monochromator_parameters). The optical calibration
-        constants stay in this camera's own hardware_params (set at construction from config.yaml),
-        so this driver has no dependency on which monochromator it happens to be paired with and can
-        be reused on a different detection path unchanged. """
-        self.monochromator=monochromator
-        self.type='Spectrometer'
-
     def get_acquisition_mode(self):
         """
             Returns the current trigger setup in the vocabulary the interface uses, so a widget can
@@ -437,13 +353,6 @@ class StresingCamera(QtCore.QThread):
 
     def get_num_pixel(self):
         return self.hardware_params['num_pixels']
-
-    def get_wavelength(self):
-        """
-            Returns the wavelengths corresponding to each pixel of the camera
-        """
-        self.calculate_wavelength_array()
-        return self.wavelengths
 
     def get_intensities(self):
         self.acquire_spectrum()

@@ -57,19 +57,13 @@ class MainInterface(QtWidgets.QMainWindow):
             # Add device to device dictionary
             self.devices[name] = device
 
-        # Link the spectrometer to a monochromator when the setup provides both (PixisDecoupled,
-        # Stresing). Done after the loop above so it doesn't depend on the order devices are listed
-        # in config.yaml. Spectrometers without attach_to_monochromator (ThorlabsCCS200, Heliotis,
-        # OceanSpectrometer, the original Pixis) are left untouched.
         spectrometer = self.devices.get('spectrometer')
-        """ The monochromator is either a device of its own (a spectrometer that attaches to one)
-        or a sub-device of a composite Spectrograph. Resolved once here, so the grating selector
-        and change_grating() below work the same way in both cases. """
+        """ A monochromator reaches the interface either as a device of its own or as a sub-device
+        of a composite Spectrograph. Resolved once here so the grating selector and
+        change_grating() work the same way in both layouts. """
         self.monochromator = self.devices.get('monochromator') or getattr(spectrometer, 'monochromator', None)
-        monochromator = self.devices.get('monochromator')
-        if monochromator and spectrometer is not None and hasattr(spectrometer, 'attach_to_monochromator'):
-            spectrometer.attach_to_monochromator(monochromator)
-            print(f"spectrometer: attached to monochromator ({monochromator.name})")
+        if self.monochromator is not None:
+            print(f"spectrometer: monochromator is {self.monochromator.name}")
 
         # initial parameter values, retrieved from devices
         self.parameter_dic = defaultdict(lambda: defaultdict(dict))

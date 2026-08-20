@@ -38,13 +38,11 @@ CASES = [
                                       243.0, 0, 4926.108374384236, 24000.0, -0.0001681610550643024]),
 ]
 
-# Plus the per-grating sets that already live in config.yaml.
-config_path = Path(__file__).resolve().parent.parent.parent / 'src' / 'config.yaml'
-if config_path.exists():
-    cfg = yaml.safe_load(open(config_path))
-    hp = cfg['devices']['spectrometer'].get('init_args', {}).get('hardware_params', {})
-    for key, c in sorted(hp.get('gratings', {}).items()):
-        CASES.append((f'config.yaml grating {key}', hp.get('num_pixels', 1024),
+# Plus every calibration file shipped for a camera/monochromator pairing.
+for path in sorted((Path(__file__).resolve().parent.parent.parent / 'src' / 'calibrations').glob('*.yaml')):
+    calib = yaml.safe_load(open(path))
+    for key, c in sorted(calib.get('gratings', {}).items()):
+        CASES.append((f'{path.stem} grating {key}', calib.get('num_pixels', 1024),
                       [c['f'], c['delta'], c['gamma'], c['n0'], c['offset_adjust'],
                        c['d_grating'], c['x_pixel'], c['curvature']]))
 

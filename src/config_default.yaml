@@ -27,7 +27,7 @@ devices:
   #   driver: drivers.Spectrograph.Spectrograph
   #   fallback: drivers.SpectrometerDemo_advanced.SpectrometerDemo
   #   init_args:
-  #     camera:                                    # Options: .StresingCamera.StresingCamera
+  #     camera:                                     # Options: .StresingCamera.StresingCamera
   #       driver: drivers.PixisCamera.PixisCamera
   #       init_args:
   #         hardware_params:

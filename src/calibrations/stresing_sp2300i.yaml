@@ -1,0 +1,50 @@
+# Calibration for one camera/monochromator pairing.
+#
+# The constants below are fit for this triple: this camera, this monochromator, this grating.
+# Move any of the three and they must be refit -- the grating keys still resolve, `calibrated`
+# stays true, and you get a wrong wavelength axis with no error. The `camera` and
+# `monochromator` fields are checked against the devices actually loaded, so a mismatch is
+# reported at startup.
+#
+# WARNING gratings 1 and 2 are not calibrated for this camera: both carry the single
+# pre-multi-grating fit as a placeholder. Only grating 3 has its own fit.
+#
+# calibrationThirdOrder/Slope/Offset are carried over from the previous config and are not
+# read by any code today.
+camera: StresingCamera
+monochromator: SpectraPro2300i
+num_pixels: 1010
+pixel_size_mm: 0.024
+focal_length_mm: 300
+calibrated: true
+calibrationThirdOrder: -3e-5
+calibrationSlope: 0.9891
+calibrationOffset: -51.163
+gratings:
+  '1':
+    f: 305381928.6149399
+    delta: 0.11432112488955509
+    gamma: 0.5337955112241486
+    n0: 539.4
+    offset_adjust: 0
+    d_grating: 833.3333333333334
+    x_pixel: 24000.0
+    curvature: 5.736575254871788e-07
+  '2':
+    f: 305381928.6149399
+    delta: 0.11432112488955509
+    gamma: 0.5337955112241486
+    n0: 539.4
+    offset_adjust: 0
+    d_grating: 833.3333333333334
+    x_pixel: 24000.0
+    curvature: 5.736575254871788e-07
+  '3':
+    f: 305859374.99999994
+    delta: 0.021862966763817993
+    gamma: 0.5415310171886933
+    n0: 507.0
+    offset_adjust: 0
+    d_grating: 3333.333333333333
+    x_pixel: 26000
+    curvature: 0.0

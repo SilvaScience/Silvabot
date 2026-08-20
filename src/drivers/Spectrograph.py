@@ -92,6 +92,12 @@ class Spectrograph(QtCore.QThread):
                 print(f'WARNING Spectrograph: calibration {self.calibration["source"]} was fit for '
                       f'{role} {expected!r} but {actual!r} was loaded. Wavelengths will be wrong.')
 
+        declared = self.calibration.get('num_pixels')
+        readout = getattr(self.camera, 'spec_length', None)
+        if declared and isinstance(readout, int) and declared != readout:
+            print(f'WARNING Spectrograph: calibration declares {declared} pixels but '
+                  f'{self.camera.name} reads out {readout}. The axis will not line up with the data.')
+
     def _build_parameters(self):
         """ Merges both sub-devices' parameter dicts into one, and records which device owns each
             name so set_parameter can route. A name declared by both is refused here rather than
