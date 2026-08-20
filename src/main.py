@@ -320,11 +320,28 @@ class MainInterface(QtWidgets.QMainWindow):
             print(f'Measurement not started, Exception: {e}')
 
     def create_parameter_array(self):
-        # initialization function to store all parameters in one array
+        """
+            Stores all parameters in one array, and records which device owns each name.
+
+            The name stays the identifier rather than being paired with its device: the
+            measurement signals, DataHandling's queues and the saved files all address parameters
+            by name alone. Two enabled devices declaring the same name is refused here instead --
+            they would otherwise share one spinbox, and set_parameter would drive both. The
+            cryostat and lakeshore drivers both declare current_T and set_T, so enabling them
+            together is the case this catches.
+        """
         self.parameter = {}
-        for devices in self.devices.keys():
-            for param in self.devices[devices].parameter_dict.keys():
-                self.parameter[param] = self.devices[devices].parameter_dict[param]
+        self.parameter_owner = {}
+        for name in self.devices.keys():
+            for param in self.devices[name].parameter_dict.keys():
+                if param in self.parameter_owner:
+                    raise RuntimeError(
+                        f"Parameter '{param}' is declared by both "
+                        f"'{self.parameter_owner[param]}' and '{name}'. The interface addresses "
+                        "parameters by name, so rename it in one of the two drivers, or enable "
+                        "only one of the devices in config.yaml.")
+                self.parameter[param] = self.devices[name].parameter_dict[param]
+                self.parameter_owner[param] = name
 
 
     def update_read_parameter(self, new_parameter):
@@ -341,14 +358,13 @@ class MainInterface(QtWidgets.QMainWindow):
         self.set_parameter(parameter)
 
     def set_parameter(self, new_parameter):
-        # set parameter when Spinbox is changed and send it to devices and DataHandling
-        for device in self.devices.keys():
-            if new_parameter in self.devices[device].parameter_dict.keys():
-                # get parameter from widget
-                value = self.parameter_widgets[new_parameter].value()
-                self.devices[device].set_parameter(new_parameter, value)
-                # change parameter in DataHandling
-                self.parameter[new_parameter] = value
+        # set parameter when Spinbox is changed and send it to its device and to DataHandling
+        device = self.devices.get(self.parameter_owner.get(new_parameter))
+        if device is None:
+            return
+        value = self.parameter_widgets[new_parameter].value()
+        device.set_parameter(new_parameter, value)
+        self.parameter[new_parameter] = value
 
     def set_readout_region(self, y0, height):
         """ Slot for SpectrometerPlot.readout_region_changed -- a drag in the sensor view. Writes

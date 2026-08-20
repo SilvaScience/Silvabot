@@ -31,7 +31,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         hist_view.setMaximumWidth(80)
 
         """ Live sensor view, for cameras that can read their full 2D frame as well as an on-chip
-        binned region (currently PixisDecoupled: set_full_frame/set_binned_roi). It reuses the
+        binned region (the 'roi' capability: set_full_frame/set_binned_roi). It reuses the
         ImageItem and histogram already above rather than adding a panel, so the layout is
         unchanged, and stays hidden for every camera that doesn't support it -- see
         set_spectrometer(). The readout region itself is NOT set here: it lives in the Hardware
@@ -169,7 +169,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
     def set_spectrometer(self, spectrometer):
         """
             Shows the camera mode button when the given spectrometer can read both its full 2D frame
-            and an on-chip binned region, and can stream live frames (currently PixisDecoupled).
+            and an on-chip binned region, and can stream live frames (the 'roi' capability).
             Called once from main.py after devices are loaded. For any other spectrometer the button
             stays hidden and nothing about this widget changes.
         """
