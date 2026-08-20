@@ -27,19 +27,28 @@ devices:
   #   driver: drivers.Spectrograph.Spectrograph
   #   fallback: drivers.SpectrometerDemo_advanced.SpectrometerDemo
   #   init_args:
-  #     camera:   # Options: .StresingCamera, .AlizeCamera, .HeliotisCamera
+  #     camera:
   #       driver: drivers.PixisCamera.PixisCamera
   #       init_args:
-  #         hardware_params:
+  #         hardware_params:            # what the camera itself owns, never the optics
   #           sensor_height: 256
   #           roi_y0: 138
   #           roi_height: 54
+  #
+  #       # Other cameras, with the init_args each one needs:
+  #       #   drivers.StresingCamera.StresingCamera
+  #       #     init_args: {hardware_params: {num_pixels: 1010}}   # usable pixels after trimming
+  #       #   drivers.AlizeCamera.AlizeCamera        init_args: none
+  #       #   drivers.HeliotisCamera.HeliotisCamera  init_args: none
   #     monochromator:
   #       driver: drivers.SpectraPro.SpectraPro
   #       fallback: drivers.SpectraPro2300iDemo.SpectraPro2300iDemo
   #       init_args:
   #         port: COM5
   #     calibration: calibrations/pixis_sp2300i.yaml
+  #
+  # The calibration file also takes optional stitch_step_nm, the wavelength step Acquire spectrum
+  # delivers its stitched result on (default 0.05 nm).
   #
   # Other pairings shipped: pixis_sp2150, stresing_sp2300i, alize_sp2150, heliotis_sp2150.
   #

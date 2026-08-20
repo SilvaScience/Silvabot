@@ -155,10 +155,13 @@ class MainInterface(QtWidgets.QMainWindow):
                 child =QtWidgets.QTreeWidgetItem()
                 item.addChild(child)
                 name_widget = QtWidgets.QLabel(param)
-                # 'grating' gets the labelled dropdown built above instead of a bare spinbox, when
-                # that dropdown exists. Placed directly in its normal tree row (under Monochromator)
-                # rather than elsewhere in the GUI, so it reads like every other hardware parameter.
-                if device == 'monochromator' and param == 'grating' and self.grating_combo is not None:
+                """ 'grating' gets the labelled dropdown built above instead of a bare spinbox,
+                when that dropdown exists. Placed directly in its normal tree row rather than
+                elsewhere in the GUI, so it reads like every other hardware parameter. Keyed on the
+                parameter alone, not on the device being named 'monochromator': a composite
+                Spectrograph declares 'grating' under 'spectrometer', and create_parameter_array
+                has already refused a second device declaring the same name. """
+                if param == 'grating' and self.grating_combo is not None:
                     self.parameters_treeWidget.setItemWidget(child, 0, name_widget)
                     self.parameters_treeWidget.setItemWidget(child, 1, self.grating_combo)
                     continue
@@ -401,10 +404,6 @@ class MainInterface(QtWidgets.QMainWindow):
         monochromator = self.monochromator
         if monochromator is not None:
             monochromator.set_parameter('grating', value)
-            spectrometer = self.devices.get('spectrometer')
-            # Keep a composite spectrometer's merged dict in step with its sub-device.
-            if 'grating' in getattr(spectrometer, 'parameter_dict', {}):
-                spectrometer.parameter_dict['grating'] = value
             self.parameter['grating'] = value
 
     def test_button_clicked(self):

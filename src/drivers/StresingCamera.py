@@ -59,7 +59,7 @@ class StresingCamera(QtCore.QThread):
         self.hardware_params=hardware_params
         
         # Define spectral range
-        self.spec_length = self.hardware_params.get('num_pixels', 1024)
+        self.spec_length = self.hardware_params.get('num_pixels', 1024)  # usable pixels after trimming
         self.spec_range = np.r_[0:self.spec_length]
         
         # Path to the DLL file. Kept in its own versioned subfolder rather than replacing
@@ -352,7 +352,7 @@ class StresingCamera(QtCore.QThread):
         return cam.sti_mode != TRIGGER_TIMER or cam.bti_mode != TRIGGER_TIMER
 
     def get_num_pixel(self):
-        return self.hardware_params['num_pixels']
+        return self.spec_length
 
     def get_intensities(self):
         self.acquire_spectrum()

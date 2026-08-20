@@ -18,6 +18,7 @@ import yaml
 from pathlib import Path
 from PyQt5 import QtCore
 from collections import defaultdict
+from collections.abc import MutableMapping
 
 from devices import create_device
 from compute.optics import pixel_to_wavelength, linear_wavelengths
@@ -40,6 +41,36 @@ def load_calibration(path):
     calibration['gratings'] = {str(k): v for k, v in calibration.get('gratings', {}).items()}
     calibration.setdefault('source', str(path))
     return calibration
+
+
+class MergedParameters(MutableMapping):
+    """
+        Live view over the sub-devices' parameter_dict, keyed by parameter name.
+        input:
+            - owners (dict): parameter name -> the device that declared it
+
+        Reads and writes both reach the owning device rather than a copy. A value the device
+        updates on its own -- a worker publishing sensor_T -- is therefore seen here, and a value
+        written here -- a session parameter restored at startup -- reaches the device.
+    """
+
+    def __init__(self, owners):
+        self._owners = owners
+
+    def __getitem__(self, key):
+        return self._owners[key].parameter_dict[key]
+
+    def __setitem__(self, key, value):
+        self._owners[key].parameter_dict[key] = value
+
+    def __delitem__(self, key):
+        raise TypeError('Spectrograph parameters are fixed by its sub-devices')
+
+    def __iter__(self):
+        return iter(self._owners)
+
+    def __len__(self):
+        return len(self._owners)
 
 
 class Spectrograph(QtCore.QThread):
@@ -104,11 +135,12 @@ class Spectrograph(QtCore.QThread):
                   f'{self.camera.name} reads out {readout}. The axis will not line up with the data.')
 
     def _build_parameters(self):
-        """ Merges both sub-devices' parameter dicts into one, and records which device owns each
-            name so set_parameter can route. A name declared by both is refused here rather than
-            silently driving whichever device is reached first. """
+        """ Records which device owns each parameter name, and exposes the two dicts as one. The
+            values are read through to the owning device rather than copied: a copy taken here
+            stops tracking whatever the device updates on its own, which froze sensor_T on screen
+            at its startup value. A name declared by both devices is refused rather than silently
+            driving whichever is reached first. """
         self.parameter_display_dict = defaultdict(dict)
-        self.parameter_dict = {}
         self._owner = {}
         for device in (self.monochromator, self.camera):
             for param, properties in getattr(device, 'parameter_display_dict', {}).items():
@@ -117,16 +149,15 @@ class Spectrograph(QtCore.QThread):
                         f'Spectrograph: {param!r} is declared by both {self.monochromator.name} and '
                         f'{self.camera.name}; rename it in one of the two drivers.')
                 self.parameter_display_dict[param] = properties
-                self.parameter_dict[param] = device.parameter_dict[param]
                 self._owner[param] = device
+        self.parameter_dict = MergedParameters(self._owner)
 
     def set_parameter(self, parameter, value):
         """REQUIRED. Routes a parameter change to whichever sub-device declared it."""
         device = self._owner.get(parameter)
         if device is None:
             return
-        device.set_parameter(parameter, value)
-        self.parameter_dict[parameter] = device.parameter_dict.get(parameter, value)
+        device.set_parameter(parameter, value)  # its own dict is the one parameter_dict reads
 
     def get_wavelength(self):
         """

@@ -573,7 +573,7 @@ class AcquireSpectrum(QtCore.QThread):
     rather than something measured from the hardware, and that is the whole point: it makes the
     output a function of the request alone. Slightly finer than Pixis+SP2300i's native ~0.06 nm/px,
     so the result is mildly oversampled -- the harmless direction. Override per setup with
-    hardware_params['stitch_step_nm'] if a grating is coarse enough that this wastes points. """
+    stitch_step_nm in the calibration file if a grating is coarse enough that this wastes points. """
     OUTPUT_STEP_NM = 0.05
 
     def __init__(self, devices, parameter, start_wl, stop_wl):
@@ -634,7 +634,12 @@ class AcquireSpectrum(QtCore.QThread):
         It also makes spec_length exactly right by construction. It used to be predicted from
         points_kept and the overlap, and DataHandling preallocates its buffers from it before the
         measurement runs, so an off-by-one there was a shape mismatch at save time. """
-        step_nm = float(getattr(self.spectrometer, 'hardware_params', {}) .get('stitch_step_nm', self.OUTPUT_STEP_NM))
+        """ Read from the calibration when the spectrometer has one -- the step belongs to the
+        camera/monochromator pairing, like the dispersion constants -- and from the detector's
+        hardware_params otherwise, which is where a non-composite spectrometer keeps its settings. """
+        settings = (getattr(self.spectrometer, 'calibration', None)
+                    or getattr(self.spectrometer, 'hardware_params', None) or {})
+        step_nm = float(settings.get('stitch_step_nm', self.OUTPUT_STEP_NM))
         n_points = max(int(round((self.end_wl - self.start_wl) / step_nm)) + 1, 2)
         self.out_wls = np.linspace(self.start_wl, self.end_wl, n_points)
         self.spec_length = len(self.out_wls)

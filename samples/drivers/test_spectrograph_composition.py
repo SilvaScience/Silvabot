@@ -63,7 +63,16 @@ if not hasattr(spec, 'get_intensities') or not hasattr(spec, 'spec_length'):
     failures.append('surface detecteur non deleguee')
 print(f'  delegation camera : spec_length={spec.spec_length}, binning={spec.parameter_dict.get("binning")}')
 
-# 5. a calibration fit for other hardware is reported rather than computed silently
+# 5. the merged dict is a live view, not a snapshot taken at construction
+spec.camera.parameter_dict['int_time'] = 999          # as the camera's own worker would
+if spec.parameter_dict['int_time'] != 999:
+    failures.append('lecture traversante: une valeur ecrite par la camera n est pas vue')
+spec.parameter_dict['int_time'] = 123                 # as the session restore would
+if spec.camera.parameter_dict['int_time'] != 123:
+    failures.append('ecriture traversante: la valeur n atteint pas la camera')
+print(f'  vue vivante : camera->composite ok, composite->camera ok')
+
+# 6. a calibration fit for other hardware is reported rather than computed silently
 mismatched = dict(reference, camera='SomeOtherCamera')
 bad_file = Path(tempfile.gettempdir()) / 'mismatched_pairing.yaml'
 bad_file.write_text(yaml.dump(mismatched), encoding='utf-8')
