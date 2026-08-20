@@ -4,26 +4,13 @@ Created on Mon Apr  28 15:09:53 2025
 
 @author: David Tiede
 
-Hardware class to control spectrometer. All hardware classes require a definition of
-parameter_display_dict (set Spinbox options and read/write)
-set_parameter function (assign set functions)
+Hardware class for the PIXIS camera alone: exposure, on-chip binned readout region, shutter.
+It has no notion of a monochromator and no optical calibration -- drivers.Spectrograph pairs
+it with one and owns the wavelength axis. All hardware classes require a definition of
+parameter_display_dict (set Spinbox options and read/write) and set_parameter.
 
-RELATION TO Pixis.py
---------------------
-Same camera, different wiring. Pixis.py opens the monochromator's serial port itself and
-speaks SP2150 commands, so camera, monochromator and one table's optical calibration all
-live in that one file -- moving the camera to another table means editing the driver.
-
-This version drives only the camera. It gets the live grating and centre wavelength from a
-separate monochromator device through attach_to_monochromator() (wired up in main.py), and
-reads its optical calibration from hardware_params in config.yaml instead of constants in
-the source. It also adds on-chip binning / a configurable readout region (set_binned_roi)
-and shutter control (set_shutter_mode).
-
-Pick this one for a setup where the monochromator is its own device in config.yaml. Pick
-Pixis.py for a setup already running against it, where nothing needs to change. Neither
-knows about the other; they are kept apart so an upgrade on one table can't disturb another.
-If every setup eventually moves here, Pixis.py can go.
+Pixis.py is the older driver for the same camera, which drives its own SP2150 over serial and
+carries one table's calibration as literals. It is kept for the setups already running on it.
 
 NOTE:
 Communication with Pixis is kind of slow (150ms), such that in the current interface a new image is acquired every 150ms
@@ -43,23 +30,22 @@ import threading
 import time
 import re
 
-class PixisDecoupled(QtCore.QThread):
+class PixisCamera(QtCore.QThread):
 
     name = 'Pixis'
 
-    def __init__(self, hardware_params):
-        super(PixisDecoupled, self).__init__()
+    def __init__(self, hardware_params=None):
+        """
+            input:
+                - hardware_params (dict): sensor_height and the startup readout region
+                  (roi_y0, roi_height, roi_binning). Optical calibration is not read here;
+                  it belongs to the Spectrograph this camera is paired with.
+        """
+        super(PixisCamera, self).__init__()
 
-        #self.camera.start()
-        self.wavelength = np.linspace(200,1000,1024) # get property from Worker
-        self.px0 = np.linspace(1,1024,1024)
-        self.spec_length = 1024 #(252,1024) # get property from Worker
+        self.spec_length = 1024  # sensor width, the wavelength axis
         self.image = np.zeros(self.spec_length)
-        self.hardware_params = hardware_params
-        # By default, no monochromator is attached. Kept as its own attribute (rather than only set
-        # in attach_to_monochromator) so calculate_wavelength_array() can be called safely before
-        # attachment instead of raising AttributeError.
-        self.monochromator = None
+        self.hardware_params = hardware_params or {}
 
         # Indicate shutter, required to discriminate between different detectors
         self.shutter = True
@@ -204,111 +190,6 @@ class PixisDecoupled(QtCore.QThread):
         if int_time == self.int_time:  # check if spectrum is acquired with desired int conditions
             self.spectrum = spec
             self.new_spectrum = True
-
-    def get_wavelength(self):
-        """This simply returns the wavelength. In Colbert this needs to be adapted if the calibration
-         changes. This function will be accessible from MeasurementClasses. """
-        self.calculate_wavelength_array()
-        return self.wavelengths
-
-    def calculate_wavelength_array(self):
-        """
-        Calculate the wavelength array for a PIXIS camera on a spectrograph, using this camera's own
-        hardware_params (set from config.yaml) plus the live grating readout from the attached
-        monochromator.
-
-        Returns:
-            wavelengths: 1D numpy array of wavelengths (nm)
-
-        Raises:
-            RuntimeError: if no monochromator is attached. self.center_wavelength/grating_lines_per_mm
-            are only meaningful once a monochromator has been attached (see attach_to_monochromator);
-            without this check, calling this before that -- or on a setup that never enables the
-            monochromator device -- fails later with an unrelated-looking AttributeError.
-            RuntimeError: if calibrated and the currently-selected grating has no calibration entry in
-            hardware_params['gratings'].
-        """
-        if self.monochromator is None:
-            raise RuntimeError(
-                "Pixis has no monochromator attached: wavelengths can't be calculated. "
-                "Enable the 'monochromator' device in config.yaml, or call attach_to_monochromator().")
-
-        self.center_wavelength,self.grating_lines_per_mm=self.monochromator.get_monochromator_parameters()
-        pixel_size_mm =self.hardware_params['pixel_size_mm']
-        focal_length_mm = self.hardware_params['focal_length_mm']
-        num_pixels = self.hardware_params['num_pixels']
-
-        if self.hardware_params['calibrated']:
-
-            wl_center = self.center_wavelength
-            m_order = 1
-            px = self.px0
-
-            """ The dispersion equation's constants (f/delta/gamma/n0/...) are fit per grating, not
-            shared across the turret: different groove density and blaze angle change the optical
-            path enough that one grating's fit doesn't describe another's. self.monochromator.grating
-            is read directly (a plain attribute on the monochromator, not routed through
-            get_monochromator_parameters()) rather than adding a per-camera lookup on the
-            monochromator side -- this camera stays reusable on any monochromator that exposes a
-            `.grating` attribute, without the monochromator needing to know this camera exists. """
-            grating_key = str(int(round(self.monochromator.grating)))
-            gratings = self.hardware_params.get('gratings', {})
-            if grating_key not in gratings:
-                raise RuntimeError(
-                    f"Pixis has no calibration for grating {grating_key} in hardware_params['gratings']. "
-                    f"Calibrated gratings: {sorted(gratings.keys())}.")
-            grating_calib = gratings[grating_key]
-            """ Only printed when something actually changed since the last call. Image mode calls
-            get_wavelength() on every live frame (several times a second) to keep the display's
-            wavelength axis current; printing unconditionally there flooded the console with
-            identical lines and buried whatever else was happening. """
-            log_state = (grating_key, round(wl_center, 3), self.roi_y0, self.roi_height, self.roi_binning)
-            if log_state != getattr(self, '_last_wavelength_calc_log', None):
-                self._last_wavelength_calc_log = log_state
-                print(f'Pixis wavelength calc: grating={grating_key}, center_wavelength={wl_center:.3f}nm, '
-                      f'roi=(y0={self.roi_y0}, height={self.roi_height}, binning={self.roi_binning})')
-
-            # calibration from notebook
-            f=grating_calib['f']
-            delta=grating_calib['delta']
-            gamma=grating_calib['gamma']
-            n0=grating_calib['n0']
-            offset_adjust=grating_calib['offset_adjust']
-            d_grating=grating_calib['d_grating']
-            x_pixel=grating_calib['x_pixel']
-            curvature=grating_calib['curvature']
-
-            n = px - (n0 + offset_adjust * wl_center)
-
-            psi = np.arcsin(m_order * wl_center / (2 * d_grating * np.cos(gamma / 2)))
-            eta = np.arctan(n * x_pixel * np.cos(delta) / (f + n * x_pixel * np.sin(delta)))
-
-            self.wavelengths = ((d_grating / m_order) * (np.sin(psi - 0.5 * gamma) + np.sin(psi + 0.5 * gamma + eta))) + curvature * n ** 2
-        else:
-            # Calculate linear dispersion (nm/mm)
-            dispersion = 1e6 / (focal_length_mm * self.grating_lines_per_mm)
-
-            # Center pixel
-            center_pixel = num_pixels // 2
-
-            # Pixel index array
-            pixel_indices = np.arange(num_pixels)
-
-            # Wavelength at each pixel
-            self.wavelengths = self.center_wavelength + (pixel_indices - center_pixel) * dispersion * pixel_size_mm
-
-    def attach_to_monochromator(self,monochromator):
-        """
-            Attaches the camera to a monochromator, letting the camera interface know where to get the monochromator parameters from.
-            Only the live grating readout is pulled from the monochromator (via calculate_wavelength_array
-            -> get_monochromator_parameters). The optical calibration constants stay in this camera's own
-            hardware_params, so this driver has no dependency on which monochromator it happens to be
-            paired with and can be reused on a different detection path unchanged.
-            input:
-                - monochromator (Monochromator QThread): The interface to the monochromator
-        """
-        self.monochromator=monochromator
-        self.type='Spectrometer'
 
     def set_roi(self, y0, height, binning=None, restart=True):
         """

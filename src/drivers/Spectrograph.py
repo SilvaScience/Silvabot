@@ -56,8 +56,8 @@ class Spectrograph(QtCore.QThread):
         """
         super(Spectrograph, self).__init__()
 
-        self.camera = create_device(camera['driver'], camera.get('init_args'))
-        self.monochromator = create_device(monochromator['driver'], monochromator.get('init_args'))
+        self.camera = self._build('camera', camera)
+        self.monochromator = self._build('monochromator', monochromator)
         self.calibration = load_calibration(calibration)
         self._check_pairing()
 
@@ -67,6 +67,20 @@ class Spectrograph(QtCore.QThread):
         self.wavelengths = np.zeros(self.num_pixels)
 
         self._build_parameters()
+
+    @staticmethod
+    def _build(role, spec):
+        """ Builds one sub-device, honouring the same 'fallback' key config.yaml uses at top level
+            so a missing instrument degrades to its demo instead of taking the whole pairing down. """
+        try:
+            return create_device(spec['driver'], spec.get('init_args'))
+        except Exception as e:
+            print(f"Spectrograph {role}: {spec['driver'].split('.')[-1]} failed ({e})")
+            if not spec.get('fallback'):
+                raise
+            device = create_device(spec['fallback'], spec.get('init_args'))
+            print(f"Spectrograph {role}: {spec['fallback'].split('.')[-1]} (fallback) connected")
+            return device
 
     def _check_pairing(self):
         """ Warns when the calibration names hardware other than what was actually loaded. The

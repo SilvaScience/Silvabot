@@ -62,6 +62,10 @@ class MainInterface(QtWidgets.QMainWindow):
         # in config.yaml. Spectrometers without attach_to_monochromator (ThorlabsCCS200, Heliotis,
         # OceanSpectrometer, the original Pixis) are left untouched.
         spectrometer = self.devices.get('spectrometer')
+        """ The monochromator is either a device of its own (a spectrometer that attaches to one)
+        or a sub-device of a composite Spectrograph. Resolved once here, so the grating selector
+        and change_grating() below work the same way in both cases. """
+        self.monochromator = self.devices.get('monochromator') or getattr(spectrometer, 'monochromator', None)
         monochromator = self.devices.get('monochromator')
         if monochromator and spectrometer is not None and hasattr(spectrometer, 'attach_to_monochromator'):
             spectrometer.attach_to_monochromator(monochromator)
@@ -108,7 +112,7 @@ class MainInterface(QtWidgets.QMainWindow):
         doesn't expose this attribute get no dropdown and no change in behaviour: the tree below
         falls back to showing 'grating' the same way it shows every other parameter. """
         self.grating_combo = None
-        monochromator = self.devices.get('monochromator')
+        monochromator = self.monochromator
         if monochromator is not None and hasattr(monochromator, 'grating_densities'):
             self.grating_combo = QtWidgets.QComboBox()
             blazes = getattr(monochromator, 'grating_blazes', None)
@@ -384,9 +388,13 @@ class MainInterface(QtWidgets.QMainWindow):
         value = self.grating_combo.itemData(index)
         if value is None:
             return
-        monochromator = self.devices.get('monochromator')
+        monochromator = self.monochromator
         if monochromator is not None:
             monochromator.set_parameter('grating', value)
+            spectrometer = self.devices.get('spectrometer')
+            # Keep a composite spectrometer's merged dict in step with its sub-device.
+            if 'grating' in getattr(spectrometer, 'parameter_dict', {}):
+                spectrometer.parameter_dict['grating'] = value
             self.parameter['grating'] = value
 
     def test_button_clicked(self):
