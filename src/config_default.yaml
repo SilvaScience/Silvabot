@@ -15,7 +15,7 @@ devices:
   #    lives in its own file under src/calibrations/. See the commented example below.
   spectrometer:
     enabled: true
-    driver: drivers.ThorlabsCCS200.ThorlabsCCS200 # Options: .Heliotis, .OceanSpectrometer
+    driver: drivers.ThorlabsCCS200.ThorlabsCCS200 # Options: .OceanSpectrometer
     fallback: drivers.SpectrometerDemo_advanced.SpectrometerDemo
     init_args:
       port: 'COM10'
@@ -27,7 +27,7 @@ devices:
   #   driver: drivers.Spectrograph.Spectrograph
   #   fallback: drivers.SpectrometerDemo_advanced.SpectrometerDemo
   #   init_args:
-  #     camera:                                     # Options: .StresingCamera.StresingCamera
+  #     camera:   # Options: .StresingCamera, .AlizeCamera, .HeliotisCamera
   #       driver: drivers.PixisCamera.PixisCamera
   #       init_args:
   #         hardware_params:

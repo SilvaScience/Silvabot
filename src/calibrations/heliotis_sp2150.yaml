@@ -1,0 +1,49 @@
+# Calibration for one camera/monochromator pairing.
+#
+# The constants are fit for this triple: this camera, this monochromator, this grating. Move any
+# of the three and they must be refit -- the grating keys still resolve, `calibrated` stays true,
+# and you get a wrong wavelength axis with no error. The `camera` and `monochromator` fields are
+# checked against the devices actually loaded, so a mismatch is reported at startup.
+#
+# WARNING grating 1 is not calibrated. Heliotis.py fell back to grating 3's constants and printed
+# a warning; the same constants are repeated here so the axis is unchanged, but they do not
+# describe grating 1.
+#
+# This unit's turret is declared in config.yaml rather than read from it: it does not answer
+# ?GRATINGS reliably. Heliotis.py carried it as [1, 1200, 600] g/mm with [1, 500, 500] nm blazes,
+# slot 1 being a placeholder that only existed so grating-1 indexing did not fall off the array.
+# Declare it as: [{density: 1, blaze: 1}, {density: 1200, blaze: 500}, {density: 600, blaze: 500}]
+camera: Heliotis
+monochromator: SpectraPro2150
+num_pixels: 512
+pixel_size_mm: 0.024
+focal_length_mm: 203
+calibrated: true
+gratings:
+  '1':
+    f: 24739656.496170387
+    delta: 4.763915731068521
+    gamma: 1.4300129817768625
+    n0: 243.0
+    offset_adjust: 0
+    d_grating: 4926.108374384236
+    x_pixel: 24000.0
+    curvature: -0.0001681610550643024
+  '2':
+    f: 1197096958.9926493
+    delta: -18.68106438263782
+    gamma: -1.6871589585359328
+    n0: 238.25
+    offset_adjust: 0
+    d_grating: 4926.108374384236
+    x_pixel: 24000.0
+    curvature: -6.663483223202162e-06
+  '3':
+    f: 24739656.496170387
+    delta: 4.763915731068521
+    gamma: 1.4300129817768625
+    n0: 243.0
+    offset_adjust: 0
+    d_grating: 4926.108374384236
+    x_pixel: 24000.0
+    curvature: -0.0001681610550643024

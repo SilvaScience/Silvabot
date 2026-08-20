@@ -136,6 +136,7 @@ class Spectrograph(QtCore.QThread):
             self.wavelengths = linear_wavelengths(
                 center_wl, lines_per_mm, self.calibration['focal_length_mm'],
                 self.calibration['pixel_size_mm'], self.num_pixels)
+            self._publish_axis()
             return self.wavelengths
 
         grating = str(int(round(self.monochromator.grating)))
@@ -145,7 +146,14 @@ class Spectrograph(QtCore.QThread):
                 f'{self.calibration["source"]}. Calibrated: {sorted(self.calibration["gratings"])}.')
         self.wavelengths = pixel_to_wavelength(self.pixels, center_wl,
                                                self.calibration['gratings'][grating])
+        self._publish_axis()
         return self.wavelengths
+
+    def _publish_axis(self):
+        """ Hands the axis to cameras that already carry a `wavelength` attribute, because they
+            save it themselves alongside their raw frames (HeliotisCamera). """
+        if hasattr(self.camera, 'wavelength'):
+            self.camera.wavelength = self.wavelengths
 
     def get_intensities(self):
         """REQUIRED. The detector reads; the monochromator is not involved."""

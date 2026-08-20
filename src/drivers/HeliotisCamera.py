@@ -3,7 +3,11 @@
 Created on Mon Apr  28 15:09:53 2025
 
 @author: David Tiede
-Hardware class to control spectrometer. All hardware classes require a definition of
+Hardware class for the Heliotis camera alone. It has no notion of a monochromator and no optical
+calibration -- drivers.Spectrograph pairs it with one and owns the wavelength axis, writing it
+back to self.wavelength because the worker saves it alongside each raw frame.
+
+All hardware classes require a definition of
 parameter_display_dict (set Spinbox options and read/write)
 set_parameter function (assign set functions)
 
@@ -26,7 +30,6 @@ from harvesters.core import Harvester
 from collections import defaultdict
 from PyQt5 import QtCore, QtWidgets
 import time
-import serial
 import re
 import h5py
 from multiprocessing import Process, Queue
@@ -40,40 +43,21 @@ def camera_worker(cmd_q, res_q):
     w = CameraWorker(cmd_q, res_q)
     w.run()
 
-class Heliotis(QtCore.QObject):
+class HeliotisCamera(QtCore.QObject):
 
     name = 'Heliotis'
 
     request_file = QtCore.pyqtSignal()
 
-    def __init__(self, port):
-        super(Heliotis, self).__init__()
+    def __init__(self):
+        super(HeliotisCamera, self).__init__()
 
-        self.wavelength =  np.linspace(200,1000,512) # get property from Worker
+        self.wavelength = np.linspace(200,1000,512)  # set by Spectrograph, saved with each raw frame
         self.px0 = np.linspace(1,512,512)
         self.spec_length = (542,512) # # pixis length is (xx, 542, 512), xx is acquired frames
 
         # Parameters. Defines parameters that are required for by the interface
         self.new_spectrum = False
-
-        # set up spectrograph
-        self.serial_busy = False
-        self.ser = serial.Serial(port=port, baudrate=9600, bytesize=8, parity='N',
-                                 stopbits=1, xonxoff=0, rtscts=0, timeout=0.02)
-        # get startup values
-        self.grating = float(self.write_command('?GRATING')[0])
-        numbers = self.write_command('?GRATINGS')
-        print('Gratings:',numbers)
-        self.num_gratings = int((len(numbers)-8)/2)
-        self.grating_densities = np.zeros(self.num_gratings)
-        self.grating_blazes = np.zeros(self.num_gratings)
-        for i in range(self.num_gratings):
-            self.grating_densities[i] = numbers[i*3 + 1]
-            self.grating_blazes[i] = numbers[i * 3 + 2]
-        self.center_wl = float(self.write_command('?NM')[0])
-        self.num_gratings = 3
-        self.grating_densities = [1, 1200, 600]
-        self.grating_blazes =[1, 500, 500]
 
         #initial heliotis settings
         self.num_frames = 100
@@ -95,14 +79,6 @@ class Heliotis(QtCore.QObject):
         self.parameter_display_dict['num_frames']['min'] = 4
         self.parameter_display_dict['num_frames']['max'] = 910 # 910 is heliotis max
         self.parameter_display_dict['num_frames']['read'] = False
-        self.parameter_display_dict['center_wl']['val'] = self.center_wl
-        self.parameter_display_dict['center_wl']['unit'] = ' nm'
-        self.parameter_display_dict['center_wl']['max'] = 2000
-        self.parameter_display_dict['center_wl']['read'] = False
-        self.parameter_display_dict['grating']['val'] = self.grating
-        self.parameter_display_dict['grating']['unit'] = ' grat'
-        self.parameter_display_dict['grating']['max'] = 3
-        self.parameter_display_dict['grating']['read'] = False
         self.parameter_display_dict['take_average']['val'] = 0
         self.parameter_display_dict['take_average']['unit'] = ' per'
         self.parameter_display_dict['take_average']['max'] = 100 # 100 is heliotis max
@@ -187,17 +163,7 @@ class Heliotis(QtCore.QObject):
     def set_parameter(self, parameter, value):
         """REQUIRED. This function defines how changes in the parameter tree are handled.
         In devices with workers, a pause of continuous acquisition might be required. """
-        if parameter == 'center_wl':
-            cmd = f'{value:0.3f} GOTO'
-            self.write_command(cmd)
-            self.parameter_dict['center_wl'] = value
-            self.center_wl = value
-        elif parameter == 'grating':
-            cmd = f'{value:1.0f} GRATING'
-            self.write_command(cmd)
-            self.parameter_dict['grating'] = value
-            self.grating = value
-        elif parameter == 'num_frames':
+        if parameter == 'num_frames':
             self.parameter_dict['num_frames'] = value
             self.num_frames = int(value)
             self.cmd_q.put({
@@ -264,63 +230,6 @@ class Heliotis(QtCore.QObject):
             self.new_spectrum = True
 
 
-    def get_wavelength(self):
-        """This simply returns the wavelength. In Colbert this needs to be adapted if the calibration
-         changes. This function will be accessible from MeasurementClasses. """
-        return self.calculate_wavelength_array(self.center_wl,self.grating_densities[int(self.grating-1)])
-
-    def calculate_wavelength_array(self,center_wavelength_nm,grating_lines_per_mm):
-        """
-        Calculate the wavelength array for a PIXIS camera on SP-2150 spectrograph.
-
-        Parameters:
-            center_wavelength_nm: Central wavelength (nm)
-            grating_lines_per_mm: Groove density (lines/mm)
-
-        Returns:
-            wavelengths: 1D numpy array of wavelengths (nm)
-        """
-        calibrated = True
-        if calibrated:
-
-            wl_center = center_wavelength_nm
-            m_order = 1
-            px = self.px0
-
-            # calibration from notebook
-            if self.grating == 3:
-                f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(24739656.496170387), np.float64(4.763915731068521), np.float64(1.4300129817768625), np.float64(243.0), 0, 4926.108374384236, 24000.0, np.float64(-0.0001681610550643024)]
-            elif self.grating == 2:
-                f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(1197096958.9926493), np.float64(-18.68106438263782), np.float64(-1.6871589585359328), np.float64(238.25), 0, 4926.108374384236, 24000.0, np.float64(-6.663483223202162e-06)]
-            else:
-                print('WARNING: GRATING NOT CALIBRATED. Use calib of grating3 ')
-                f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(24739656.496170387), np.float64(4.763915731068521), np.float64(1.4300129817768625), np.float64(243.0), 0,  4926.108374384236, 24000.0, np.float64(-0.0001681610550643024)]
-
-            n = px - (n0 + offset_adjust * wl_center)
-
-            psi = np.arcsin(m_order * wl_center / (2 * d_grating * np.cos(gamma / 2)))
-            eta = np.arctan(n * x_pixel * np.cos(delta) / (f + n * x_pixel * np.sin(delta)))
-
-            wavelengths = ((d_grating / m_order) * (np.sin(psi - 0.5 * gamma) + np.sin(psi + 0.5 * gamma + eta))) + curvature * n ** 2
-        else:
-            pixel_size_mm = 24 / 1E3  # specs of Heliotis
-            focal_length_mm = 203  # specs of SP2150
-            num_pixels = 512  # specs of Heliotis
-
-            # Calculate linear dispersion (nm/mm)
-            dispersion = 1e6 / (focal_length_mm * grating_lines_per_mm)
-
-            # Center pixel
-            center_pixel = num_pixels // 2
-
-            # Pixel index array
-            pixel_indices = np.arange(num_pixels)
-
-            # Wavelength at each pixel
-            wavelengths = center_wavelength_nm + (pixel_indices - center_pixel) * dispersion * pixel_size_mm
-        self.wavelength = wavelengths
-        return wavelengths
-
     def get_intensities(self):
         """ Gets the intensity. The example include the possibility of averaging several spectra and to
         perform a binning. Such functionalities might also be given by the camera.
@@ -334,30 +243,6 @@ class Heliotis(QtCore.QObject):
             time.sleep(0.05)
         print(time.strftime("%H:%M:%S", time.localtime(time.time())) + ' Spectrum acquired')
         return self.spectrum
-
-    def write_command(self, cmd):
-        """ Command to write to serial handles timeout by blocking serial commands
-        Args:
-            ser: serial object
-            cmd: write command as defined in PI API
-
-        Returns: read string with only digit content. For troubleshooting, consider printing
-        the entire answer string
-        """
-        cmd_bytes = cmd.encode('ASCII')
-        self.ser.write(cmd_bytes + b"\r")
-        out = bytearray()
-        char = b""
-        missed_char_count = 0
-        while char != b"k":
-            char = self.ser.read()
-            if char == b"":  # handles a timeout here
-                missed_char_count += 1
-                self.serial_busy = True
-                time.sleep(0.1)
-            out += char
-        self.serial_busy = False
-        return re.findall(r'\d+', out.decode().strip())
 
 class CameraWorker:
     """ This is a DemoWorker for the spectrometer.
