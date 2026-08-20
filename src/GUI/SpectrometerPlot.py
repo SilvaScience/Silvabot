@@ -6,7 +6,6 @@ import numpy as np
 from devices import caps
 import time
 import matplotlib.pyplot as plt
-import h5py
 import os
 #from compute.TdepABS_Calibration import load_data
 
@@ -306,65 +305,6 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
                 self.bg_spec = np.average(bg_spec[1:,:,:],axis=0)
 
 
-
-    def construct_ROI_input(self):
-        layout = QtWidgets.QVBoxLayout()
-        grid_layout = QtWidgets.QGridLayout()
-
-        for i in range(4):
-            group = QtWidgets.QGroupBox(f"ROI{i}")
-            hbox = QtWidgets.QHBoxLayout()
-
-            min_spin = QtWidgets.QSpinBox()
-            min_spin.setRange(0, 1000)
-            min_spin.setValue(i * 63 + 26)
-
-            max_spin = QtWidgets.QSpinBox()
-            max_spin.setRange(0, 1000)
-            max_spin.setValue(i * 63 + 36)
-
-            hbox.addWidget(QtWidgets.QLabel("Min:"))
-            hbox.addWidget(min_spin)
-            hbox.addWidget(QtWidgets.QLabel("Max:"))
-            hbox.addWidget(max_spin)
-            group.setLayout(hbox)
-
-            row = 0
-            col = i
-            grid_layout.addWidget(group, row, col)
-
-            self.roi_controls.append((min_spin, max_spin))
-
-        layout.addLayout(grid_layout)
-
-        hbox_widget =QtWidgets.QWidget()
-        hbox = QtWidgets.QHBoxLayout()
-        self.input_line = QtWidgets.QLineEdit()
-        self.input_line.setPlaceholderText("Enter math expression using ROI0 to ROI3")
-        self.input_line.setText('y[0]-y[1]') #'np.ones(len(self.y[0])) - self.y[0]/self.y[3] - self.y[1]/self.y[3]'
-        hbox.addWidget(self.input_line)
-        self.input_line_range = QtWidgets.QLineEdit()
-        self.input_line_range.setText("[0,1,2,3,4]")
-        hbox.addWidget(self.input_line_range)
-        hbox.addWidget(QtWidgets.QLabel("Binning:"))
-        self.checkbox_bin = QtWidgets.QCheckBox()
-        self.spinbox_bin = QtWidgets.QSpinBox()
-        self.spinbox_bin.setValue(1)
-        hbox.addWidget(self.checkbox_bin)
-        hbox.addWidget(self.spinbox_bin)
-        hbox.addWidget(QtWidgets.QLabel("Sum mode:"))
-        self.checkbox_image = QtWidgets.QCheckBox()
-        hbox.addWidget(self.checkbox_image)
-        hbox.addWidget(QtWidgets.QLabel("show Limits:"))
-        self.checkbox_limits = QtWidgets.QCheckBox()
-        hbox.addWidget(self.checkbox_limits)
-        hbox_widget.setLayout(hbox)
-        layout.addWidget(hbox_widget)
-        return layout
-
-        # New line added to run the load_data function when load_ref_button is clicked.
-        self.load_ref_button.clicked.connect(self.load_data)
-        self.load_calib_button.clicked.connect(self.load_calib)
 
     def construct_ROI_input(self):
         layout = QtWidgets.QVBoxLayout()
