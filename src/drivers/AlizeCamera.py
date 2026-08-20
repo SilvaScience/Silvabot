@@ -36,6 +36,7 @@ def camera_worker(cmd_q, res_q):
 class AlizeCamera(QtCore.QThread):
 
     name = 'Alize'
+    caps = frozenset({'acquisition'})
     
     def __init__(self):
         super(AlizeCamera, self).__init__()

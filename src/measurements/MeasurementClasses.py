@@ -12,6 +12,8 @@ import numpy as np
 import h5py
 import os
 
+from devices import caps
+
 
 # Measurement to acquire one spectrum
 class AcquireMeasurement(QtCore.QThread):
@@ -30,12 +32,12 @@ class AcquireMeasurement(QtCore.QThread):
     def run(self):
         if not self.terminate:  # check whether stopping measurement is called
             self.sendProgress.emit(50)
-            if hasattr(self.spectrometer, 'shutter'):
+            if 'acquisition' in caps(self.spectrometer):
                 self.spectrometer.start_acquisition()
             self.wls = np.array(self.spectrometer.get_wavelength())
             self.take_spectrum()
             print(time.strftime('%H:%M:%S') + ' Finished')
-            if hasattr(self.spectrometer, 'shutter'):
+            if 'acquisition' in caps(self.spectrometer):
                 self.spectrometer.stop_acquisition()
             self.sendProgress.emit(100)
 
@@ -68,7 +70,7 @@ class AcquireImage(QtCore.QThread):
     def __init__(self, devices, parameter):
         super(AcquireImage, self).__init__()
         self.spectrometer = devices['spectrometer']
-        if not hasattr(self.spectrometer, 'frame_shape'):
+        if 'frame' not in caps(self.spectrometer):
             """ Refuse here rather than emitting a frame DataHandling was never sized for: without
             spec_length, start_measurement leaves the buffers at the device's 1D default and
             concatenate_data fails on the shape mismatch, well away from the cause. """
@@ -110,7 +112,7 @@ class ViewMeasurement(QtCore.QThread):
         self.terminate = False
 
     def run(self):
-        if hasattr(self.spectrometer, 'shutter'):
+        if 'acquisition' in caps(self.spectrometer):
             self.spectrometer.start_acquisition()
         while not self.terminate:  # check whether stopping measurement is called
             t = time.time()
@@ -123,7 +125,7 @@ class ViewMeasurement(QtCore.QThread):
             # limit too fast acquistion for computation
             if time.time() - t < 0.02:
                 time.sleep(0.02)
-        if hasattr(self.spectrometer, 'shutter'):
+        if 'acquisition' in caps(self.spectrometer):
             self.spectrometer.stop_acquisition()
         # Finish measurement when loop is terminated
         print(time.strftime('%H:%M:%S') + ' Finished')
@@ -150,7 +152,7 @@ class RunMeasurement(QtCore.QThread):
 
     def run(self):
         self.sendProgress.emit(0)
-        if hasattr(self.spectrometer, 'shutter'):
+        if 'acquisition' in caps(self.spectrometer):
             self.spectrometer.start_acquisition()
         while not self.terminate:  # loop runs until requested stop
             t1 = time.time()
@@ -165,7 +167,7 @@ class RunMeasurement(QtCore.QThread):
             # limit too fast acquistion for computation
             if time.time() - t1 < 0.02:
                 time.sleep(0.02)
-        if hasattr(self.spectrometer, 'shutter'):
+        if 'acquisition' in caps(self.spectrometer):
             self.spectrometer.stop_acquisition()
         print(time.strftime('%H:%M:%S') + ' Finished')
         self.sendProgress.emit(100)
@@ -196,7 +198,7 @@ class BackgroundMeasurement(QtCore.QThread):
         self.terminate = False
 
     def run(self):
-        if hasattr(self.spectrometer, 'shutter'):
+        if 'acquisition' in caps(self.spectrometer):
             self.spectrometer.start_acquisition()
         if not self.terminate:  # check whether stopping measurement is called
             self.summedspec = np.array(self.spectrometer.get_intensities())
@@ -206,7 +208,7 @@ class BackgroundMeasurement(QtCore.QThread):
                 self.spec = np.array(self.spectrometer.get_intensities())
                 self.summedspec = self.summedspec + self.spec
             self.spec = self.summedspec / self.scans
-            if hasattr(self.spectrometer, 'shutter'):
+            if 'acquisition' in caps(self.spectrometer):
                 self.spectrometer.stop_acquisition()
             self.sendSpectrum.emit(self.wls, self.spec)
             self.sendSave.emit(self.filename, self.comments)
@@ -244,7 +246,7 @@ class KineticMeasurement(QtCore.QThread):
 
     def run(self):
         print(time.strftime('%H:%M:%S') + 'Run Kinetic Measurement')
-        if hasattr(self.spectrometer, 'shutter'):
+        if 'acquisition' in caps(self.spectrometer):
             self.spectrometer.start_acquisition()
         if not self.terminate:
             # get wls and start time
@@ -299,7 +301,7 @@ class KineticMeasurement(QtCore.QThread):
 
                     else:
                         print('Unknown instance in kinetic interval')
-        if hasattr(self.spectrometer, 'shutter'):
+        if 'acquisition' in caps(self.spectrometer):
             self.spectrometer.stop_acquisition()
         self.sendProgress.emit(100)
         self.spectrometer.probe_trigger = False
@@ -397,13 +399,13 @@ class TSeriesMeasurement(QtCore.QThread):
                     if self.sequence_check:
                         for s in self.sequence:
                             if s =='a':
-                                if hasattr(self.spectrometer, 'shutter'):
+                                if 'acquisition' in caps(self.spectrometer):
                                     self.spectrometer.start_acquisition()
                                 for m in range(self.spectra_avg):  # take several spectra for each acquistion
                                     self.spec = np.array(self.spectrometer.get_intensities())
                                     self.sendSpectrum.emit(self.wls, self.spec)
                                     print(time.strftime('%H:%M:%S') + ' Spectrum acquired')
-                                if hasattr(self.spectrometer, 'shutter'):
+                                if 'acquisition' in caps(self.spectrometer):
                                     self.spectrometer.stop_acquisition()
                             elif s[0:3] == 'int':
                                 try:
@@ -440,13 +442,13 @@ class TSeriesMeasurement(QtCore.QThread):
 
                     else:
                         if not self.two_sources: # case of one single source
-                            if hasattr(self.spectrometer, 'shutter'):
+                            if 'acquisition' in caps(self.spectrometer):
                                 self.spectrometer.start_acquisition()
                             for m in range(self.spectra_avg): # take several spectra for each acquistion
                                 self.spec = np.array(self.spectrometer.get_intensities())
                                 self.sendSpectrum.emit(self.wls, self.spec)
                                 print(time.strftime('%H:%M:%S') + ' Spectrum acquired')
-                            if hasattr(self.spectrometer, 'shutter'):
+                            if 'acquisition' in caps(self.spectrometer):
                                 self.spectrometer.stop_acquisition()
 
                             progress = n / len(self.T_series) * 100
@@ -458,11 +460,11 @@ class TSeriesMeasurement(QtCore.QThread):
                                 self.sendParameter.emit('shutter', 100)  # open Orpheus shutter
                                 time.sleep(2)
                                 for m in range(self.spectra_avg):
-                                    if hasattr(self.spectrometer, 'shutter'):
+                                    if 'acquisition' in caps(self.spectrometer):
                                         self.spectrometer.start_acquisition()
                                     self.spec = np.array(self.spectrometer.get_intensities())
                                     self.sendSpectrum.emit(self.wls, self.spec)
-                                    if hasattr(self.spectrometer, 'shutter'):
+                                    if 'acquisition' in caps(self.spectrometer):
                                         self.spectrometer.stop_acquisition()
                                     print(time.strftime('%H:%M:%S') + ' PL Spectrum acquired')
 
@@ -477,7 +479,7 @@ class TSeriesMeasurement(QtCore.QThread):
                                         #self.sendParameter.emit('filter_wheel', self.filter_ard_pos[k])
                                         #self.sendParameter.emit('filter_pos', self.filter_thor_pos[k])
                                         # trigger spectrometer to settle to new int time
-                                        if hasattr(self.spectrometer, 'shutter'):
+                                        if 'acquisition' in caps(self.spectrometer):
                                             self.spectrometer.start_acquisition()
                                         if not self.int_time_orpheus == self.int_times[k]:
                                             print(time.strftime('%H:%M:%S') + ' Int time changed, trigger spectrometer and '
@@ -497,7 +499,7 @@ class TSeriesMeasurement(QtCore.QThread):
                                             print(time.strftime('%H:%M:%S') + ' PL Spectrum acquired')
                                         #self.sendParameter.emit('shutter1', 0)  # close Orpheus shutter
                                         #time.sleep(2)
-                                        if hasattr(self.spectrometer, 'shutter'):
+                                        if 'acquisition' in caps(self.spectrometer):
                                             self.spectrometer.stop_acquisition()
                                 self.sendParameter.emit('int_time', self.int_time_WL)
 
@@ -506,13 +508,13 @@ class TSeriesMeasurement(QtCore.QThread):
                             time.sleep(2)
                             self.sendParameter.emit('shutter', 0)  # close Orpheus shutter again
 
-                            if hasattr(self.spectrometer, 'shutter'):
+                            if 'acquisition' in caps(self.spectrometer):
                                 self.spectrometer.start_acquisition()
                             for m in range(self.spectra_avg): # take several WL measurements
                                 self.spec = np.array(self.spectrometer.get_intensities())
                                 self.sendSpectrum.emit(self.wls, self.spec)
                                 print(time.strftime('%H:%M:%S') + ' WL Spectrum acquired')
-                            if hasattr(self.spectrometer, 'shutter'):
+                            if 'acquisition' in caps(self.spectrometer):
                                 self.spectrometer.stop_acquisition()
                             progress = n / len(self.T_series) * 100
                             self.sendProgress.emit(progress)
@@ -592,7 +594,7 @@ class AcquireSpectrum(QtCore.QThread):
         support a monochromator but isn't attached to one yet (Pixis/Stresing without the separate
         'monochromator' device enabled) fails inside the get_wavelength() probe call right below with
         a clear RuntimeError instead -- this check catches the case that wouldn't. """
-        if getattr(self.spectrometer, 'monochromator', None) is None:
+        if 'stitch' not in caps(self.spectrometer):
             raise RuntimeError(
                 "AcquireSpectrum requires a monochromator attached to the spectrometer to move "
                 "between grating positions. Enable the 'monochromator' device in config.yaml.")
@@ -706,7 +708,7 @@ class AcquireSpectrum(QtCore.QThread):
     def run(self):
         if self.terminate:
             return
-        if hasattr(self.spectrometer, 'set_shutter_mode'):
+        if 'shutter_mode' in caps(self.spectrometer):
             self.spectrometer.set_shutter_mode(self._shutter_mode())
         self.sendProgress.emit(0)
         half = self.points_kept // 2
@@ -726,11 +728,11 @@ class AcquireSpectrum(QtCore.QThread):
             time.sleep(5)                                       # Wait to ensure the grating is in position before taking the next spectra
 
             # acquire spectrum
-            if hasattr(self.spectrometer, 'shutter'):
+            if 'acquisition' in caps(self.spectrometer):
                 self.spectrometer.start_acquisition()
             new_wls = np.array(self.spectrometer.get_wavelength())    # Get wavelength range of the spectrometer for the new grating position
             new_spec = np.array(self.spectrometer.get_intensities())  # Get the spectrum for the new grating position
-            if hasattr(self.spectrometer, 'shutter'):
+            if 'acquisition' in caps(self.spectrometer):
                 self.spectrometer.stop_acquisition()
 
             """ mid_idx - half : mid_idx - half + points_kept, not mid_idx - half : mid_idx + half --
@@ -872,13 +874,13 @@ class PowerSeriesMeasurement(QtCore.QThread):
                     time.sleep(2)
 
                     # measure
-                    if hasattr(self.spectrometer, 'shutter'):
+                    if 'acquisition' in caps(self.spectrometer):
                         self.spectrometer.start_acquisition()
                     for m in range(self.spectra_avg):  # take several spectra for each acquistion
                         if not self.terminate:
                             spec = np.array(self.spectrometer.get_intensities())
                             self.sendSpectrum.emit(self.wls, spec)
-                    if hasattr(self.spectrometer, 'shutter'):
+                    if 'acquisition' in caps(self.spectrometer):
                         self.spectrometer.stop_acquisition()
 
                     # send progress

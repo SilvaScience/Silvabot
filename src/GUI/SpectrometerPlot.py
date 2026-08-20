@@ -2,6 +2,8 @@ import h5py
 from PyQt5 import QtWidgets, QtCore, QtGui
 import pyqtgraph as pg
 import numpy as np
+
+from devices import caps
 import time
 import matplotlib.pyplot as plt
 import h5py
@@ -172,16 +174,12 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             stays hidden and nothing about this widget changes.
         """
         self.spectrometer = spectrometer
-        capable = (spectrometer is not None
-                   and hasattr(spectrometer, 'set_binned_roi')
-                   and hasattr(spectrometer, 'set_full_frame')
-                   and hasattr(spectrometer, 'get_roi')
-                   and hasattr(spectrometer, 'worker'))
+        capable = 'roi' in caps(spectrometer)
         self.camera_mode_button.setVisible(capable)
         # Stitching needs a monochromator to move between grating positions; without one the range
         # inputs would feed a button that can only fail. Hidden rather than disabled, so a setup
         # that can't stitch sees the row exactly as before.
-        can_stitch = getattr(spectrometer, 'monochromator', None) is not None
+        can_stitch = 'stitch' in caps(spectrometer)
         for widget in self.stitch_widgets:
             widget.setVisible(can_stitch)
         if capable:

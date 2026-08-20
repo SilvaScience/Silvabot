@@ -66,6 +66,9 @@ class Spectrograph(QtCore.QThread):
         self.spec_length = self.num_pixels
         self.wavelengths = np.zeros(self.num_pixels)
 
+        # Whatever the detector can do, plus the one thing pairing it with a monochromator adds.
+        self.caps = frozenset(getattr(self.camera, 'caps', frozenset())) | {'stitch'}
+
         self._build_parameters()
 
     @staticmethod

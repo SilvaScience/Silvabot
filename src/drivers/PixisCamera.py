@@ -33,6 +33,7 @@ import re
 class PixisCamera(QtCore.QThread):
 
     name = 'Pixis'
+    caps = frozenset({'acquisition', 'roi', 'frame', 'shutter_mode'})
 
     def __init__(self, hardware_params=None):
         """
