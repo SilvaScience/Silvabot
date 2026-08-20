@@ -15,7 +15,7 @@ devices:
   #    lives in its own file under src/calibrations/. See the commented example below.
   spectrometer:
     enabled: true
-    driver: drivers.ThorlabsCCS200.ThorlabsCCS200 # Options: .Heliotis, .Pixis, .OceanSpectrometer
+    driver: drivers.ThorlabsCCS200.ThorlabsCCS200 # Options: .Heliotis, .OceanSpectrometer
     fallback: drivers.SpectrometerDemo_advanced.SpectrometerDemo
     init_args:
       port: 'COM10'
@@ -39,7 +39,22 @@ devices:
   #       fallback: drivers.SpectraPro2300iDemo.SpectraPro2300iDemo
   #       init_args:
   #         port: COM5
-  #     calibration: calibrations/pixis_sp2300i.yaml   # or stresing_sp2300i.yaml
+  #     calibration: calibrations/pixis_sp2300i.yaml
+  #
+  # Other pairings shipped: pixis_sp2150, stresing_sp2300i, alize_sp2150, heliotis_sp2150.
+  #
+  # An older unit whose ?GRATINGS answer cannot be trusted takes its turret from config instead
+  # (the SP2150 of the Alize and Heliotis tables):
+  #
+  #     monochromator:
+  #       driver: drivers.SpectraPro.SpectraPro
+  #       init_args:
+  #         port: COM5
+  #         model: SpectraPro2150
+  #         has_mirror: false
+  #         gratings:
+  #           - {density: 600, blaze: 1200}
+  #           - {density: 300, blaze: 1200}
   orpheus:
     enabled: false
     driver: drivers.orpheus.Orpheus

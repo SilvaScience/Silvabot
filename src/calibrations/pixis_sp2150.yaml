@@ -1,0 +1,45 @@
+# Calibration for one camera/monochromator pairing.
+#
+# The constants are fit for this triple: this camera, this monochromator, this grating. Move any
+# of the three and they must be refit -- the grating keys still resolve, `calibrated` stays true,
+# and you get a wrong wavelength axis with no error. The `camera` and `monochromator` fields are
+# checked against the devices actually loaded, so a mismatch is reported at startup.
+#
+# NOTE Pixis.py applied one fit to every grating on this table, so every grating below carries
+# the same constants. Any grating therefore gives exactly the axis it gave before. Refit per
+# grating when someone gets to it: groove density and blaze angle change the optical path enough
+# that one grating's fit does not describe another's.
+camera: Pixis
+monochromator: SpectraPro2150
+num_pixels: 1024
+pixel_size_mm: 0.026
+focal_length_mm: 150
+calibrated: true
+gratings:
+  '1':
+    f: 330605663.74965495
+    delta: -0.20488367116307532
+    gamma: 2.021864300924973
+    n0: 508.0
+    offset_adjust: 0
+    d_grating: 6666.666666666667
+    x_pixel: 26000.0
+    curvature: 3.1224154313329654e-06
+  '2':
+    f: 330605663.74965495
+    delta: -0.20488367116307532
+    gamma: 2.021864300924973
+    n0: 508.0
+    offset_adjust: 0
+    d_grating: 6666.666666666667
+    x_pixel: 26000.0
+    curvature: 3.1224154313329654e-06
+  '3':
+    f: 330605663.74965495
+    delta: -0.20488367116307532
+    gamma: 2.021864300924973
+    n0: 508.0
+    offset_adjust: 0
+    d_grating: 6666.666666666667
+    x_pixel: 26000.0
+    curvature: 3.1224154313329654e-06
