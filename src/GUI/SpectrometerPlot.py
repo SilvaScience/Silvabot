@@ -181,6 +181,13 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
                   "worker to stream frames; the sensor view stays hidden.")
             capable = False
         self.camera_mode_button.setVisible(capable)
+        self.readout_mode_button.setVisible('output_mode' in caps(spectrometer))
+        if 'output_mode' in caps(spectrometer):
+            self.readout_mode_button.blockSignals(True)
+            self.readout_mode_button.setChecked(spectrometer.get_output_mode() == '2D')
+            self.readout_mode_button.setText(f'Readout: {spectrometer.get_output_mode()}')
+            self.readout_mode_button.blockSignals(False)
+            self.reframe_roi_controls()
         # Stitching needs a monochromator to move between grating positions; without one the range
         # inputs would feed a button that can only fail. Hidden rather than disabled, so a setup
         # that can't stitch sees the row exactly as before.
@@ -191,6 +198,54 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             self.sensor_height = int(getattr(spectrometer, 'sensor_height', 4096))
             y0, height, _ = spectrometer.get_roi()
             self.set_region_display(y0, height)
+
+    def toggle_readout_mode(self, checked):
+        """
+            Slot for readout_mode_button. Switches what the camera delivers to a measurement.
+            input:
+                - checked (bool): True for 2D, False for 1D
+
+            Sum mode is turned on with 2D: without it set_data draws the frame as an image and the
+            ROI curves never appear, which looks exactly like the mode having done nothing.
+        """
+        if self.spectrometer is None:
+            return
+        mode = '2D' if checked else '1D'
+        self.spectrometer.set_output_mode(mode)
+        self.readout_mode_button.setText(f'Readout: {mode}')
+        if checked:
+            self.checkbox_image.setChecked(True)
+        self.reframe_roi_controls()
+
+    def reframe_roi_controls(self):
+        """
+            Rebounds the four ROI spinboxes to the number of rows the camera currently delivers.
+
+            Their defaults assume a full sensor. A readout region of 54 rows puts every one of them
+            past the end, where spec[lim1:lim2] is an empty slice and np.average returns nan without
+            raising -- a blank plot with no message. Values already past the end are pulled back
+            rather than left to be silently clipped.
+        """
+        rows = None
+        if hasattr(self.spectrometer, 'frame_shape'):
+            rows = int(self.spectrometer.frame_shape()[0])
+        elif isinstance(getattr(self.spectrometer, 'spec_length', None), tuple):
+            rows = int(self.spectrometer.spec_length[0])
+        if not rows or rows < 2:
+            return
+        fits = all(high.value() <= rows for _, high in self.roi_controls)
+        for low, high in self.roi_controls:
+            low.setRange(0, rows - 1)
+            high.setRange(0, rows)
+        if fits:
+            return  # the regions already chosen still land on the frame; leave them alone
+        """ Clamping alone would pile all four onto the last rows, which reads as the mode being
+        broken. Spread them evenly instead, as a starting point to drag from. """
+        band = max(rows // len(self.roi_controls), 1)
+        for i, (low, high) in enumerate(self.roi_controls):
+            low.setValue(min(i * band, rows - 1))
+            high.setValue(min((i + 1) * band, rows))
+        print(f'ROIs re-spread over the {rows} rows the camera now delivers.')
 
     def sensor_view_active(self):
         """ True while the camera is held at full frame for the live view. main.py asks so that
@@ -236,7 +291,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
                 self.camera_mode_button.setChecked(False)
                 self.camera_mode_button.blockSignals(False)
                 return
-            self.camera_mode_button.setText('Camera: 2D')
+            self.camera_mode_button.setText('Sensor view ON')
             self.img.setVisible(True)
             self.bin_region.setVisible(True)
             self._live_frame_shape = None
@@ -253,7 +308,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             if self.set_busy is not None:
                 self.set_busy(True)
         else:
-            self.camera_mode_button.setText('Camera: 1D')
+            self.camera_mode_button.setText('Sensor view')
             self.spectrometer.stop_acquisition()
             try:
                 self.spectrometer.worker.sendSpectrum.disconnect(self.set_live_frame)
@@ -361,7 +416,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         choices about data already acquired, this one changes what the camera reads out. Its label
         names the camera's current state so the two can't be confused. Hidden unless the camera
         supports it (set_spectrometer), so nothing changes for any other experiment. """
-        self.camera_mode_button = QtWidgets.QPushButton('Camera: 1D')
+        self.camera_mode_button = QtWidgets.QPushButton('Sensor view')
         self.camera_mode_button.setCheckable(True)
         self.camera_mode_button.setVisible(False)
         self.camera_mode_button.setToolTip(
@@ -370,6 +425,18 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             "roi_y0/roi_height shown under Hardware. Press again to return to 1D.")
         self.camera_mode_button.toggled.connect(self.toggle_camera_mode)
         hbox.addWidget(self.camera_mode_button)
+        """ What the camera hands to a measurement, as opposed to the sensor view above which only
+        looks. 1D is one spectrum; 2D is one row per on-chip binning group, which is what the four
+        ROIs and the expression field consume. Hidden for cameras that offer only one of the two. """
+        self.readout_mode_button = QtWidgets.QPushButton('Readout: 1D')
+        self.readout_mode_button.setCheckable(True)
+        self.readout_mode_button.setVisible(False)
+        self.readout_mode_button.setToolTip(
+            "1D: the readout region is summed into one spectrum.\n"
+            "2D: roi_binning rows per group are delivered separately, for the four ROIs\n"
+            "above and the expression field. Set roi_binning under Hardware.")
+        self.readout_mode_button.toggled.connect(self.toggle_readout_mode)
+        hbox.addWidget(self.readout_mode_button)
         hbox_widget.setLayout(hbox)
         layout.addWidget(hbox_widget)
         return layout

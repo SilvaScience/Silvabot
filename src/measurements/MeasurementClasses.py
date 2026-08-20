@@ -15,6 +15,26 @@ import os
 from devices import caps
 
 
+def frame_spec_length(spectrometer):
+    """
+        Shape DataHandling must be sized for when the camera delivers frames rather than spectra.
+        input:
+            - spectrometer: the loaded spectrometer
+        output:
+            - tuple (rows, pixels), or None when the device's own spec_length already fits
+
+        DataHandling preallocates from the device's spec_length before a measurement runs, so a
+        measurement whose output is a frame has to say so first or concatenate_data fails on the
+        shape mismatch, well away from the cause. Cameras that are natively 2D already report a
+        tuple spec_length and need nothing here.
+    """
+    if 'output_mode' not in caps(spectrometer) or 'frame' not in caps(spectrometer):
+        return None
+    if spectrometer.get_output_mode() != '2D':
+        return None
+    return spectrometer.frame_shape()
+
+
 # Measurement to acquire one spectrum
 class AcquireMeasurement(QtCore.QThread):
     # set used signal types, destination is set in main script
@@ -24,6 +44,9 @@ class AcquireMeasurement(QtCore.QThread):
     def __init__(self,devices, parameter):
         super(AcquireMeasurement, self).__init__()
         self.spectrometer = devices['spectrometer']
+        shape = frame_spec_length(self.spectrometer)
+        if shape is not None:
+            self.spec_length = shape
         self.wls = []  # preallocate wls array
         self.spec = []  # preallocate spec array
         self.terminate = False
@@ -107,6 +130,9 @@ class ViewMeasurement(QtCore.QThread):
     def __init__(self, devices, parameter):
         super(ViewMeasurement, self).__init__()
         self.spectrometer = devices['spectrometer']
+        shape = frame_spec_length(self.spectrometer)
+        if shape is not None:
+            self.spec_length = shape
         self.wls = []  # preallocate wls array
         self.spec = []  # preallocate spec array
         self.terminate = False
@@ -145,6 +171,9 @@ class RunMeasurement(QtCore.QThread):
     def __init__(self, devices, parameter):
         super(RunMeasurement, self).__init__()
         self.spectrometer = devices['spectrometer']
+        shape = frame_spec_length(self.spectrometer)
+        if shape is not None:
+            self.spec_length = shape
         self.wls = []  # preallocate wls array
         self.spec = []  # preallocate spec array
         self.terminate = False

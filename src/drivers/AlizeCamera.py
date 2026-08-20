@@ -36,7 +36,7 @@ def camera_worker(cmd_q, res_q):
 class AlizeCamera(QtCore.QThread):
 
     name = 'Alize'
-    caps = frozenset({'acquisition'})
+    caps = frozenset({'acquisition', 'output_mode'})
     
     def __init__(self):
         super(AlizeCamera, self).__init__()
@@ -47,6 +47,7 @@ class AlizeCamera(QtCore.QThread):
 
         # Indicate shutter, required to discriminate between different detectors
         self.shutter = True
+        self.output_mode = '2D'
 
         # Parameters. Defines parameters that are required for by the interface
         self.avg_scan = 1
@@ -114,6 +115,25 @@ class AlizeCamera(QtCore.QThread):
         #self.worker.acquiring = False
         #self.camera.stop_acquisition()
 
+    def set_output_mode(self, mode):
+        """
+            Chooses what get_intensities() hands back.
+            input:
+                - mode (str): '2D' delivers the frame as read, for the four-ROI maths in the
+                  spectrum view. '1D' sums its rows into a single spectrum.
+        """
+        if mode not in ('1D', '2D'):
+            raise ValueError(f"output mode must be '1D' or '2D', not {mode!r}")
+        self.output_mode = mode
+        return self.output_mode
+
+    def get_output_mode(self):
+        """
+            output:
+                - str: '1D' or '2D'
+        """
+        return self.output_mode
+
     def get_intensities(self):
         """ Gets the intensity. The example include the possibility of averaging several spectra and to
         perform a binning. Such functionalities might also be given by the camera.
@@ -125,7 +145,10 @@ class AlizeCamera(QtCore.QThread):
         self.spectrum,self.parameter_dict['sensor_T'] = self.res_q.get()
         self.new_spectrum = True
         print(time.strftime("%H:%M:%S", time.localtime(time.time())) + ' Spectrum acquired')
-        return self.spectrum
+        spectrum = np.asarray(self.spectrum)
+        if spectrum.ndim > 1 and self.output_mode == '1D':
+            spectrum = spectrum.sum(axis=0)  # counts scale with the number of rows summed
+        return spectrum
 
     def close_device(self):
         self.cmd_q.put({"type": "STOP"})

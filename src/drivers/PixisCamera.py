@@ -33,7 +33,7 @@ import re
 class PixisCamera(QtCore.QThread):
 
     name = 'Pixis'
-    caps = frozenset({'acquisition', 'roi', 'frame', 'shutter_mode'})
+    caps = frozenset({'acquisition', 'roi', 'frame', 'shutter_mode', 'output_mode'})
 
     def __init__(self, hardware_params=None):
         """
@@ -116,12 +116,21 @@ class PixisCamera(QtCore.QThread):
             raise RuntimeError('Pixis: the camera did not report its detector size, so the readout '
                                f'region cannot be bounded. Check the camera connection. ({e})') from e
 
+        """ PICam only accepts certain vertical bin factors. set_roi() writes the ROIs attribute
+        directly rather than through pylablib's set_roi(), which is what would normally truncate an
+        invalid factor, so the allowed list is read here and applied in _allowed_binning(). """
+        try:
+            self.allowed_binning = sorted(int(b) for b in self.camera.ca['ROIs'].cons_roi.ybins)
+        except Exception as e:
+            self.allowed_binning = []
+            print(f'Pixis: could not read the allowed bin factors, any value will be sent as-is. {e}')
+
         """ Vertical readout configuration.
         The sensor is 2D: the horizontal axis is wavelength, the vertical axis is position along the
         spectrograph entrance slit. Reading a single row therefore only samples one height in the slit
         and discards the signal collected on every other row.
-        set_binned_roi() sums rows ON CHIP (charge is summed before the readout amplifier), so the read
-        noise is paid once instead of once per row. That is what makes weak signals usable.
+        Rows are summed ON CHIP (charge is summed before the readout amplifier), so the read noise
+        is paid once per group instead of once per row. That is what makes weak signals usable.
         Defaults come from hardware_params so each setup can record its own alignment. """
         self.roi_y0 = int(self.hardware_params.get('roi_y0', 0))
         self.roi_height = int(self.hardware_params.get('roi_height', self.sensor_height))
@@ -139,8 +148,21 @@ class PixisCamera(QtCore.QThread):
         self.parameter_display_dict['roi_height']['unit'] = ' rows'
         self.parameter_display_dict['roi_height']['max'] = self.sensor_height
         self.parameter_display_dict['roi_height']['read'] = False
+        """ On-chip rows summed per readout group, in 2D mode only. PICam sums the charge before
+        the readout amplifier, so a group of N rows pays the read noise once instead of N times;
+        the camera returns roi_height/N rows. 1D mode ignores this and sums the whole region into
+        the single row it delivers. """
+        self.parameter_display_dict['roi_binning']['val'] = 1
+        self.parameter_display_dict['roi_binning']['unit'] = ' rows/group'
+        self.parameter_display_dict['roi_binning']['min'] = 1
+        self.parameter_display_dict['roi_binning']['max'] = self.sensor_height
+        self.parameter_display_dict['roi_binning']['read'] = False
         self.parameter_dict['roi_y0'] = self.roi_y0
         self.parameter_dict['roi_height'] = self.roi_height
+        self.parameter_dict['roi_binning'] = 1
+        """ '1D' sums the readout region into one spectrum, '2D' delivers one row per binning group
+        for the four-ROI maths in the spectrum view. See set_output_mode(). """
+        self.output_mode = '1D'
         """ True while the sensor view holds the camera at full frame. The readout region stays
         settable from the tree during that time, but applying it would collapse the very image the
         view exists to show, so it is only recorded until the view closes (see set_parameter). """
@@ -171,6 +193,10 @@ class PixisCamera(QtCore.QThread):
         elif parameter == 'avg_scan':
             self.parameter_dict['avg_scan'] = value
             self.avg_scan = int(value)
+        elif parameter == 'roi_binning':
+            self.parameter_dict['roi_binning'] = int(value)
+            if self.output_mode == '2D' and not self.full_frame_view:
+                self.apply_readout_region()
         elif parameter in ('roi_y0', 'roi_height'):
             self.parameter_dict[parameter] = value
             """ Clipped as a pair, here rather than only in set_roi(), so the requested region is
@@ -194,6 +220,53 @@ class PixisCamera(QtCore.QThread):
             self.spectrum = spec
             self.new_spectrum = True
 
+    def _allowed_binning(self, binning):
+        """
+            Snaps a vertical bin factor to one PICam accepts.
+            input:
+                - binning (int): rows to sum per group, as asked for
+            output:
+                - int: the largest allowed factor not greater than it, or the value unchanged when
+                  the camera reports no constraint
+
+            Same rule as pylablib's own _limit_bin, applied here because set_roi() writes the ROIs
+            attribute directly and so never reaches it.
+        """
+        binning = max(int(binning), 1)
+        if not self.allowed_binning:
+            return binning
+        permitted = [b for b in self.allowed_binning if b <= binning] or [min(self.allowed_binning)]
+        snapped = max(permitted)
+        if snapped != binning:
+            print(f'Pixis: binning {binning} not supported, using {snapped}. '
+                  f'Allowed: {self.allowed_binning}')
+        return snapped
+
+    def set_output_mode(self, mode):
+        """
+            Chooses what get_intensities() hands back, and reconfigures the readout to match.
+            input:
+                - mode (str): '1D' sums the readout region into one spectrum -- the region is read
+                  as a single on-chip group. '2D' reads roi_binning rows per group and delivers the
+                  frame as-is, for the four-ROI maths in the spectrum view.
+
+            The two differ only in the on-chip bin factor and whether the frame is flattened
+            afterwards; setting roi_binning to roi_height in 2D gives exactly the 1D result.
+        """
+        if mode not in ('1D', '2D'):
+            raise ValueError(f"Pixis: output mode must be '1D' or '2D', not {mode!r}")
+        self.output_mode = mode
+        if not self.full_frame_view:
+            self.apply_readout_region()
+        return self.output_mode
+
+    def get_output_mode(self):
+        """
+            output:
+                - str: '1D' or '2D'
+        """
+        return self.output_mode
+
     def set_roi(self, y0, height, binning=None, restart=True):
         """
             Sets the vertical region of the sensor that is read out, and how many of its rows are
@@ -211,6 +284,7 @@ class PixisCamera(QtCore.QThread):
         y0 = int(np.clip(y0, 0, max(self.sensor_height - 1, 0)))
         height = int(np.clip(height, 1, self.sensor_height - y0))
         binning = height if binning is None else int(np.clip(binning, 1, height))
+        binning = self._allowed_binning(binning)
         # PICam requires the region height to be an exact multiple of the binning factor
         height = max((height // binning) * binning, binning)
 
@@ -232,25 +306,22 @@ class PixisCamera(QtCore.QThread):
                 self.start_acquisition()
         return roi
 
-    def set_binned_roi(self, y0, height):
-        """
-            Measurement mode: sum `height` sensor rows starting at `y0` into a single row on chip.
-            input:
-                - y0 (int): index of the first sensor row of the signal
-                - height (int): number of rows the signal spans
-        """
-        self.full_frame_view = False
-        return self.set_roi(y0, height, binning=height)
-
     def apply_readout_region(self):
         """
-            Applies roi_y0/roi_height from the parameter dict as the on-chip binned readout region,
-            and writes back what was actually applied -- set_roi() clips to the sensor, so the tree
-            would otherwise keep showing a region the camera never accepted.
+            Applies roi_y0/roi_height from the parameter dict as the readout region, binned
+            according to the output mode, and writes back what was actually applied -- set_roi()
+            clips to the sensor and snaps the bin factor, so the tree would otherwise keep showing
+            a region the camera never accepted.
         """
-        self.set_binned_roi(int(self.parameter_dict['roi_y0']), int(self.parameter_dict['roi_height']))
+        y0 = int(self.parameter_dict['roi_y0'])
+        height = int(self.parameter_dict['roi_height'])
+        # 1D reads the region as one group; 2D reads roi_binning rows per group.
+        binning = height if self.output_mode == '1D' else int(self.parameter_dict['roi_binning'])
+        self.full_frame_view = False
+        self.set_roi(y0, height, binning)
         self.parameter_dict['roi_y0'] = self.roi_y0
         self.parameter_dict['roi_height'] = self.roi_height
+        self.parameter_dict['roi_binning'] = self.roi_binning
         return self.roi_y0, self.roi_height
 
     def set_full_frame(self):
@@ -369,12 +440,14 @@ class PixisCamera(QtCore.QThread):
         finally:
             if not was_acquiring:
                 self.stop_acquisition()
-        """ The camera returns one row per binning group: a single row in binned (measurement) mode,
-        every sensor row in full frame (alignment) mode. Any remaining rows are summed here so both
-        modes hand back a 1D spectrum. Counts therefore scale with the number of rows summed, which
-        matters when comparing a spectrum to a background taken with a different region. """
+        """ The camera returns one row per binning group. In '1D' any remaining rows are summed
+        here, so a spectrum comes back whatever the region was -- counts therefore scale with the
+        number of rows summed, which matters when comparing against a background taken with a
+        different region. In '2D' the frame is handed over as it was read, for the four-ROI maths.
+        The sensor view is an exception: it holds the camera at full frame for alignment, and a
+        measurement running then still expects the spectrum it asked for. """
         spectrum = np.asarray(spectrum)
-        if spectrum.ndim > 1:
+        if spectrum.ndim > 1 and (self.output_mode == '1D' or self.full_frame_view):
             spectrum = spectrum.sum(axis=0)
         return spectrum
 
