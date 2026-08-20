@@ -10,7 +10,7 @@ from functools import partial
 from GUI.ParameterPlot import ParameterPlot
 from GUI.SpectrometerPlot import SpectrometerPlot
 from DataHandling.DataHandling import DataHandling
-from devices import create_device
+from devices import create_device, load_class
 
 
 class MainInterface(QtWidgets.QMainWindow):
