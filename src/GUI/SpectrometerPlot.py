@@ -595,7 +595,10 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             except SyntaxError:
                 print('Incorrect expression, syntax error')
             if not self.checkbox_image.isChecked():
-                #img =pg.ImageItem(np.transpose(spec))
+                """ Closing the sensor view hides the image item, and nothing turned it back on:
+                a frame arriving here afterwards was drawn into a hidden item, so the display
+                stayed empty until the app was restarted. """
+                self.img.setVisible(True)
                 levels = self.hist.getLevels()
                 self.img.setImage(np.transpose(spec), autoLevels=False, levels=levels)
                 tr = QtGui.QTransform()  # prepare ImageItem transformation:
