@@ -1,0 +1,41 @@
+# Calibration for one camera/monochromator pairing.
+#
+# The constants below are fit for this triple: this camera, this monochromator, this grating.
+# Move any of the three and they must be refit -- the grating keys still resolve, `calibrated`
+# stays true, and you get a wrong wavelength axis with no error. The `camera` and
+# `monochromator` fields are checked against the devices actually loaded, so a mismatch is
+# reported at startup.
+camera: Pixis
+monochromator: SpectraPro2300i
+num_pixels: 1024
+pixel_size_mm: 0.026
+focal_length_mm: 300
+calibrated: true
+gratings:
+  '1':
+    f: 300000000.0
+    delta: 0.5
+    gamma: 0.1
+    n0: 507.14285714285717
+    offset_adjust: 0
+    d_grating: 833.3333333333334
+    x_pixel: 26000
+    curvature: 0.0
+  '2':
+    f: 296772481.19608825
+    delta: -0.1011307412781098
+    gamma: 0.5254178460808079
+    n0: 498.85714285714283
+    offset_adjust: 0
+    d_grating: 833.3333333333334
+    x_pixel: 26000
+    curvature: 0.0
+  '3':
+    f: 305859374.99999994
+    delta: 0.021862966763817993
+    gamma: 0.5415310171886933
+    n0: 507.0
+    offset_adjust: 0
+    d_grating: 3333.333333333333
+    x_pixel: 26000
+    curvature: 0.0

@@ -1,5 +1,4 @@
 import yaml
-import importlib
 import sys
 import time
 import numpy as np
@@ -11,18 +10,7 @@ from functools import partial
 from GUI.ParameterPlot import ParameterPlot
 from GUI.SpectrometerPlot import SpectrometerPlot
 from DataHandling.DataHandling import DataHandling
-
-
-def load_class(path):
-    # loads a class from a project-defined path. Returns the class
-    module_name, class_name = path.rsplit(".", 1)
-    return getattr(importlib.import_module(module_name), class_name)
-
-
-def create_device(path, init_args=None):
-    # Initializes a class from project-defined path. Returns the called class
-    cls = load_class(path)
-    return cls(**(init_args or {}))
+from devices import create_device
 
 
 class MainInterface(QtWidgets.QMainWindow):
