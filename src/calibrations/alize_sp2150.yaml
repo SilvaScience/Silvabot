@@ -1,0 +1,38 @@
+# Calibration for one camera/monochromator pairing.
+#
+# The constants are fit for this triple: this camera, this monochromator, this grating. Move any
+# of the three and they must be refit -- the grating keys still resolve, `calibrated` stays true,
+# and you get a wrong wavelength axis with no error. The `camera` and `monochromator` fields are
+# checked against the devices actually loaded, so a mismatch is reported at startup.
+#
+# WARNING grating 2 is not calibrated. Alize.py fell back to grating 1's constants and printed
+# a warning; the same constants are repeated here so the axis is unchanged, but they do not
+# describe grating 2. CALIBRATE PRIOR USAGE.
+#
+# This unit's turret is declared in config.yaml rather than read from it: it does not answer
+# ?GRATINGS reliably. See drivers/SpectraPro.py.
+camera: Alize
+monochromator: SpectraPro2150
+num_pixels: 640
+pixel_size_mm: 0.015
+focal_length_mm: 150
+calibrated: true
+gratings:
+  '1':
+    f: 382456483.7755453
+    delta: 6.3514446357904335
+    gamma: 1.9092120540448625
+    n0: 273.6666666666667
+    offset_adjust: 0
+    d_grating: 6666.666666666667
+    x_pixel: 15000.0
+    curvature: 1.1640095515828127e-06
+  '2':
+    f: 382456483.7755453
+    delta: 6.3514446357904335
+    gamma: 1.9092120540448625
+    n0: 273.6666666666667
+    offset_adjust: 0
+    d_grating: 6666.666666666667
+    x_pixel: 15000.0
+    curvature: 1.1640095515828127e-06

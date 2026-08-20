@@ -3,18 +3,19 @@
 Created on Mon Apr  28 15:09:53 2025
 
 @author: David Tiede
-Hardware class to control the Alize camera. All hardware classes require a definition of
-parameter_display_dict (set Spinbox options and read/write)
-set_parameter function (assign set functions)
+Hardware class for the Alize camera alone. It has no notion of a monochromator and no optical
+calibration -- drivers.Spectrograph pairs it with one and owns the wavelength axis. All hardware
+classes require a definition of parameter_display_dict (set Spinbox options and read/write) and
+set_parameter.
 
 REQUIREMENTS:
-Needs PeCamera-SDK-4.14.0 to be installed as a python package. This package is only available locally. It is stored on
-the TRUENAS server.
+Needs PeCamera-SDK-4.14.0 to be installed as a python package. This package is only available
+locally. It is stored on the TRUENAS server.
 
 NOTE:
 Currently still in testing
-- Flatfield correction is currently fixed to HIGHGAIN, 5s integration time. Consider adapting it dynamically, if needed.
-
+- Flatfield correction is currently fixed to HIGHGAIN, 5s integration time. Consider adapting it
+  dynamically, if needed.
 """
 
 import numpy as np
@@ -22,8 +23,6 @@ from PyQt5 import QtCore
 from collections import defaultdict
 from pylablib.devices import PrincetonInstruments
 import time
-import serial
-import re
 import pecamerapy
 import os
 from multiprocessing import Process, Queue
@@ -34,16 +33,13 @@ def camera_worker(cmd_q, res_q):
     w = CameraWorker(cmd_q, res_q)
     w.run()
 
-class Alize(QtCore.QThread):
+class AlizeCamera(QtCore.QThread):
 
     name = 'Alize'
     
-    def __init__(self, port):
-        super(Alize, self).__init__()
+    def __init__(self):
+        super(AlizeCamera, self).__init__()
 
-        #self.camera.start()
-        self.wavelength =  np.linspace(200,1000,640) # get property from Worker
-        self.px0 = np.linspace(1,640,640)
         self.spec_length = (512, 640) # get property from Worker
         self.spectrum = np.zeros(self.spec_length)
         self.image = np.zeros(self.spec_length)
@@ -56,28 +52,6 @@ class Alize(QtCore.QThread):
         self.int_time = 100
         self.binned_spec = np.zeros(self.spec_length)
         self.new_spectrum = False
-
-        # set up spectrograph
-
-        self.serial_busy = False
-        self.ser = serial.Serial(port=port, baudrate=9600, bytesize=8, parity='N',
-                                 stopbits=1, xonxoff=0, rtscts=0, timeout=2)
-        # get startup values
-        self.grating = float(self.write_command('?GRATING')[0])
-        numbers = self.write_command('?GRATINGS')
-        numbers = ['1', '600', '1200', '2', '300', '1200', '3', '4', '5', '6', '7', '8'] # HARDED QUICK FIX as communication with SP2150 does not yield grating information.
-        # This communication issue might be related to high COM port number (maybe it has a different cause).
-        self.num_gratings = int((len(numbers)-8)/2)
-        self.grating_densities = np.zeros(self.num_gratings)
-        self.grating_blazes = np.zeros(self.num_gratings)
-        for i in range(self.num_gratings):
-            self.grating_densities[i] = numbers[i*3 + 1]
-            self.grating_blazes[i] = numbers[i * 3 + 2]
-        self.center_wl = float(self.write_command('?NM')[0])
-        print('SP2150 grating info: ', numbers)
-        print('SP2150 grating densities: ',self.grating_densities)
-        print('SP2150 grating blazes: ',self.grating_blazes)
-        print('SP2150 selected grating: ',self.grating)
 
         # set parameter dict
         self.parameter_dict = defaultdict()
@@ -97,14 +71,6 @@ class Alize(QtCore.QThread):
         self.parameter_display_dict['sensor_T']['min'] = -100
         self.parameter_display_dict['sensor_T']['max'] = 100
         self.parameter_display_dict['sensor_T']['read'] = True
-        self.parameter_display_dict['center_wl']['val'] = self.center_wl
-        self.parameter_display_dict['center_wl']['unit'] = ' nm'
-        self.parameter_display_dict['center_wl']['max'] = 2000
-        self.parameter_display_dict['center_wl']['read'] = False
-        self.parameter_display_dict['grating']['val'] = self.grating
-        self.parameter_display_dict['grating']['unit'] = ' grat'
-        self.parameter_display_dict['grating']['max'] = 3
-        self.parameter_display_dict['grating']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
@@ -136,91 +102,6 @@ class Alize(QtCore.QThread):
         elif parameter == 'avg_scan':
             self.parameter_dict['avg_scan'] = value
             self.avg_scan = int(value)
-        elif parameter == 'center_wl':
-            cmd = f'{value:0.3f} GOTO'
-            self.write_command(cmd)
-            self.parameter_dict['center_wl'] = value
-            self.center_wl = value
-        elif parameter == 'grating':
-            cmd = f'{value:1.0f} GRATING'
-            self.write_command(cmd)
-            self.parameter_dict['grating'] = value
-            self.grating = value
-
-    def get_wavelength(self):
-        """This simply returns the wavelength. In Colbert this needs to be adapted if the calibration
-         changes. This function will be accessible from MeasurementClasses. """
-        return self.calculate_wavelength_array(self.center_wl,self.grating_densities[int(self.grating-1)])
-
-    def calculate_wavelength_array(self,center_wavelength_nm,grating_lines_per_mm):
-        """
-        Calculate the wavelength array for a PIXIS camera on SP-2150 spectrograph.
-
-        Parameters:
-            center_wavelength_nm: Central wavelength (nm)
-            grating_lines_per_mm: Groove density (lines/mm)
-
-        Returns:
-            wavelengths: 1D numpy array of wavelengths (nm)
-        """
-        calibrated = True
-        if calibrated:
-            pixel_size_mm = 15 / 1E3  # specs of Alize
-            focal_length_mm = 150  # specs of SP2150
-            num_pixels = 640  # specs of Alize
-
-            #
-
-            wl_center = center_wavelength_nm
-            m_order = 1
-            px = self.px0
-
-            # calibration from notebook
-            if self.grating == 1:
-                f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(382456483.7755453),
-                                                                                     np.float64(6.3514446357904335),
-                                                                                     np.float64(1.9092120540448625),
-                                                                                     np.float64(273.6666666666667), 0,
-                                                                                     6666.666666666667, 15000.0,
-                                                                                     np.float64(1.1640095515828127e-06)]
-            else:
-                # WARNING, NOT CALIBRATED YET, dummy values from grating 1
-                f, delta, gamma, n0, offset_adjust, d_grating, x_pixel, curvature = [np.float64(382456483.7755453),
-                                                                                     np.float64(6.3514446357904335),
-                                                                                     np.float64(1.9092120540448625),
-                                                                                     np.float64(273.6666666666667), 0,
-                                                                                     6666.666666666667, 15000.0,
-                                                                                     np.float64(1.1640095515828127e-06)]
-                print('WARNING: grating 2 is not calibrated! CALIBRATE PRIOR USAGE!')
-
-
-            n = px - (n0 + offset_adjust * wl_center)
-
-            # print('psi top', m_order* wl_center)
-            # print('psi bottom', (2*d_grating*np.cos(gamma/2)) )
-
-            psi = np.arcsin(m_order * wl_center / (2 * d_grating * np.cos(gamma / 2)))
-            eta = np.arctan(n * x_pixel * np.cos(delta) / (f + n * x_pixel * np.sin(delta)))
-
-            wavelengths = ((d_grating / m_order) * (np.sin(psi - 0.5 * gamma) + np.sin(psi + 0.5 * gamma + eta))) + curvature * n ** 2
-        else:
-            pixel_size_mm = 15 / 1E3  # specs of Alize
-            focal_length_mm = 150  # specs of SP2150
-            num_pixels = 640  # specs of Alize
-
-            # Calculate linear dispersion (nm/mm)
-            dispersion = 1e6 / (focal_length_mm * grating_lines_per_mm)
-
-            # Center pixel
-            center_pixel = num_pixels // 2
-
-            # Pixel index array
-            pixel_indices = np.arange(num_pixels)
-
-            # Wavelength at each pixel
-            wavelengths = center_wavelength_nm + (pixel_indices - center_pixel) * dispersion * pixel_size_mm
-
-        return wavelengths
 
     def start_acquisition(self):
         """ Sets camera to continuous acquisition mode. """
@@ -244,30 +125,6 @@ class Alize(QtCore.QThread):
         self.new_spectrum = True
         print(time.strftime("%H:%M:%S", time.localtime(time.time())) + ' Spectrum acquired')
         return self.spectrum
-
-    def write_command(self, cmd):
-        """ Command to write to serial handles timeout by blocking serial commands
-        Args:
-            ser: serial object
-            cmd: write command as defined in PI API
-
-        Returns: read string with only digit content. For troubleshooting, consider printing
-        the entire answer string
-        """
-        cmd_bytes = cmd.encode('ASCII')
-        self.ser.write(cmd_bytes + b"\r")
-        out = bytearray()
-        char = b""
-        missed_char_count = 0
-        while char != b"k":
-            char = self.ser.read()
-            if char == b"":  # handles a timeout here
-                missed_char_count += 1
-                self.serial_busy = True
-                time.sleep(0.1)
-            out += char
-        self.serial_busy = False
-        return re.findall(r'\d+', out.decode().strip())
 
     def close_device(self):
         self.cmd_q.put({"type": "STOP"})
