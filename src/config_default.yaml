@@ -31,7 +31,6 @@ devices:
   #       driver: drivers.PixisCamera.PixisCamera
   #       init_args:
   #         hardware_params:            # what the camera itself owns, never the optics
-  #           sensor_height: 256
   #           roi_y0: 138
   #           roi_height: 54
   #

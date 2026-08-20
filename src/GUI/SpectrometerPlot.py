@@ -175,6 +175,12 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         """
         self.spectrometer = spectrometer
         capable = 'roi' in caps(spectrometer)
+        if capable and not hasattr(spectrometer, 'worker'):
+            # The live view reads frames from the camera's worker. Without one the button would
+            # only fail once pressed, inside a slot, so refuse it here and say why.
+            print(f"WARNING {type(spectrometer).__name__} declares the 'roi' capability but has no "
+                  "worker to stream frames; the sensor view stays hidden.")
+            capable = False
         self.camera_mode_button.setVisible(capable)
         # Stitching needs a monochromator to move between grating positions; without one the range
         # inputs would feed a button that can only fail. Hidden rather than disabled, so a setup

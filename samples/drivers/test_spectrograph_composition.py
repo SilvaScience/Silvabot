@@ -8,6 +8,8 @@ wavelength axis from the monochromator's live position.
 from pathlib import Path
 import sys
 import tempfile
+import io
+import contextlib
 import numpy as np
 import yaml
 
@@ -72,14 +74,29 @@ if spec.camera.parameter_dict['int_time'] != 123:
     failures.append('ecriture traversante: la valeur n atteint pas la camera')
 print(f'  vue vivante : camera->composite ok, composite->camera ok')
 
-# 6. a calibration fit for other hardware is reported rather than computed silently
-mismatched = dict(reference, camera='SomeOtherCamera')
-bad_file = Path(tempfile.gettempdir()) / 'mismatched_pairing.yaml'
-bad_file.write_text(yaml.dump(mismatched), encoding='utf-8')
-print('  garde-fou appariement (un WARNING doit suivre) :')
-Spectrograph(camera={'driver': 'drivers.SpectrometerDemo_advanced.SpectrometerDemo'},
-             monochromator={'driver': 'drivers.SpectraPro2300iDemo.SpectraPro2300iDemo'},
-             calibration=str(bad_file))
+# 6. the pairing guard: silent for a demo stand-in, loud for a real mismatch
+def build(calibration_overrides):
+    """ Builds a Spectrograph on the demo devices and returns whatever it printed. """
+    reference_copy = dict(reference)
+    reference_copy.update(calibration_overrides)
+    path = Path(tempfile.gettempdir()) / 'pairing_probe.yaml'
+    path.write_text(yaml.dump(reference_copy), encoding='utf-8')
+    captured = io.StringIO()
+    with contextlib.redirect_stdout(captured):
+        Spectrograph(camera={'driver': 'drivers.SpectrometerDemo_advanced.SpectrometerDemo'},
+                     monochromator={'driver': 'drivers.SpectraPro2300iDemo.SpectraPro2300iDemo'},
+                     calibration=str(path))
+    return captured.getvalue()
+
+noise = build({'camera': 'SomeOtherCamera'})
+if 'was fit for' in noise:
+    failures.append('un remplacant demo declenche l avertissement d appariement')
+print('  appariement : remplacant demo -> silencieux')
+
+warned = build({'num_pixels': 4096})
+if 'The axis will not line up' not in warned:
+    failures.append('un nombre de pixels incoherent ne declenche pas d avertissement')
+print('  appariement : nombre de pixels incoherent -> avertissement')
 
 print()
 if failures:

@@ -122,7 +122,8 @@ class Spectrograph(QtCore.QThread):
         for role, device in (('camera', self.camera), ('monochromator', self.monochromator)):
             expected = self.calibration.get(role)
             actual = getattr(device, 'name', None)
-            if actual and actual.endswith('Demo'):
+            # Tested on the class, not on name: SpectrometerDemo reports name 'Spectrometer'.
+            if type(device).__name__.endswith('Demo'):
                 continue  # a demo stand-in is not the hardware the fit was made on, and says so
             if expected and actual and expected != actual:
                 print(f'WARNING Spectrograph: calibration {self.calibration["source"]} was fit for '
@@ -148,7 +149,7 @@ class Spectrograph(QtCore.QThread):
                     raise ValueError(
                         f'Spectrograph: {param!r} is declared by both {self.monochromator.name} and '
                         f'{self.camera.name}; rename it in one of the two drivers.')
-                self.parameter_display_dict[param] = properties
+                self.parameter_display_dict[param] = dict(properties)  # copy: not shared state
                 self._owner[param] = device
         self.parameter_dict = MergedParameters(self._owner)
 

@@ -75,7 +75,7 @@ class AcquireImage(QtCore.QThread):
             spec_length, start_measurement leaves the buffers at the device's 1D default and
             concatenate_data fails on the shape mismatch, well away from the cause. """
             raise RuntimeError(
-                f"{type(self.spectrometer).__name__} does not report frame_shape(), "
+                f"{type(self.spectrometer).__name__} does not declare the 'frame' capability, "
                 "so the size of its frames isn't known ahead of the acquisition.")
         self.spec_length = self.spectrometer.frame_shape()
         self.wls = []  # preallocate wls array

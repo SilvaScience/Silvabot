@@ -38,9 +38,9 @@ class PixisCamera(QtCore.QThread):
     def __init__(self, hardware_params=None):
         """
             input:
-                - hardware_params (dict): sensor_height and the startup readout region
-                  (roi_y0, roi_height, roi_binning). Optical calibration is not read here;
-                  it belongs to the Spectrograph this camera is paired with.
+                - hardware_params (dict): the startup readout region (roi_y0, roi_height,
+                  roi_binning). Sensor height comes from the camera, not from here, and the
+                  optical calibration belongs to the Spectrograph this camera is paired with.
         """
         super(PixisCamera, self).__init__()
 
@@ -104,15 +104,17 @@ class PixisCamera(QtCore.QThread):
         self.set_shutter_mode('Normal')
         self.report_shutter_configuration()
 
-        # Determine the number of sensor rows available for vertical binning.
-        # The PIXIS used here is 1024 x 256, but ask the camera rather than assume.
-        self.sensor_height = int(self.hardware_params.get('sensor_height', 256))
+        """ Sensor rows available for vertical binning, read from the camera and from nowhere else.
+        The datasheet height and what PICam reports are not the same number: this PIXIS answers 252
+        for a nominally 256-row sensor, most likely the active rows with the masked ones excluded.
+        Bounding the readout region on 256 would request rows the camera rejects, so the answer is
+        taken as given. A camera that cannot report its own size is not in a usable state, and
+        proceeding on an assumed height would build a silently wrong region. """
         try:
-            detector_size = self.camera.get_detector_size()  # (width, height)
-            if detector_size is not None and len(detector_size) == 2:
-                self.sensor_height = int(detector_size[1])
+            self.sensor_height = int(self.camera.get_detector_size()[1])
         except Exception as e:
-            print(f'Pixis: could not query detector size, assuming {self.sensor_height} rows. {e}')
+            raise RuntimeError('Pixis: the camera did not report its detector size, so the readout '
+                               f'region cannot be bounded. Check the camera connection. ({e})') from e
 
         """ Vertical readout configuration.
         The sensor is 2D: the horizontal axis is wavelength, the vertical axis is position along the

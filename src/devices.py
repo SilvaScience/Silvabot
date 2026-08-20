@@ -31,7 +31,8 @@ def caps(device):
 
         Names in use:
             'acquisition'  reads must be bracketed by start_acquisition/stop_acquisition
-            'roi'          the sensor readout region can be set, and a full frame read for alignment
+            'roi'          the sensor readout region can be set, and a full frame read for
+                           alignment; requires a .worker publishing frames for the live view
             'frame'        frame_shape() reports the shape of what get_intensities() returns
             'shutter_mode' the physical shutter can be forced open or closed
             'stitch'       a monochromator can be moved between grating positions

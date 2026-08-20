@@ -53,7 +53,6 @@ class StresingCamera(QtCore.QThread):
         thread, so a polling loop has nothing to do. Not starting it also avoids leaving a thread
         running at shutdown. """
         self.worker = StresingWorker()
-        self.type = 'Camera'
 
         # This is the hardware parameters dictionnary. It is provided by hardware-specific configurations and are not changed in operation
         self.hardware_params=hardware_params
@@ -350,9 +349,6 @@ class StresingCamera(QtCore.QThread):
         """
         cam = self.driver.settings.camera_settings[self.driver.drvno]
         return cam.sti_mode != TRIGGER_TIMER or cam.bti_mode != TRIGGER_TIMER
-
-    def get_num_pixel(self):
-        return self.spec_length
 
     def get_intensities(self):
         self.acquire_spectrum()
