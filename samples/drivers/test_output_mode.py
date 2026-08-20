@@ -78,6 +78,33 @@ if frame_spec_length(cam) is not None or cam.get_intensities().ndim != 1:
     failures.append('le retour en 1D ne restaure pas le comportement')
 print('  retour en 1D : restaure')
 
+# roi_binning is the user's setting and must survive a spell in 1D: apply_readout_region used to
+# write the full region height back over it, so the next switch to 2D delivered a single row.
+class ModeCamera(FakeCamera):
+    """ Mirrors PixisCamera's apply_readout_region well enough to catch that write-back. """
+    def apply_readout_region(self):
+        self.applied_binning = self.roi_height if self.output_mode == '1D' else self.roi_binning
+        if self.output_mode == '2D':
+            self.roi_binning = self.applied_binning
+
+    def set_output_mode(self, mode):
+        self.output_mode = mode
+        self.apply_readout_region()
+        return mode
+
+
+mc = ModeCamera()
+mc.roi_binning = 6                 # chosen under Hardware
+mc.set_output_mode('1D')           # a spell in 1D, as at startup
+mc.apply_readout_region()          # as adjusting roi_y0 would trigger
+if mc.roi_binning != 6:
+    failures.append(f'roi_binning vaut {mc.roi_binning} apres un passage en 1D, attendu 6')
+mc.set_output_mode('2D')
+if mc.roi_height // mc.roi_binning != 9:
+    failures.append(f'retour en 2D rend {mc.roi_height // mc.roi_binning} ligne(s), attendu 9')
+print(f'  roi_binning survit au 1D : {mc.roi_binning}, retour en 2D -> '
+      f'{mc.roi_height // mc.roi_binning} lignes')
+
 print()
 for f in failures:
     print(f'  ECHEC: {f}')

@@ -231,8 +231,13 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
             rows = int(self.spectrometer.frame_shape()[0])
         elif isinstance(getattr(self.spectrometer, 'spec_length', None), tuple):
             rows = int(self.spectrometer.spec_length[0])
-        if not rows or rows < 2:
+        if not rows:
             return
+        if rows < len(self.roi_controls):
+            """ Said out loud rather than left to look like the ROIs are ignored: with fewer rows
+            than ROIs there is nothing to spread them over. Lower roi_binning under Hardware. """
+            print(f'Only {rows} row(s) delivered: too few for {len(self.roi_controls)} ROIs. '
+                  'Lower roi_binning under Hardware.')
         fits = all(high.value() <= rows for _, high in self.roi_controls)
         for low, high in self.roi_controls:
             low.setRange(0, rows - 1)

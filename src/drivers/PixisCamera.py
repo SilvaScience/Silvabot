@@ -321,7 +321,12 @@ class PixisCamera(QtCore.QThread):
         self.set_roi(y0, height, binning)
         self.parameter_dict['roi_y0'] = self.roi_y0
         self.parameter_dict['roi_height'] = self.roi_height
-        self.parameter_dict['roi_binning'] = self.roi_binning
+        """ Only in 2D is roi_binning the user's setting. In 1D it is the whole region by
+        construction, and writing that back overwrote the value the tree held: the next switch to
+        2D then read roi_binning == roi_height, delivered a single row, and the frame arrived
+        flattened with the ROIs left at their sensor-scale defaults. """
+        if self.output_mode == '2D':
+            self.parameter_dict['roi_binning'] = self.roi_binning
         return self.roi_y0, self.roi_height
 
     def set_full_frame(self):
