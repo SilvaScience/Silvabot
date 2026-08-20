@@ -148,18 +148,8 @@ class PixisCamera(QtCore.QThread):
         self.parameter_display_dict['roi_height']['unit'] = ' rows'
         self.parameter_display_dict['roi_height']['max'] = self.sensor_height
         self.parameter_display_dict['roi_height']['read'] = False
-        """ On-chip rows summed per readout group, in 2D mode only. PICam sums the charge before
-        the readout amplifier, so a group of N rows pays the read noise once instead of N times;
-        the camera returns roi_height/N rows. 1D mode ignores this and sums the whole region into
-        the single row it delivers. """
-        self.parameter_display_dict['roi_binning']['val'] = 1
-        self.parameter_display_dict['roi_binning']['unit'] = ' rows/group'
-        self.parameter_display_dict['roi_binning']['min'] = 1
-        self.parameter_display_dict['roi_binning']['max'] = self.sensor_height
-        self.parameter_display_dict['roi_binning']['read'] = False
         self.parameter_dict['roi_y0'] = self.roi_y0
         self.parameter_dict['roi_height'] = self.roi_height
-        self.parameter_dict['roi_binning'] = 1
         """ '1D' sums the readout region into one spectrum, '2D' delivers one row per binning group
         for the four-ROI maths in the spectrum view. See set_output_mode(). """
         self.output_mode = '1D'
@@ -193,10 +183,6 @@ class PixisCamera(QtCore.QThread):
         elif parameter == 'avg_scan':
             self.parameter_dict['avg_scan'] = value
             self.avg_scan = int(value)
-        elif parameter == 'roi_binning':
-            self.parameter_dict['roi_binning'] = int(value)
-            if self.output_mode == '2D' and not self.full_frame_view:
-                self.apply_readout_region()
         elif parameter in ('roi_y0', 'roi_height'):
             self.parameter_dict[parameter] = value
             """ Clipped as a pair, here rather than only in set_roi(), so the requested region is
@@ -206,8 +192,8 @@ class PixisCamera(QtCore.QThread):
             y0 = int(np.clip(self.parameter_dict['roi_y0'], 0, max(self.sensor_height - 1, 0)))
             height = int(np.clip(self.parameter_dict['roi_height'], 1, self.sensor_height - y0))
             self.parameter_dict['roi_y0'], self.parameter_dict['roi_height'] = y0, height
-            if self.full_frame_view:
-                # Sensor view is open: recording only. apply_readout_region() runs on close.
+            if self.full_frame_view or self.output_mode == '2D':
+                # Recorded only: the sensor view owns the readout, and 2D reads the full sensor.
                 return
             self.apply_readout_region()
 
@@ -246,17 +232,22 @@ class PixisCamera(QtCore.QThread):
         """
             Chooses what get_intensities() hands back, and reconfigures the readout to match.
             input:
-                - mode (str): '1D' sums the readout region into one spectrum -- the region is read
-                  as a single on-chip group. '2D' reads roi_binning rows per group and delivers the
-                  frame as-is, for the four-ROI maths in the spectrum view.
+                - mode (str): '1D' reads the region held in roi_y0/roi_height as a single on-chip
+                  group and delivers one spectrum. '2D' reads every sensor row and delivers the
+                  frame as-is, for the four ROIs in the spectrum view to slice.
 
-            The two differ only in the on-chip bin factor and whether the frame is flattened
-            afterwards; setting roi_binning to roi_height in 2D gives exactly the 1D result.
+            roi_y0/roi_height apply to 1D only. 2D always reads the full sensor: the four ROIs are
+            chosen over the whole slit in software, so restricting the readout first would only
+            take away rows they could be placed on.
         """
         if mode not in ('1D', '2D'):
             raise ValueError(f"Pixis: output mode must be '1D' or '2D', not {mode!r}")
         self.output_mode = mode
-        if not self.full_frame_view:
+        if self.full_frame_view:
+            return self.output_mode  # sensor view owns the readout until it closes
+        if mode == '2D':
+            self.set_roi(0, self.sensor_height, 1)
+        else:
             self.apply_readout_region()
         return self.output_mode
 
@@ -315,18 +306,10 @@ class PixisCamera(QtCore.QThread):
         """
         y0 = int(self.parameter_dict['roi_y0'])
         height = int(self.parameter_dict['roi_height'])
-        # 1D reads the region as one group; 2D reads roi_binning rows per group.
-        binning = height if self.output_mode == '1D' else int(self.parameter_dict['roi_binning'])
         self.full_frame_view = False
-        self.set_roi(y0, height, binning)
+        self.set_roi(y0, height, height)  # the region read as one on-chip group
         self.parameter_dict['roi_y0'] = self.roi_y0
         self.parameter_dict['roi_height'] = self.roi_height
-        """ Only in 2D is roi_binning the user's setting. In 1D it is the whole region by
-        construction, and writing that back overwrote the value the tree held: the next switch to
-        2D then read roi_binning == roi_height, delivered a single row, and the frame arrived
-        flattened with the ROIs left at their sensor-scale defaults. """
-        if self.output_mode == '2D':
-            self.parameter_dict['roi_binning'] = self.roi_binning
         return self.roi_y0, self.roi_height
 
     def set_full_frame(self):

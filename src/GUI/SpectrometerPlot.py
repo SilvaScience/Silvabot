@@ -219,13 +219,18 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
 
     def reframe_roi_controls(self):
         """
-            Rebounds the four ROI spinboxes to the number of rows the camera currently delivers.
+            Rebounds the four ROI spinboxes to the number of rows the camera delivers in 2D.
 
-            Their defaults assume a full sensor. A readout region of 54 rows puts every one of them
-            past the end, where spec[lim1:lim2] is an empty slice and np.average returns nan without
-            raising -- a blank plot with no message. Values already past the end are pulled back
-            rather than left to be silently clipped.
+            Only meaningful there: 2D reads the full sensor, so the defaults fit and nothing moves.
+            On a smaller sensor a region past the end would make spec[lim1:lim2] an empty slice,
+            where np.average returns nan without raising -- a blank plot and no message -- so those
+            are spread over what is available instead.
         """
+        if 'output_mode' in caps(self.spectrometer) and self.spectrometer.get_output_mode() != '2D':
+            """ Nothing is being delivered as a frame, so there are no rows to place ROIs on.
+            Re-ranging on the single row 1D reports would squash all four spinboxes to 0-1 and
+            leave them there, which is what made the ROIs impossible to place. """
+            return
         rows = None
         if hasattr(self.spectrometer, 'frame_shape'):
             rows = int(self.spectrometer.frame_shape()[0])
@@ -234,10 +239,8 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         if not rows:
             return
         if rows < len(self.roi_controls):
-            """ Said out loud rather than left to look like the ROIs are ignored: with fewer rows
-            than ROIs there is nothing to spread them over. Lower roi_binning under Hardware. """
-            print(f'Only {rows} row(s) delivered: too few for {len(self.roi_controls)} ROIs. '
-                  'Lower roi_binning under Hardware.')
+            # Said out loud rather than left looking like the ROIs are ignored.
+            print(f'Only {rows} row(s) delivered: too few for {len(self.roi_controls)} ROIs.')
         fits = all(high.value() <= rows for _, high in self.roi_controls)
         for low, high in self.roi_controls:
             low.setRange(0, rows - 1)

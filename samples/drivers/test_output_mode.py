@@ -78,32 +78,38 @@ if frame_spec_length(cam) is not None or cam.get_intensities().ndim != 1:
     failures.append('le retour en 1D ne restaure pas le comportement')
 print('  retour en 1D : restaure')
 
-# roi_binning is the user's setting and must survive a spell in 1D: apply_readout_region used to
-# write the full region height back over it, so the next switch to 2D delivered a single row.
-class ModeCamera(FakeCamera):
-    """ Mirrors PixisCamera's apply_readout_region well enough to catch that write-back. """
-    def apply_readout_region(self):
-        self.applied_binning = self.roi_height if self.output_mode == '1D' else self.roi_binning
-        if self.output_mode == '2D':
-            self.roi_binning = self.applied_binning
+# 2D reads the full sensor: the readout region is a 1D concern, and restricting it first would
+# only take away rows the four ROIs could be placed on.
+class RegionCamera(FakeCamera):
+    """ Mirrors PixisCamera.set_output_mode: 1D applies the region, 2D takes the whole sensor. """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.region = (138, 54)
 
     def set_output_mode(self, mode):
         self.output_mode = mode
-        self.apply_readout_region()
+        if mode == '2D':
+            self.roi_y0, self.roi_height, self.roi_binning = 0, self.sensor_rows, 1
+        else:
+            self.roi_y0, self.roi_height = self.region
+            self.roi_binning = self.roi_height
         return mode
 
 
-mc = ModeCamera()
-mc.roi_binning = 6                 # chosen under Hardware
-mc.set_output_mode('1D')           # a spell in 1D, as at startup
-mc.apply_readout_region()          # as adjusting roi_y0 would trigger
-if mc.roi_binning != 6:
-    failures.append(f'roi_binning vaut {mc.roi_binning} apres un passage en 1D, attendu 6')
-mc.set_output_mode('2D')
-if mc.roi_height // mc.roi_binning != 9:
-    failures.append(f'retour en 2D rend {mc.roi_height // mc.roi_binning} ligne(s), attendu 9')
-print(f'  roi_binning survit au 1D : {mc.roi_binning}, retour en 2D -> '
-      f'{mc.roi_height // mc.roi_binning} lignes')
+rc = RegionCamera(sensor_rows=252, pixels=8)
+rc.set_output_mode('1D')
+if rc.frame_shape() != (1, 8):
+    failures.append(f'1D rend {rc.frame_shape()}, attendu une seule ligne')
+rc.set_output_mode('2D')
+if (rc.roi_y0, rc.roi_height, rc.roi_binning) != (0, 252, 1):
+    failures.append(f'2D lit {(rc.roi_y0, rc.roi_height, rc.roi_binning)}, attendu (0, 252, 1)')
+if rc.frame_shape() != (252, 8):
+    failures.append(f'2D rend {rc.frame_shape()}, attendu les 252 lignes')
+print(f'  2D = pleine trame : region {(rc.roi_y0, rc.roi_height)}, forme {rc.frame_shape()}')
+rc.set_output_mode('1D')
+if (rc.roi_y0, rc.roi_height) != (138, 54):
+    failures.append(f'le retour en 1D ne restaure pas la region, {(rc.roi_y0, rc.roi_height)}')
+print(f'  retour en 1D : region {(rc.roi_y0, rc.roi_height)} restauree')
 
 print()
 for f in failures:
