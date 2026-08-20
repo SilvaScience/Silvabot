@@ -35,7 +35,7 @@ devices:
   #           roi_y0: 138
   #           roi_height: 54
   #     monochromator:
-  #       driver: drivers.SpectraPro2300i.SpectraPro2300i
+  #       driver: drivers.SpectraPro.SpectraPro
   #       fallback: drivers.SpectraPro2300iDemo.SpectraPro2300iDemo
   #       init_args:
   #         port: COM5

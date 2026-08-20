@@ -88,6 +88,8 @@ class Spectrograph(QtCore.QThread):
         for role, device in (('camera', self.camera), ('monochromator', self.monochromator)):
             expected = self.calibration.get(role)
             actual = getattr(device, 'name', None)
+            if actual and actual.endswith('Demo'):
+                continue  # a demo stand-in is not the hardware the fit was made on, and says so
             if expected and actual and expected != actual:
                 print(f'WARNING Spectrograph: calibration {self.calibration["source"]} was fit for '
                       f'{role} {expected!r} but {actual!r} was loaded. Wavelengths will be wrong.')
