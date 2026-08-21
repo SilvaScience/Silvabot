@@ -167,7 +167,7 @@ class DataHandling(QtCore.QThread):
         with h5py.File( filename + '_' + timestamp + '_parameters.h5', 'w') as hf:
             hf.create_dataset("parameter", data=save_array, compression="gzip", chunks=True)
             hf['parameter'].attrs["parameter_keys"] = list(self.parameter_queue.keys())
-        np.savetxt(filename, save_array)
+        #np.savetxt(filename, save_array)
         print('Parameter saved as: ' + filename)
 
     @QtCore.pyqtSlot(str, str)

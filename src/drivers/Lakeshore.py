@@ -62,7 +62,7 @@ class Lakeshore(QtCore.QThread):
         #Values of the temperature A (the sample one)
         self.parameter_display_dict['current_T'] = {}
         self.parameter_display_dict['current_T']['val'] = self.temperature_reading[0]
-        self.parameter_display_dict['current_T']['unit'] = 'K'
+        self.parameter_display_dict['current_T']['unit'] = ' K'
         self.parameter_display_dict['current_T']['max'] = 350
         self.parameter_display_dict['current_T']['min'] = 0
         self.parameter_display_dict['current_T']['read'] = True
@@ -70,7 +70,7 @@ class Lakeshore(QtCore.QThread):
         #Values of the temperature B (no sample one)
         self.parameter_display_dict['stage_T'] = {}
         self.parameter_display_dict['stage_T']['val'] = self.temperature_reading[1]
-        self.parameter_display_dict['stage_T']['unit'] = 'K'
+        self.parameter_display_dict['stage_T']['unit'] = ' K'
         self.parameter_display_dict['stage_T']['max'] = 350
         self.parameter_display_dict['stage_T']['min'] = 0
         self.parameter_display_dict['stage_T']['read'] = True
@@ -78,7 +78,7 @@ class Lakeshore(QtCore.QThread):
         #Values of the setpoint
         self.parameter_display_dict['set_T'] = {}
         self.parameter_display_dict['set_T']['val'] = 300
-        self.parameter_display_dict['set_T']['unit'] = 'K'
+        self.parameter_display_dict['set_T']['unit'] = ' K'
         self.parameter_display_dict['set_T']['max'] = 350
         self.parameter_display_dict['set_T']['min'] = 1
         self.parameter_display_dict['set_T']['read'] = False

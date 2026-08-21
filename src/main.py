@@ -484,7 +484,7 @@ class UpdateWorker(QtCore.QThread):
                 for param in self.devices[devices].parameter_dict.keys():
                     if param in self.read_only:
                         self.updated_param[param] = self.devices[devices].parameter_dict[param]
-                self.new_parameter.emit(self.updated_param)
+            self.new_parameter.emit(self.updated_param)
             time.sleep(self.update_interval)
 
 # Execute app
