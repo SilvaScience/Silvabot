@@ -37,6 +37,11 @@ class Lock_In():
         self.parameter_display_dict['Displayed_signal_input']['min'] = 1
         self.parameter_display_dict['Displayed_signal_input']['max'] = 2
         self.parameter_display_dict['Displayed_signal_input']['read'] = False
+        self.parameter_display_dict['Averageing']['val'] = 1
+        self.parameter_display_dict['Averageing']['unit'] = ' '
+        self.parameter_display_dict['Averageing']['min'] = 1
+        self.parameter_display_dict['Averageing']['max'] = 100
+        self.parameter_display_dict['Averageing']['read'] = False
 
         # set up parameter dict that only contains value
         self.parameter_dict = {}
@@ -146,7 +151,7 @@ class Lock_In():
             with self.device.set_transaction():
                 self.device.scopes[0].channel(self.parameter_dict['Displayed_signal_input']) # Select the input channel to acquire
                 self.device.scopes[0].trigenable(True)   # Enable the scope trigger
-                self.device.scopes[0].trigchannel()     # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 2: ref trigger 1, 3: ref trigger 2) (to verified)
+                self.device.scopes[0].trigchannel()      # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 2: ref trigger 1, 3: ref trigger 2) (to verified)
                 self.device.scopes[0].trigrising(1)      # Trigger on rising edge
                 self.device.scopes[0].triglevel()        # Trigger level in V (to be determined)
                 self.device.scopes[0].length()           # Set the number of points in the scope (65536 is the maximum number of points) (to be determined)
@@ -156,10 +161,6 @@ class Lock_In():
             self.clockbase = self.device.clockbase()     # Definition of the internal clock frequency
 
             print('Configuration of the Lock-In completed')
-
-            
-
-
 
     def set_parameter(self,parameter,value):
         if parameter == 'filter_order':
@@ -171,6 +172,8 @@ class Lock_In():
         if parameter == 'Displayed_signal_input':
             self.update_displayed_signal_input(value)
             self.parameter_dict['Displayed_signal_input'] = value
+        if parameter == 'Averageing':
+            self.parameter_dict['Averageing'] = value
     
     def update_filter_order(self, filter_order):
         self.device.demods[0].order(filter_order)
@@ -194,7 +197,7 @@ class Lock_In():
 
         # Wait until at least one record is available
         while self.scope_module.records() == 0:
-            time.sleep(0.05) 
+            time.sleep(0.01) 
 
         data = self.scope_module.read()       # Read the scope data
         self.device.scopes[0].enable(False)   # Disable the scope
@@ -209,27 +212,19 @@ class Lock_In():
         t_us = 1e6 * np.arange(-self.totalsamples, 0) * self.dt + (self.timestamp - self.triggertimestamp) / float(self.clockbase) # Create the time array
         return t_us, self.wave
 
-    def DAQ_setup(self, scan_duration, burst_duration, expected_bursts):
+    def DAQ_setup(self, burst_duration):
         self.is_running = False
-        self.scan_duration = scan_duration     # Expected scan duration in seconds
         self.burst_duration = burst_duration   # Duration of each data burst in seconds
-        self.expected_bursts = expected_bursts # Expected number of bursts 
+        sample_nodes = [self.device.demods[0].sample.x,
+                        self.device.demods[4].sample.x]
 
-        self.sample_nodes = [self.device.demods[0].sample.x,   # Select Demod 0's X output
-                             self.device.demods[4].sample.x]   # Select Demod 4's X output
-        self.num_cols = int(np.ceil(self.burst_duration * self.device.demods[0].rate()))  # Number of samples per burst
-
-        # Initialize DAQ module for burst acquisition
-        sample_nodes = [self.device.demods[0].sample.x,   # Select Demod 0's X output
-                        self.device.demods[4].sample.x]   # Select Demod 4's X output
-        num_cols = int(np.ceil(self.burst_duration * self.device.demods[0].rate()))  # Number of samples per burst
         daq_module = self.session.modules.daq    # Create DAQ module
         daq_module.device(self.device)           # Link the DAQ module to the UHF device
-        daq_module.type(0)                       # Set DAQ type to 'burst'
+        daq_module.type(0)                       # Set DAQ type to continuous acquisition
         daq_module.grid.mode(2)                  # Set grid mode
-        daq_module.endless(1)                    # Enable endless acquisition
+        daq_module.count(1)                      # Set the number of measured bursts to 1   
         daq_module.duration(self.burst_duration) # Set burst duration
-        daq_module.grid.cols(num_cols)           # Set number of columns in the grid based on burst duration and sampling rate
+        daq_module.grid.cols(self.device.demods[0].rate()) # Set number of columns in the grid based on burst duration and sampling rate
         for node in sample_nodes:
             daq_module.subscribe(node)           # Subscribe to the sample nodes
         return self.clockbase, sample_nodes, daq_module

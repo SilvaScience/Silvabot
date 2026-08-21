@@ -54,6 +54,11 @@ class PI863():
         self.parameter_display_dict['autocorrelation_step']['max'] = 50000
         self.parameter_display_dict['autocorrelation_step']['read'] = False
 
+        self.parameter_display_dict['scan_resolution']['val'] = 10
+        self.parameter_display_dict['scan_resolution']['unit'] = ' µm'
+        self.parameter_display_dict['scan_resolution']['max'] = 1000
+        self.parameter_display_dict['scan_resolution']['read'] = False
+
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
         for key in self.parameter_display_dict.keys():
@@ -85,6 +90,8 @@ class PI863():
             self.update_scan_final_position(value)
         if parameter == 'autocorrelation_step':
             self.update_autocorrelation_step(value)
+        if parameter == 'scan_resolution':
+            self.update_scan_resolution(value)
 
     def update_speed(self, new_speed):
         self.pidevice.VEL(1, new_speed)
@@ -106,6 +113,9 @@ class PI863():
 
     def update_autocorrelation_step(self, new_step):
         self.parameter_dict['autocorrelation_step'] = new_step * 1e-3
+
+    def update_scan_resolution(self, new_resolution):
+        self.parameter_dict['scan_resolution'] = new_resolution
 
 class UpdateWorker_Position(QtCore.QThread):
     new_Position = QtCore.pyqtSignal(float)

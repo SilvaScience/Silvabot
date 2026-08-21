@@ -515,7 +515,8 @@ class MainInterface(QtWidgets.QMainWindow):
             # Get parameters for autocorrelation from the GUI
             initial_pos = self.tstage.parameter_dict['scan_initial_position']
             final_pos = self.tstage.parameter_dict['scan_final_position']
-            interval = self.tstage.parameter_dict['autocorrelation_interval']
+            interval = self.tstage.parameter_dict.get('autocorrelation_interval',
+                                                        self.tstage.parameter_dict.get('autocorrelation_step'))
 
             # Run the autocorrelation measurement
             self.measurement = Autocorrelation(self.devices, initial_pos, final_pos, interval, plot_widget=self.thz_plot_widget)

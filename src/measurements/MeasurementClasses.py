@@ -426,7 +426,7 @@ class THzAcquisition(QtCore.QThread):
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     plotDataSignal = QtCore.pyqtSignal(np.ndarray, np.ndarray)
 
-    def __init__(self, devices, plot_widget=None, burst_duration=0.1):
+    def __init__(self, devices, plot_widget=None, burst_duration = 0.1, scan_type = 'Continuous'):
         super(THzAcquisition, self).__init__()
 
         # Store parameters
@@ -435,16 +435,16 @@ class THzAcquisition(QtCore.QThread):
         self.initial_pos = self.tstage.parameter_dict['scan_initial_position']
         self.final_pos = self.tstage.parameter_dict['scan_final_position']
         self.scan_speed = self.tstage.parameter_dict['speed']
-        self.burst_duration = burst_duration
+        self.averageing_nb = int(self.lock_in.parameter_dict['Averageing'])
+        self.time_constant = self.lock_in.parameter_dict['time_constant']
+        self.scan_resolution = self.tstage.parameter_dict['scan_resolution'] * 1e-3   # Conversion of the resolution from µm to mm
+        self.spec_length = np.ceil((self.final_pos - self.initial_pos) / self.scan_resolution).astype(int)
         self.plot_widget = plot_widget
-        
-        # Calculate number of samples in a scan = spec_length
-        self.total_time = abs(self.final_pos - self.initial_pos) / self.scan_speed # Calculated total scan time
-        # self.samp_rate = devices['lock_in'].parameter_dict['sampling_rate']        # Get sampling rate from UHF parameters
-        self.samp_rate = self.lock_in.device.demods[0].rate()                           # Get sampling rate from the UHF
-        self.num_bursts = int(np.ceil(self.total_time / self.burst_duration) + 1)       # Calculated number of bursts to cover the scan time
-        self.num_samp_per_burst = int(np.ceil(self.burst_duration * self.samp_rate))    # Calculate number of samples per burst
-        self.spec_length = self.num_bursts * self.num_samp_per_burst                    # Calculate the total number of samples in a scan
+        self.scan_type = scan_type
+        if self.scan_type == 'Continuous':
+            self.burst_duration = (self.final_pos - self.initial_pos) / self.scan_speed
+        if self.scan_type == 'Step':
+            self.burst_duration = burst_duration
         
         # Connect the plotting signal to the measurement's plotting method
         self.plotDataSignal.connect(self.plot_data)
@@ -453,91 +453,112 @@ class THzAcquisition(QtCore.QThread):
     def Plotter_acquire(self, clockbase, sample_nodes, daq_module):
         self.is_running = True
         self.clockbase = clockbase
-        
-        # Function to read data from the DAQ module and to store it in results dictionary
-        def read_data(daq_module, results, ts0):
-            daq_data = daq_module.read(raw=False, clk_rate=self.clockbase)
-            for node in sample_nodes:
-                if node in daq_data.keys():
-                    for sig_burst in daq_data[node]:
-                        results[node].append(sig_burst)
-                        if np.any(np.isnan(ts0)):
-                            ts0 = sig_burst.header['createdtimestamp'][0] / self.clockbase
-            return results, ts0
 
-        # Start data acquisition in bursts until stopped
-        ts0 = np.nan                             # Initialize initial timestamp
-        results = {x: [] for x in sample_nodes}  # Initialize results dictionary
-        daq_module.execute()                     # Start the DAQ module
-        
-        # While loop to continuously read data until the stop condition is met (scan time exceeded or stop requested)
-        scan_start_time = None
-        burst_counter = 0
-        while True:
-            burst_counter += 1                                  # Increment burst counter
-            results, ts0 = read_data(daq_module, results, ts0)  # Read data and update results
-            if scan_start_time is None and len(results[sample_nodes[1]]) > 0:  # Set the scan start time based on the timestamp of the first burst received from Demod 4
-                # Set start time from first burst timestamp
-                first_burst = results[sample_nodes[1]][0]                      
-                scan_start_time = first_burst.header['createdtimestamp'][0] / self.clockbase
-            
-            progress = min(burst_counter / self.num_bursts, 1.0) * 100
+        daq_module.execute()
+        start_time = time.time()
+
+        while not daq_module.raw_module.finished():
+            # Calculate scan progress
+            if self.scan_type == 'Continuous':
+                elapsed_time = time.time() - start_time
+                scan_frac = (self.scan_number - 1) / self.averageing_nb
+                progress = 100 * min(self.scan_number / self.averageing_nb, scan_frac + elapsed_time/(self.burst_duration * self.averageing_nb))
+            if self.scan_type == 'Step':
+                progress = 100 * self.scan_number * (self.acquisition_number+1) / (self.spec_length * self.averageing_nb)
+
+            # Display scan progress
             self.sendProgress.emit(progress)
             
-            if scan_start_time is not None:
-                elapsed_time = (results[sample_nodes[1]][-1].header['createdtimestamp'][0] / self.clockbase) - scan_start_time
-                if elapsed_time >= self.total_time:
-                    break
+        # Read results and plot them
+        data_sets = daq_module.read(raw=False, clk_rate=self.clockbase)    
 
-            time.sleep(self.burst_duration)
-        
-        # Stop the DAQ module and do a final read to get any remaining data
-        daq_module.finish()                                     # Stop the DAQ module
-        results, ts0 = read_data(daq_module, results, ts0)      # Final read to get any remaining data
+        # Extract DAQResult objects (taking the first element [0] of the list)
+        data_input1 = data_sets[sample_nodes[0]][0].value[0]
+        data_input2 = data_sets[sample_nodes[1]][0].value[0]
 
-        # Organize the acquired data and calculate the difference between the two demodulators
-        d0_bursts = results[sample_nodes[0]]                                                                            # Get bursts for Demod 0
-        r0 = np.concatenate([b.value.flatten() for b in d0_bursts])                                                     # Concatenate R values for Demod 0
-        t0 = np.concatenate([(b.time + (b.header['createdtimestamp'][0] / self.clockbase) - ts0) for b in d0_bursts])   # Concatenate time values for Demod 0
-        d4_bursts = results[sample_nodes[1]]                                                                            # Get bursts for Demod 4
-        r4 = np.concatenate([b.value.flatten() for b in d4_bursts])                                                     # Concatenate R values for Demod 4
-        t4 = np.concatenate([(b.time + (b.header['createdtimestamp'][0] / self.clockbase) - ts0) for b in d4_bursts])   # Concatenate time values for Demod 4
-        R_diff = r4 #- r0
+        if self.scan_type == 'Continuous':
+            # Substract the data coming from sample_node[0] from the data coming from sample_node[1] (individual inputs of the lock-in/the balanced detector)
+            result = data_input2 # - data_input1  # - mean_1 is comented out because the presubstracted output of the balanced detector is used
+        if self.scan_type == 'Step':
+            # Avrage the data over the measurement window
+            mean_input1 = np.mean(data_input1)
+            mean_input2 = np.mean(data_input2)
 
-        return t0, R_diff
+            # Substract the data coming from sample_node[0] from the data coming from sample_node[1] (individual inputs of the lock-in/the balanced detector)
+            result = mean_input2 # - mean_input1  # - mean_1 is comented out because the presubstracted output of the balanced detector is used
+        return result
+
+    def single_scan(self):
+        # Initialize the scan
+        print('Moving to initial position')
+        self.tstage.pidevice.VEL(1, 10)                              # Set speed to a fast value (10 mm/s) for moving to the initial position        
+        self.tstage.pidevice.MOV(1, self.initial_pos)                # Move the stage to the initial position
+        pitools.waitontarget(self.tstage.pidevice, 1, timeout=10000) # Wait until the stage has reached the initial position
+        self.tstage.pidevice.VEL(1, self.scan_speed)                 # Set speed to the desired scan value
+
+        # Scanning
+        print('Starting position reached, starting scan')
+        clockbase, nodes, module = self.lock_in.DAQ_setup(self.burst_duration)  # Configure UHF for burst acquisition with the defined burst duration and sampling rate
+
+        if self.scan_type == 'Continuous':
+            self.tstage.pidevice.MOV(1, self.final_pos)        # Move the stage to the final position
+            voltages = self.Plotter_acquire(clockbase, nodes, module) # Start UHF data acquisition during the scan
+            positions = np.linspace(self.initial_pos, self.final_pos, len(voltages)) # Create a list of positions associated with the voltages
+
+        if self.scan_type == 'Step':
+            # Create target scan positions
+            self.target_positions = np.linspace(self.initial_pos, self.final_pos, self.spec_length)
+
+            # Initialize lists to store data
+            positions = np.zeros(self.spec_length)
+            voltages = np.zeros(self.spec_length)
+            
+            for i in range(self.spec_length):
+                self.acquisition_number = i
+                self.tstage.pidevice.MOV(1, self.target_positions[i])        # Move the stage to ith target position
+                pitools.waitontarget(self.tstage.pidevice, 1, timeout=10000) # Wait until the stage has reached the ith target position
+                time.sleep(self.time_constant * 4)                           # Wait for the filter of the lock-in to settle
+                positions[i] = self.tstage.pidevice.qPOS(1)[1]     # Measure the exact position of the stage
+                voltages[i] = self.Plotter_acquire(clockbase, nodes, module) # Start UHF data acquisition during the scan
+        return positions, voltages
     
     def run(self):
-        self.tstage.pidevice.VEL(1, 10)                              # Set speed to a fast value (10 mm/s) for moving to the initial position
-        self.tstage.pidevice.VEL(1, 10)                              # Set speed to a fast value (10 mm/s) for moving to the initial position        
-        self.tstage.pidevice.MOV(1, self.initial_pos)                # Moves the stage to the initial position
-        pitools.waitontarget(self.tstage.pidevice, 1, timeout=10000) # Wait until the stage has reached the initial position
-        self.tstage.pidevice.VEL(1, self.scan_speed)                 # Set the speed for scanning to the value from the parameter dict
-        clockbase, nodes, module = self.lock_in.DAQ_setup(self.total_time, self.burst_duration, self.num_bursts)  # Configure UHF for burst acquisition with the defined burst duration and sampling rate
-        self.tstage.pidevice.MOV(1, self.final_pos)                  # Start the stage moving to its maximum position
-        t, X = self.Plotter_acquire(clockbase, nodes, module)        # Start UHF data acquisition during the scan
-        self.plotDataSignal.emit(t, X)                               # Plot the data
-        self.sendProgress.emit(100)                                  # Emit 100% progress when done
-    
-    def plot_data(self, t, X):
-        # Convert scan time to delay time between the pulses
-        dist_traveled = abs(self.final_pos - self.initial_pos) * 1e-3
-        dist_to_time = 2 * dist_traveled / 299792458 * 1e12
-        time_array = np.linspace(0, dist_to_time, len(t))
+        p_sets = []
+        v_sets = []
+        self.sendProgress.emit(0)
+        for i in range(self.averageing_nb):
+            self.scan_number = i + 1
+            positions, voltages = self.single_scan()
+            p_sets.append(positions)
+            v_sets.append(voltages)
+        if self.averageing_nb == 1:
+            self.plotDataSignal.emit(positions, voltages)
+        else:
+            t_mean =  np.mean(p_sets, axis=0, keepdims=True)
+            X_mean =  np.mean(v_sets, axis=0, keepdims=True)
+            self.plotDataSignal.emit(t_mean[0], X_mean[0])
+        self.sendProgress.emit(100)
+
+    def plot_data(self, pos, voltages):
+        # Conversion of positions to time
+        positions_m = pos * 1e-3  # Convert positions from mm to m
+        absolute_time_delays = 2.0 * positions_m / 299792458 * 1e12 # Convert positions to time (ps) (factor of 2 accounts for round trip of light)
+        time_array = absolute_time_delays - absolute_time_delays[0] # Move the start of the array to 0
         
         # Plot in the provided plot widget
         self.plot_widget.clear()
-        self.plot_widget.plot(time_array, X * 1e6, pen='b', linewidth=0.5, label='Vertical')
+        self.plot_widget.plot(time_array, voltages * 1e6, pen='b', linewidth=0.5, label='Vertical')
         self.plot_widget.setLabel('bottom', 'Time (ps)')
         self.plot_widget.setLabel('left', 'Amplitude R (µV)')
         self.plot_widget.addLegend()
 
         # Send the data to DataHandling for saving
-        time_attribute = np.array([0, dist_to_time, len(t)])  # Create time attribute to be saved in the H5 file. This will prevent overflowing the H5 attribute while allowing to reconstruct the time array from the attribute when loading the data in mdsam
-        self.sendSpectrum.emit(time_attribute, X * 1e6)       # Send the data to DataHandling for saving
+        time_attribute = np.array([0, time_array[-1], len(pos)]) # Create time attribute to be saved in the H5 file. This will prevent overflowing the H5 attribute while allowing to reconstruct the time array from the attribute when loading the data in mdsam
+        self.sendSpectrum.emit(time_attribute, voltages * 1e6)   # Send the data to DataHandling for saving
     
     def stop(self):
         self.terminate = True
-        
+
 class ScopeView(QtCore.QThread):
     # Define used signals
     sendProgress = QtCore.pyqtSignal(float)
