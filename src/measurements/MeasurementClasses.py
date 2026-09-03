@@ -465,6 +465,7 @@ class THzAcquisition(QtCore.QThread):
                 progress = 100 * min(self.scan_number / self.averageing_nb, scan_frac + elapsed_time/(self.burst_duration * self.averageing_nb))
             if self.scan_type == 'Step':
                 progress = 100 * self.scan_number * (self.acquisition_number+1) / (self.spec_length * self.averageing_nb)
+            time.sleep(0.1)
 
             # Display scan progress
             self.sendProgress.emit(progress)
@@ -531,6 +532,8 @@ class THzAcquisition(QtCore.QThread):
             positions, voltages = self.single_scan()
             p_sets.append(positions)
             v_sets.append(voltages)
+            print(len(positions))
+            print(len(voltages))
         if self.averageing_nb == 1:
             self.plotDataSignal.emit(positions, voltages)
         else:
@@ -546,7 +549,7 @@ class THzAcquisition(QtCore.QThread):
         time_array = absolute_time_delays - absolute_time_delays[0] # Move the start of the array to 0
         
         # Plot in the provided plot widget
-        self.plot_widget.clear()
+        # self.plot_widget.clear()
         self.plot_widget.plot(time_array, voltages * 1e6, pen='b', linewidth=0.5, label='Vertical')
         self.plot_widget.setLabel('bottom', 'Time (ps)')
         self.plot_widget.setLabel('left', 'Amplitude R (µV)')
@@ -693,5 +696,3 @@ class Autocorrelation(QtCore.QThread):
         
         print(f"Warning: Stage did not reach target position {target_pos} within {timeout} seconds")
         return False
-
-        
