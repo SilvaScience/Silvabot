@@ -152,6 +152,12 @@ class MainInterface(QtWidgets.QMainWindow):
         self.Tseries_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_lineEdit')
         self.Tseries_int_time_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_int_time_lineEdit')
         self.Tseries_filter_pos_lineEdit = self.findChild(QtWidgets.QLineEdit, 'Tseries_filter_pos_lineEdit')
+        self.THz_StartPos_DoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, 'THzStartPos_doubleSpinBox')
+        self.THz_EndPos_DoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, 'THzEndPos_doubleSpinBox')
+        self.THz_ScanSpeed_DoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, 'THzScanSpeed_doubleSpinBox')
+        self.THz_ScanResolution_DoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, 'THzScanRes_doubleSpinBox')
+        self.ContinuousScan_checkBox = self.findChild(QtWidgets.QCheckBox, 'ContinuousScan_CheckBox')
+        self.THz_averaging_DoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, 'THzAveraging_doubleSpinBox')
 
         # initial parameter values, retrieved from devices
         self.parameter_dic = defaultdict(lambda: defaultdict(dict))
@@ -264,6 +270,12 @@ class MainInterface(QtWidgets.QMainWindow):
         self.thz_acquisition.clicked.connect(self.thz_acquisition_measurement)
         self.autocorrelation.clicked.connect(self.Autocorrelation_measurement) 
         self.thz_clear.clicked.connect(self.THz_clear)
+        self.THz_StartPos_DoubleSpinBox.valueChanged.connect(lambda: self.update_THzStartPos)
+        self.THz_EndPos_DoubleSpinBox.valueChanged.connect(lambda: self.update_THzEndPos)
+        self.THz_ScanSpeed_DoubleSpinBox.valueChanged.connect(lambda: self.update_THzScanSpeed)
+        self.THz_ScanResolution_DoubleSpinBox.valueChanged.connect(lambda: self.update_THzScanResolution)
+        self.THz_averaging_DoubleSpinBox.valueChanged.connect(lambda: self.update_THzAveraging)
+        self.ContinuousScan_checkBox.stateChanged.connect(lambda: self.update_continuous_scan)
 
         # run some functions once to define default values
         self.change_filename()
@@ -536,15 +548,47 @@ class MainInterface(QtWidgets.QMainWindow):
             self.thz_plot_widget.plot(times_in_ps, power_in_nW * 1e-3, pen='b')
             self.thz_plot_widget.setLabel('bottom', 'Time (ps)')
             self.thz_plot_widget.setLabel('left', 'Power (µW)')
+
+    def update_THzStartPos(self, value):
+        self.tstage.parameter_dict['scan_initial_position'] = value
+        print('Placeholder for updating THz start position to:', value)
+
+    def update_THzEndPos(self, value):
+        self.tstage.parameter_dict['scan_final_position'] = value
+        print('Placeholder for updating THz end position to:', value)
+
+    def update_THzScanSpeed(self, value):
+        self.tstage.parameter_dict['scan_speed'] = value
+        print('Placeholder for updating THz scan speed to:', value)
+
+    def update_THzScanResolution(self, value):
+        self.tstage.parameter_dict['scan_resolution'] = value
+        print('Placeholder for updating THz scan resolution to:', value)
+
+    def update_THzAveraging(self, value):
+        self.tstage.parameter_dict['averaging'] = value
+        print('Placeholder for updating THz averaging to:', value)
+
+    def update_continuous_scan(self, state):
+        """Update the continuous scan state based on the checkbox state."""
+        if state == QtCore.Qt.Checked:
+            self.tstage.parameter_dict['continuous_scan'] = True
+            print("Continuous scan enabled.")
+        else:
+            self.tstage.parameter_dict['continuous_scan'] = False
+            print("Continuous scan disabled.")
     
     def THz_clear(self):
         self.thz_plot_widget.clear()
 
     def closeEvent(self, event):
         # Function that executes when the GUI is closed to appropriately disconect the translation stage (Other disconections may be added)
-        self.tstage.pidevice.CloseConnection()
-        print("Translation stage disconnected")
-        event.accept()
+        try:
+            self.tstage.pidevice.CloseConnection()
+            print("Translation stage disconnected")
+            event.accept()
+        except Exception as e:
+            event.accept()
 
 class UpdateWorker(QtCore.QThread):
 
