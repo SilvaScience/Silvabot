@@ -182,7 +182,7 @@ class MainInterface(QtWidgets.QMainWindow):
             vbox.addWidget(self.SLM)
         self.SLM_tab.setLayout(vbox)
 
-        # Initialize THz tab with plot widget
+        # Initialize the THz tab with plot widget
         import pyqtgraph as pg
         self.thz_plot_widget = pg.PlotWidget(title="THz Plot")
         self.thz_plot_widget.setLabel('left', 'Intensity')
@@ -268,7 +268,7 @@ class MainInterface(QtWidgets.QMainWindow):
         
         # THz tab button connections
         self.thz_acquisition.clicked.connect(self.thz_acquisition_measurement)
-        self.autocorrelation.clicked.connect(self.Autocorrelation_measurement) 
+        self.autocorrelation.clicked.connect(self.Autocorrelation_measurement)
         self.thz_clear.clicked.connect(self.THz_clear)
         self.THz_StartPos_DoubleSpinBox.valueChanged.connect(lambda: self.update_THzStartPos)
         self.THz_EndPos_DoubleSpinBox.valueChanged.connect(lambda: self.update_THzEndPos)

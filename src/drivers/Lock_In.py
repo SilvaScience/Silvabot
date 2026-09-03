@@ -225,7 +225,7 @@ class Lock_In():
         daq_module.grid.mode(2)                  # Set grid mode
         daq_module.count(1)                      # Set the number of measured bursts to 1   
         daq_module.duration(self.burst_duration) # Set burst duration
-        daq_module.grid.cols(self.device.demods[0].rate()) # Set number of columns in the grid based on burst duration and sampling rate
+        daq_module.grid.cols(self.device.demods[0].rate() * self.burst_duration) # Set number of columns in the grid based on burst duration and sampling rate
         for node in sample_nodes:
             daq_module.subscribe(node)           # Subscribe to the sample nodes
         return self.clockbase, sample_nodes, daq_module
