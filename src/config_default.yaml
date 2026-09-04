@@ -38,6 +38,8 @@ devices:
     enabled: false
     driver: drivers.Lock_In.Lock_In
     fallback: drivers.Lock_InDemo.Lock_InDemo
+    init_args:
+      lock_in_type: UHF
 comment: 'User: DT
 
   Sample:
