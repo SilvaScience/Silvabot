@@ -4,6 +4,8 @@ PyQt5~=5.15.11
 matplotlib~=3.10.1
 pip
 pillow
+joblib~=1.5.3
+jki_python_bridge_for_labview
 requests~=2.32.3
 pandas~=2.2.3
 h5py~=3.13.0
@@ -11,3 +13,15 @@ scipy~=1.15.2
 pyserial~=3.5
 pylablib~=1.4.3
 PyVISA~=1.15.0
+future~=1.0.0
+lakeshore~=1.9.2
+zhinst~=25.4.1
+ipywidgets~=8.1.7
+packaging~=25.0
+psutil~=7.0.0
+harvesters~=1.4.3
+genicam~=1.5.1
+numba~=0.61.2
+joblib
+requests
+matplotlib

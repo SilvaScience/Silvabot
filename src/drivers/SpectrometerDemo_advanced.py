@@ -19,7 +19,7 @@ class SpectrometerDemo(QtCore.QThread):
 
     name = 'Spectrometer'
     
-    def __init__(self):
+    def __init__(self, port = None):
         super(SpectrometerDemo, self).__init__()
 
         # load and initialize  spectrometerWorker

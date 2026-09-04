@@ -1,15 +1,8 @@
 """
-Main Data Handling script. Should receive Data from Measurement and/or Hardware Interface classes. Used to order,
-arrange and store data. Saves Data in a temp file during data acquirement to prevent memory storage to crash.
-Sends Data to Data and Live Viewers.
+
+\
+
 """
-import time
-import csv
-from PyQt5 import QtCore, QtWidgets
-import numpy as np
-import os.path
-import pandas as pd
-from collections import deque
 
 
 
