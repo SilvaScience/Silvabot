@@ -29,6 +29,12 @@ class PI863Demo():
         self.parameter_display_dict['speed']['max'] = 20
         self.parameter_display_dict['speed']['read'] = False
 
+        self.parameter_display_dict['target_position']['val'] = 0
+        self.parameter_display_dict['target_position']['unit'] = ' mm'
+        self.parameter_display_dict['target_position']['max'] = 50
+        self.parameter_display_dict['target_position']['min'] = -50
+        self.parameter_display_dict['target_position']['read'] = False
+
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
         for key in self.parameter_display_dict.keys():
@@ -40,20 +46,22 @@ class PI863Demo():
         self.UpdateWorker_Position.start()
 
     def set_parameter(self,parameter,value):
-        if parameter == 'set_speed':
-            self.update_set_speed(value)
-        if parameter == 'set_target_position':
-            self.update_set_target_position(value)
+        if parameter == 'speed':
+            self.update_speed(value)
+            self.parameter_dict['speed'] = value
+        if parameter == 'target_position':
+            self.update_target_position(value)
         if parameter == 'position':
             self.update_position(value)
             self.position = value
 
-    def update_set_speed(self, set_speed):
-        print(f'Speed set to {set_speed}')
+    def update_speed(self, speed):
+        print(f'Speed set to {speed}')
     
-    def update_set_target_position(self, set_position):
-        print(f'Moving to {set_position}')
-        self.UpdateWorker_Position.target = set_position
+    def update_target_position(self, position):
+        print(f'Moving to {position}')
+        self.parameter_dict['target_position'] = position
+        self.UpdateWorker_Position.target = position
 
 
     def update_position(self, new_Position):

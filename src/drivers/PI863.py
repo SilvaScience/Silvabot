@@ -16,6 +16,7 @@ class PI863():
         self.parameter_display_dict = defaultdict(dict)
         self.stop = False
 
+
         self.parameter_display_dict['position']['val'] = 0
         self.parameter_display_dict['position']['unit'] = ' mm'
         self.parameter_display_dict['position']['max'] = 50
@@ -25,6 +26,12 @@ class PI863():
         self.parameter_display_dict['speed']['unit'] = ' mm/s'
         self.parameter_display_dict['speed']['max'] = 20
         self.parameter_display_dict['speed']['read'] = False
+
+        self.parameter_display_dict['target_position']['val'] = 0
+        self.parameter_display_dict['target_position']['unit'] = ' mm'
+        self.parameter_display_dict['target_position']['max'] = 50
+        self.parameter_display_dict['target_position']['min'] = 0
+        self.parameter_display_dict['target_position']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
@@ -51,6 +58,17 @@ class PI863():
             self.update_target_position(value)
         if parameter == 'position':
             self.update_position(value)
+
+    def update_position(self, new_position):
+        self.parameter_dict['position'] = new_position
+
+    def update_speed(self, new_speed, stage_number=1):
+        self.pidevice.VEL(stage_number, new_speed)
+        self.parameter_dict['speed'] = new_speed
+
+    def update_target_position(self, new_position, stage_number=1):
+        self.pidevice.MOV(stage_number, new_position)
+        self.parameter_dict['target_position'] = new_position
 
 
 class UpdateWorker_Position(QtCore.QThread):

@@ -11,10 +11,7 @@ from PyQt5 import QtCore
 import numpy as np
 import h5py
 import os
-from jki_python_bridge_for_labview import labview as lv
-from pipython import pitools     # pipython helper used to wait until stage has reached its target position
-
-
+# from jki_python_bridge_for_labview import labview as lv
 
 # Measurement to acquire one spectrum
 class AcquireMeasurement(QtCore.QThread):
@@ -501,7 +498,7 @@ class AcquireSpectrum(QtCore.QThread):
         self.start_wl = start_wl
         self.end_wl = stop_wl
         self.nb_of_spectra = int(np.ceil((self.end_wl - self.start_wl) / 50) + 1)       # Overestimates the number of individual spectra needed to cover the desired wl range (the 50 comes from the fact that 50 nm is around 200 points and the from each spectra 200 points are kept for the stitching / the + 1 ensures that the full wl range is included in the measurement)
-        self.spec_length = (self.spectrometer.spec_length[0], 200 * self.nb_of_spectra) # Definition of the spec_length of the stitched spectrum that will be sent to DataHandling (200 is the number of points for each individual spectra that is kept when stitching them together)
+        self.speclength = (self.spectrometer.spec_length[0], 200 * self.nb_of_spectra)  # Definition of the spec_length of the stitched spectrum that will be sent to DataHandling (200 is the number of points for each individual spectra that is kept when stitching them together)
 
     def run(self):
         print(self.spectrometer.parameter_dict['start_wl'])
@@ -735,6 +732,7 @@ class THzAcquisition(QtCore.QThread):
     sendProgress = QtCore.pyqtSignal(float)
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     sendParameter = QtCore.pyqtSignal(str, float)
+    plotDataSignal = QtCore.pyqtSignal(np.ndarray, np.ndarray)    # Internal signal (To make sure Qt widgets is accessed from the GUI thread)
 
     def __init__(self, devices, plot_widget,line_edit, scan_speed, continuous_checkbox, averaging):
         super(THzAcquisition, self).__init__()
@@ -756,6 +754,8 @@ class THzAcquisition(QtCore.QThread):
         else:
             self.scan_type = 'Step'
             self.burst_duration = 0.1
+
+        self.plotDataSignal.connect(self.plot_data)
 
         # calculate spec length
         self.spec_length = np.ceil((self.final_pos - self.initial_pos) / self.scan_resolution).astype(int)
@@ -804,9 +804,9 @@ class THzAcquisition(QtCore.QThread):
     def single_scan(self):
         # Initialize the scan
         print('Moving to initial position')
-        self.sendParameter.emit('speed',10)                          # Set speed to a fast value (10 mm/s) for moving to the initial position
+        self.sendParameter.emit('speed', 10)                         # Set speed to a fast value (10 mm/s) for moving to the initial position
         self.sendParameter.emit('target_position',self.initial_pos)  # Move the stage to the initial position
-        current_position = self.tstage.parameter_dict['position']
+        current_position = self.tstage.parameter_dict['position']    # Get current position from parameter dict
         while not current_position == self.initial_pos:                # Wait until initial position is reached
             time.sleep(0.1)
             current_position = self.tstage.parameter_dict['position']
@@ -846,11 +846,11 @@ class THzAcquisition(QtCore.QThread):
             p_sets.append(positions)
             v_sets.append(voltages)
         if self.averageing_nb == 1:
-            self.plot_data(positions,voltages)
-        else:
+            self.plotDataSignal.emit(positions, voltages)
+        else: 
             t_mean =  np.mean(p_sets, axis=0, keepdims=True)
             X_mean =  np.mean(v_sets, axis=0, keepdims=True)
-            self.plot_data(t_mean[0], X_mean[0])
+            self.plotDataSignal.emit(t_mean[0], X_mean[0])
         self.sendProgress.emit(100)
 
     def plot_data(self, pos, voltages):

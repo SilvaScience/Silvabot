@@ -484,7 +484,7 @@ class MainInterface(QtWidgets.QMainWindow):
     def thz_acquisition_measurement(self):
         # Conducts a THz measurement using the translation stage and the lock in.
         self.start_measurement('THzAcquisition',self.devices, self.thz_plot_widget, self.THz_lineEdit.text(), self.THzScanSpeed_doubleSpinBox.value(), self.ContinuousScan_CheckBox.isChecked(),
-                               self.THzAveraging_spinBox.value(), speclength = self.measurement.speclength )
+                               self.THzAveraging_spinBox.value(), speclength = self.spec_length )
 
 
 class UpdateWorker(QtCore.QThread):
