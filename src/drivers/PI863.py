@@ -93,29 +93,35 @@ class PI863():
         if parameter == 'scan_resolution':
             self.update_scan_resolution(value)
 
-    def update_speed(self, new_speed):
-        self.pidevice.VEL(1, new_speed)
+    def update_speed(self, new_speed, stage_number=1):
+        self.pidevice.VEL(stage_number, new_speed)
         get_speed = self.pidevice.qVEL()
-        print(f'Speed set to {get_speed["1"]} mm/s')
-    
-    def update_target_position(self, new_set_position):
-        print(f'Moving to {new_set_position}')
-        self.pidevice.MOV(1, new_set_position)
+        print(f'Speed set to {get_speed[f"{stage_number}"]} mm/s')
+
+    def update_target_position(self, new_set_position, stage_number=1):
+        print(f'Moving to {new_set_position} mm')
+        self.pidevice.MOV(stage_number, new_set_position)
 
     def update_position(self, new_Position):
         self.parameter_dict['position'] = new_Position
     
     def update_scan_initial_position(self, new_initial_pos):
         self.parameter_dict['scan_initial_position'] = new_initial_pos
+        print(f'Scan initial position set to {new_initial_pos} mm')
     
     def update_scan_final_position(self, new_final_pos):
         self.parameter_dict['scan_final_position'] = new_final_pos
+        print(f'Scan final position set to {new_final_pos} mm')
 
     def update_autocorrelation_step(self, new_step):
         self.parameter_dict['autocorrelation_step'] = new_step * 1e-3
 
     def update_scan_resolution(self, new_resolution):
         self.parameter_dict['scan_resolution'] = new_resolution
+
+    def wait_on_target(self, axis, timeout):
+        print(axis, timeout)
+        pitools.waitontarget(self.pidevice, axis, timeout=timeout)
 
 class UpdateWorker_Position(QtCore.QThread):
     new_Position = QtCore.pyqtSignal(float)
