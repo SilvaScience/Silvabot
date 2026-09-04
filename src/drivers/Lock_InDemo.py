@@ -7,7 +7,7 @@ class Lock_InDemo():
 
     name = 'Lock_InDemo'
 
-    def __init__(self):
+    def __init__(self, lock_in_type):
         super(Lock_InDemo, self).__init__()
 
         # setting up the parameter dict

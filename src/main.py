@@ -218,7 +218,6 @@ class MainInterface(QtWidgets.QMainWindow):
         
         # THz tab button connections
         self.thz_acquisition.clicked.connect(self.thz_acquisition_measurement)
-        self.thz_clear.clicked.connect(self.THz_clear)
 
         # run some functions once to define default values
         self.change_filename()
@@ -487,46 +486,6 @@ class MainInterface(QtWidgets.QMainWindow):
         self.start_measurement('THzAcquisition',self.devices, self.thz_plot_widget, self.THz_lineEdit.text(), self.THzScanSpeed_doubleSpinBox.value(), self.ContinuousScan_CheckBox.isChecked(),
                                self.THzAveraging_spinBox.value(), speclength = self.measurement.speclength )
 
-
-    def update_THzStartPos(self, value):
-        self.tstage.update_scan_initial_position(value)
-        print('Placeholder for updating THz start position to:', value)
-
-    def update_THzEndPos(self, value):
-        self.tstage.update_scan_final_position(value)
-        print('Placeholder for updating THz end position to:', value)
-
-    def update_THzScanSpeed(self, value):
-        self.tstage.update_speed(value)
-        print('Placeholder for updating THz scan speed to:', value)
-
-    def update_THzScanResolution(self, value):
-        self.tstage.update_scan_resolution(value)
-        print('Placeholder for updating THz scan resolution to:', value)
-
-    def update_THzAveraging(self, value):
-        self.lock_in.update_averaging(value)
-        print('Placeholder for updating THz averaging to:', value)
-
-    def update_continuous_scan(self, state):
-        """Update the continuous scan state based on the checkbox state."""
-        if state == QtCore.Qt.Checked:
-            self.tstage.update_continuous_scan(True)
-            print("Continuous scan enabled.")
-        else:
-            self.tstage.update_continuous_scan(False)
-            print("Continuous scan disabled.")
-
-    def update_THzTimeConstant(self, value):
-        self.lock_in.update_time_constant(value)
-        print('Placeholder for updating THz time constant to:', value)
-
-    def update_THzFilterOrder(self, value):
-        self.lock_in.update_filter_order(value)
-        print('Placeholder for updating THz filter order to:', value)
-
-    def THz_clear(self):
-        self.thz_plot_widget.clear()
 
 class UpdateWorker(QtCore.QThread):
 

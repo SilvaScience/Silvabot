@@ -31,11 +31,11 @@ devices:
     enabled: false
     driver: drivers.lakeshore.Lakeshore
   PI863:
-    enabled: true
+    enabled: false
     driver: drivers.PI863.PI863
     fallback: drivers.PI863Demo.PI863Demo
   Lock_In:
-    enabled: true
+    enabled: false
     driver: drivers.Lock_In.Lock_In
     fallback: drivers.Lock_InDemo.Lock_InDemo
 comment: 'User: DT
