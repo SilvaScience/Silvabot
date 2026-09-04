@@ -497,7 +497,7 @@ class THzAcquisition(QtCore.QThread):
         print('Moving to initial position')
         self.sendSpeed.emit(10, 1)                                   # Set speed to a fast value (10 mm/s) for moving to the initial position     
         self.sendTargetPosition.emit(self.initial_pos, 1)            # Move the stage to the initial position
-        #self.sendWaitOnTarget.emit(1, 10000)                                   # Wait until the stage has reached the initial position
+        #self.sendWaitOnTarget.emit(1, 10000)                        # Wait until the stage has reached the initial position
         pitools.waitontarget(self.tstage.pidevice, 1, timeout=10000) # Wait until the stage has reached the initial position
         self.sendSpeed.emit(self.scan_speed, 1)                      # Set speed to the desired scan value
 
@@ -551,7 +551,7 @@ class THzAcquisition(QtCore.QThread):
         time_array = absolute_time_delays - absolute_time_delays[0] # Move the start of the array to 0
         
         # Plot in the provided plot widget
-        # self.plot_widget.clear()
+        self.plot_widget.clear()
         self.plot_widget.plot(time_array, voltages * 1e6, pen='b', linewidth=0.5, label='Vertical')
         self.plot_widget.setLabel('bottom', 'Time (ps)')
         self.plot_widget.setLabel('left', 'Amplitude R (µV)')
