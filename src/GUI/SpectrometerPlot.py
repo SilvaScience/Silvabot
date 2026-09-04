@@ -361,8 +361,11 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         self.wls = wls
         wls_span = np.max(wls) - np.min(wls)
         if spec.ndim == 1:
-            self.graphWidget.plot(wls, spec, pen=QtGui.QColor.fromRgbF(plt.cm.prism(self.plotcounter)[0],plt.cm.prism(self.plotcounter)[1],
+            try:
+                self.graphWidget.plot(wls, spec, pen=QtGui.QColor.fromRgbF(plt.cm.prism(self.plotcounter)[0],plt.cm.prism(self.plotcounter)[1],
                                                                    plt.cm.prism(self.plotcounter)[2],plt.cm.prism(self.plotcounter)[3]))
+            except Exception as e:
+                print(f'If you were not plotting THz data, an error occurred while plotting the spectrum:{e}')
         else:
             for i in range(4):
                 lim1 = self.roi_controls[i][0].value()

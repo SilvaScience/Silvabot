@@ -113,7 +113,23 @@ class MainInterface(QtWidgets.QMainWindow):
         vbox.addWidget(self.ParameterPlot)
         self.parameter_tab.setLayout(vbox)
 
-        """ This initializes the parameter tree. It is constructed based on the device dict,
+        vbox = QtWidgets.QVBoxLayout()
+        if hasattr(self, 'SLM'):
+            vbox.addWidget(self.SLM)
+        self.SLM_tab.setLayout(vbox)
+
+        # Initialize the THz tab with plot widget
+        import pyqtgraph as pg
+        self.thz_plot_widget = pg.PlotWidget(title="THz Plot")
+        self.thz_plot_widget.setLabel('left', 'Intensity')
+        self.thz_plot_widget.setLabel('bottom', 'Frequency')
+        thz_plot_layout = self.thz_plot_group.layout()
+        if thz_plot_layout is None:
+            thz_plot_layout = QtWidgets.QVBoxLayout()
+            self.thz_plot_group.setLayout(thz_plot_layout)
+        thz_plot_layout.addWidget(self.thz_plot_widget)
+
+        """ This initializes the parameter tree. It is constructed based on the device dict, 
         that includes parameter information of each device """
         self.parameters_treeWidget.setColumnCount(2)
         self.parameters_treeWidget.setHeaderLabels(["Name", "Value"])
@@ -203,6 +219,20 @@ class MainInterface(QtWidgets.QMainWindow):
         self.chirp_scan_run_pushButton.clicked.connect(self.chirp_scan_measurement)
         self.compressor_scan_run_pushButton.clicked.connect(self.compressor_scan_measurement)
         self.BF_scan_run_pushButton.clicked.connect(self.BF_measurement)
+        self.Tseries_run_button.clicked.connect(self.Tseries_measurement)
+        
+        # THz tab button connections
+        self.thz_acquisition.clicked.connect(self.thz_acquisition_measurement)
+        self.autocorrelation.clicked.connect(self.Autocorrelation_measurement)
+        self.thz_clear.clicked.connect(self.THz_clear)
+        self.THz_StartPos_DoubleSpinBox.valueChanged.connect(self.update_THzStartPos)
+        self.THz_EndPos_DoubleSpinBox.valueChanged.connect(self.update_THzEndPos)
+        self.THz_ScanSpeed_DoubleSpinBox.valueChanged.connect(self.update_THzScanSpeed)
+        self.THz_ScanResolution_DoubleSpinBox.valueChanged.connect(self.update_THzScanResolution)
+        self.THz_averaging_DoubleSpinBox.valueChanged.connect(self.update_THzAveraging)
+        self.ContinuousScan_checkBox.stateChanged.connect(self.update_continuous_scan)
+        self.THz_TimeConstant_DoubleSpinBox.valueChanged.connect(self.update_THzTimeConstant)
+        self.THz_FilterOrder_DoubleSpinBox.valueChanged.connect(self.update_THzFilterOrder)
 
         # run some functions once to define default values
         self.change_filename()
@@ -464,6 +494,105 @@ class MainInterface(QtWidgets.QMainWindow):
         # close Qt
         event.accept()
 
+    def thz_acquisition_measurement(self):
+        # Conducts a THz measurement using the translation stage and the lock in.
+        if not self.measurement_busy:
+            self.measurement_busy = True
+            self.measurement = THzAcquisition(self.devices, self.thz_plot_widget)
+            self.measurement.sendProgress.connect(self.set_progress)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.sendTargetPosition.connect(self.tstage.update_target_position)
+            self.measurement.sendSpeed.connect(self.tstage.update_speed)
+            self.measurement.sendWaitOnTarget.connect(self.tstage.wait_on_target)
+            self.DataHandling.spec_length = self.measurement.spec_length
+            self.DataHandling.clear_data()
+            self.measurement.start()
+        else:
+            print('Measurement not started, devices are busy')
+    
+    def Scope_view(self):
+        # This function plots scope data from the UHF lock-in amplifier and plots it (acts like the Scope in LabOne)
+        if not self.measurement_busy:
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+            self.measurement = ScopeView(self.devices)
+            self.measurement.sendProgress.connect(self.set_progress)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.clearPlot.connect(self.SpectrometerPlot.clear_plot)
+            self.measurement.start()
+        else:
+            print('Measurement not started, devices are busy')
+    
+    def Autocorrelation_measurement(self):
+        # start an autocorrelation scan using parameters from Tstage dropdown menu
+        if not self.measurement_busy:
+            self.measurement_busy = True
+            self.DataHandling.clear_data()
+
+            # Get parameters for autocorrelation from the GUI
+            initial_pos = self.tstage.parameter_dict['scan_initial_position']
+            final_pos = self.tstage.parameter_dict['scan_final_position']
+            interval = self.tstage.parameter_dict.get('autocorrelation_interval',
+                                                        self.tstage.parameter_dict.get('autocorrelation_step'))
+
+            # Run the autocorrelation measurement
+            self.measurement = Autocorrelation(self.devices, initial_pos, final_pos, interval, plot_widget=self.thz_plot_widget)
+            
+            # Connect the different signals
+            self.measurement.sendProgress.connect(self.set_progress)
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+            self.measurement.sendSpectrum.connect(self.plot_autocorrelation)
+            self.measurement.start()
+        else:
+            print('Measurement not started, devices are busy')
+    
+    def plot_autocorrelation(self, times_in_ps, power_in_nW):
+        """Plot autocorrelation data vs time on the THz plot widget"""
+        if self.thz_plot_widget is not None:
+            self.thz_plot_widget.clear()
+            self.thz_plot_widget.plot(times_in_ps, power_in_nW * 1e-3, pen='b')
+            self.thz_plot_widget.setLabel('bottom', 'Time (ps)')
+            self.thz_plot_widget.setLabel('left', 'Power (µW)')
+
+    def update_THzStartPos(self, value):
+        self.tstage.update_scan_initial_position(value)
+        print('Placeholder for updating THz start position to:', value)
+
+    def update_THzEndPos(self, value):
+        self.tstage.update_scan_final_position(value)
+        print('Placeholder for updating THz end position to:', value)
+
+    def update_THzScanSpeed(self, value):
+        self.tstage.update_speed(value)
+        print('Placeholder for updating THz scan speed to:', value)
+
+    def update_THzScanResolution(self, value):
+        self.tstage.update_scan_resolution(value)
+        print('Placeholder for updating THz scan resolution to:', value)
+
+    def update_THzAveraging(self, value):
+        self.lock_in.update_averaging(value)
+        print('Placeholder for updating THz averaging to:', value)
+
+    def update_continuous_scan(self, state):
+        """Update the continuous scan state based on the checkbox state."""
+        if state == QtCore.Qt.Checked:
+            self.tstage.update_continuous_scan(True)
+            print("Continuous scan enabled.")
+        else:
+            self.tstage.update_continuous_scan(False)
+            print("Continuous scan disabled.")
+
+    def update_THzTimeConstant(self, value):
+        self.lock_in.update_time_constant(value)
+        print('Placeholder for updating THz time constant to:', value)
+
+    def update_THzFilterOrder(self, value):
+        self.lock_in.update_filter_order(value)
+        print('Placeholder for updating THz filter order to:', value)
+
+    def THz_clear(self):
+        self.thz_plot_widget.clear()
 
 class UpdateWorker(QtCore.QThread):
 

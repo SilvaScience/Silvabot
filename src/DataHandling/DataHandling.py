@@ -80,6 +80,16 @@ class DataHandling(QtCore.QThread):
         self.thread.start()
         self.bufferSaveSignal.connect(self.BufferWorker.save_buffer)
 
+    def update_array_size(self, input_array):
+        if input_array.ndim  == 1:
+            self.spec = np.empty([len(input_array), 0])
+            self.background = np.empty([len(input_array), 1])
+            self.wls = np.empty([len(input_array), 1])
+        else:
+            self.spec = np.empty([0,len(input_array[0]),len(input_array[1])])
+            self.background = np.empty([0,len(input_array[0]),len(input_array[1])])
+            self.wls = np.empty([len(input_array[1]), 1])
+
     # main update device parameter function
     def update_parameter(self, parameter):
         """ This is an important part of hardware parameter control. We use "deque" as efficient First-In-First-Out
@@ -111,6 +121,7 @@ class DataHandling(QtCore.QThread):
         more than 100 spectra are acquired, they are buffersaved in a .h5 file, to prevent memory overload and allow
         acquisiton of infinite spectra. """
         # add data to data array, not used for now
+        self.update_array_size(spec)
         curr_time = time.time() - self.starttime
         self.wls = wls
         if self.data_dim == 1:
@@ -132,7 +143,42 @@ class DataHandling(QtCore.QThread):
         # Extract maxima of data to display them in SpectrumViewer
         self.maximum[1] = np.amax(spec)
         if self.data_dim == 1:
-            self.maximum[2] = wls[np.argmax(spec)]
+            try:
+                self.maximum[2] = wls[np.argmax(spec)]
+            except:
+                self.maximum[2] = 0
+        else:
+            self.maximum[2] = wls[np.unravel_index(spec.argmax(), spec.shape)[1]]
+        self.maximum[0] = curr_time
+        self.sendMaximum.emit(self.maximum)
+
+    def replace_data(self, wls, spec):
+        """ This function replaces the current data with new data, keeping only the latest acquisition.
+        Used for real-time scope viewing where only the most recent measurement should be displayed. """
+        # add data to data array
+        self.update_array_size(spec)
+        curr_time = time.time() - self.starttime
+        self.wls = wls
+        if self.data_dim == 1:
+            self.spec = np.c_[np.empty([len(spec), 0]), spec]
+        else:
+            self.spec = np.empty([0,len(spec[0]),len(spec[1])])
+            self.spec = np.concatenate([self.spec, spec[np.newaxis,...]])
+        for idx, param in enumerate(self.parameter_queue.keys()):
+            self.param_from_deque[idx] = self.parameter_queue[param][-1]
+        self.parameter_measured = np.zeros([len(self.parameter) + 2, 0])
+        self.parameter_measured = np.c_[self.parameter_measured, self.param_from_deque]
+        self.parameter_measured[0, -1] = curr_time
+        self.parameter_measured[1, -1] = time.time()
+        self.sendSpectrum.emit(wls, spec)
+
+        # Extract maxima of data to display them in SpectrumViewer
+        self.maximum[1] = np.amax(spec)
+        if self.data_dim == 1:
+            try:
+                self.maximum[2] = wls[np.argmax(spec)]
+            except:
+                self.maximum[2] = 0
         else:
             self.maximum[2] = wls[np.unravel_index(spec.argmax(), spec.shape)[1]]
         self.maximum[0] = curr_time
@@ -271,9 +317,13 @@ class BufferWorker(QtCore.QObject):
                 else:
                     # float16 is used for camera pixels, as max values is 65504.
                     hf.create_dataset("spectra", data=spec, compression="gzip", chunks=True, maxshape=(None,np.shape(spec)[1],np.shape(spec)[2]),dtype='float16')
-                hf["spectra"].attrs["xaxis"] = wls
+                try:
+                    hf["spectra"].attrs["xaxis"] = wls
+                except OSError as e:
+                    print(f"Error occurred while setting xaxis attribute: {e}. Consider reducing the size of the xaxis array or using a different data type.")
                 hf.create_dataset("parameter", data=parameter_measured, compression="gzip", chunks=True, maxshape=(np.shape(parameter_measured)[0],None))
-                hf["parameter"].attrs["parameter_keys"] = list(parameter_queue.keys())
+                # Store parameter keys as a comma-separated string to avoid attribute size issues
+                hf["parameter"].attrs["parameter_keys"] = ','.join(list(parameter_queue.keys()))
             print('First buffer saved')
             self.firstbuffer = False
         else:
