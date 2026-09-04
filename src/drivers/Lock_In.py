@@ -17,9 +17,6 @@ class Lock_In():
 
         # setting up the parameter dict
         self.parameter_dict = defaultdict()
-        self.parameter_dict['filter_order'] = 0
-        self.parameter_dict['time_constant'] = 0
-        self.parameter_dict['Displayed_signal_input'] = 0
         self.parameter_display_dict = defaultdict(dict)
 
         self.parameter_display_dict['filter_order']['val'] = 4
@@ -27,6 +24,7 @@ class Lock_In():
         self.parameter_display_dict['filter_order']['max'] = 8
         self.parameter_display_dict['filter_order']['min'] = 1
         self.parameter_display_dict['filter_order']['read'] = False
+        
         self.parameter_display_dict['time_constant']['val'] = 0.025
         self.parameter_display_dict['time_constant']['unit'] = 's'
         self.parameter_display_dict['time_constant']['max'] = 100
