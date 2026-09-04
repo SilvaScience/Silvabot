@@ -13,16 +13,8 @@ class PI863():
 
         # setting up the parameter dict
         self.parameter_dict = defaultdict()
-
-        self.speed = []
-        self.target_position = []
-        self.position = []
-        self.stop = False
         self.parameter_display_dict = defaultdict(dict)
-
-        # self.parameter_dict['speed'] = 0
-        # self.parameter_dict['target_position'] = 0
-        # self.parameter_dict['position'] = 0
+        self.stop = False
 
         self.parameter_display_dict['position']['val'] = 0
         self.parameter_display_dict['position']['unit'] = ' mm'

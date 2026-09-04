@@ -28,20 +28,11 @@ class Lock_InDemo():
         self.parameter_display_dict['filter_order']['max'] = 8
         self.parameter_display_dict['filter_order']['min'] = 1
         self.parameter_display_dict['filter_order']['read'] = False
+        
         self.parameter_display_dict['time_constant']['val'] = 0.025
         self.parameter_display_dict['time_constant']['unit'] = 's'
         self.parameter_display_dict['time_constant']['max'] = 100
         self.parameter_display_dict['time_constant']['read'] = False
-        self.parameter_display_dict['Displayed_signal_input']['val'] = 1
-        self.parameter_display_dict['Displayed_signal_input']['unit'] = ' '
-        self.parameter_display_dict['Displayed_signal_input']['min'] = 1
-        self.parameter_display_dict['Displayed_signal_input']['max'] = 2
-        self.parameter_display_dict['Displayed_signal_input']['read'] = False
-        self.parameter_display_dict['Averageing']['val'] = 1
-        self.parameter_display_dict['Averageing']['unit'] = ' '
-        self.parameter_display_dict['Averageing']['min'] = 1
-        self.parameter_display_dict['Averageing']['max'] = 100
-        self.parameter_display_dict['Averageing']['read'] = False
 
         # set up parameter dict that only contains value
         self.parameter_dict = {}

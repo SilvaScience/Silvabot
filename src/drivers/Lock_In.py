@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 class Lock_In():
 
     name = 'Lock-In'
-    sendProgress = QtCore.pyqtSignal(float)
 
     def __init__(self, lock_in_type):
         super(Lock_In, self).__init__()
@@ -32,11 +31,6 @@ class Lock_In():
         self.parameter_display_dict['time_constant']['unit'] = 's'
         self.parameter_display_dict['time_constant']['max'] = 100
         self.parameter_display_dict['time_constant']['read'] = False
-        self.parameter_display_dict['Displayed_signal_input']['val'] = 1
-        self.parameter_display_dict['Displayed_signal_input']['unit'] = ' '
-        self.parameter_display_dict['Displayed_signal_input']['min'] = 1
-        self.parameter_display_dict['Displayed_signal_input']['max'] = 2
-        self.parameter_display_dict['Displayed_signal_input']['read'] = False
 
         # set up parameter dict that only contains value
         self.parameter_dict = {}
@@ -82,17 +76,17 @@ class Lock_In():
             self.device.demods[7].adcselect(2)                                         # Select the input channel to use for the reference
 
             # Configure the scope parameters
-            self.scope_module = self.session.modules.scope # Create scope module
-            self.scope_module.mode(1)                      # Select the mode of operation (1 = time domain and triggered acquisition)
-            self.wave_node = self.device.scopes[0].wave    # Define node to acquire data from
-            self.scope_module.subscribe(self.wave_node)    # Subscribe to the scope wave node
-            with self.device.set_transaction():
-                self.device.scopes[0].channel(self.parameter_dict['Displayed_signal_input']) # Select the input channel to acquire
-                self.device.scopes[0].trigenable(True)   # Enable the scope trigger
-                self.device.scopes[0].trigchannel(3)     # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 2: ref trigger 1, 3: ref trigger 2)
-                self.device.scopes[0].trigrising(1)      # Trigger on rising edge
-                self.device.scopes[0].triglevel(0.0)     # Trigger level in V
-                self.device.scopes[0].length(65536)      # Set the number of points in the scope (65536 is the maximum number of points)
+            # self.scope_module = self.session.modules.scope # Create scope module
+            # self.scope_module.mode(1)                      # Select the mode of operation (1 = time domain and triggered acquisition)
+            # self.wave_node = self.device.scopes[0].wave    # Define node to acquire data from
+            # self.scope_module.subscribe(self.wave_node)    # Subscribe to the scope wave node
+            # with self.device.set_transaction():
+            #     self.device.scopes[0].channel(self.parameter_dict['Displayed_signal_input']) # Select the input channel to acquire
+            #     self.device.scopes[0].trigenable(True)   # Enable the scope trigger
+            #     self.device.scopes[0].trigchannel(3)     # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 2: ref trigger 1, 3: ref trigger 2)
+            #     self.device.scopes[0].trigrising(1)      # Trigger on rising edge
+            #     self.device.scopes[0].triglevel(0.0)     # Trigger level in V
+            #     self.device.scopes[0].length(65536)      # Set the number of points in the scope (65536 is the maximum number of points)
 
 
             # Get the internal clock frequency of the device
@@ -140,17 +134,17 @@ class Lock_In():
             self.device.demods[1].adcselect()                                          # Select the input channel (to verified) 
 
             # Configure the scope parameters
-            self.scope_module = self.session.modules.scope # Create scope module
-            self.scope_module.mode(1)                      # Select the mode of operation (1 = time domain and triggered acquisition)
-            self.wave_node = self.device.scopes[0].wave    # Define node to acquire data from
-            self.scope_module.subscribe(self.wave_node)    # Subscribe to the scope wave node
-            with self.device.set_transaction():
-                self.device.scopes[0].channel(self.parameter_dict['Displayed_signal_input']) # Select the input channel to acquire
-                self.device.scopes[0].trigenable(True)   # Enable the scope trigger
-                self.device.scopes[0].trigchannel()      # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 2: ref trigger 1, 3: ref trigger 2) (to verified)
-                self.device.scopes[0].trigrising(1)      # Trigger on rising edge
-                self.device.scopes[0].triglevel()        # Trigger level in V (to be determined)
-                self.device.scopes[0].length()           # Set the number of points in the scope (65536 is the maximum number of points) (to be determined)
+            # self.scope_module = self.session.modules.scope # Create scope module
+            # self.scope_module.mode(1)                      # Select the mode of operation (1 = time domain and triggered acquisition)
+            # self.wave_node = self.device.scopes[0].wave    # Define node to acquire data from
+            # self.scope_module.subscribe(self.wave_node)    # Subscribe to the scope wave node
+            # with self.device.set_transaction():
+            #     self.device.scopes[0].channel(self.parameter_dict['Displayed_signal_input']) # Select the input channel to acquire
+            #     self.device.scopes[0].trigenable(True)   # Enable the scope trigger
+            #     self.device.scopes[0].trigchannel()      # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 2: ref trigger 1, 3: ref trigger 2) (to verified)
+            #     self.device.scopes[0].trigrising(1)      # Trigger on rising edge
+            #     self.device.scopes[0].triglevel()        # Trigger level in V (to be determined)
+            #     self.device.scopes[0].length()           # Set the number of points in the scope (65536 is the maximum number of points) (to be determined)
 
 
             # Get the internal clock frequency of the device
@@ -165,9 +159,6 @@ class Lock_In():
         if parameter == 'time_constant':
             self.update_time_constant(value)
             self.time_constant = value
-        if parameter == 'Displayed_signal_input':
-            self.update_displayed_signal_input(value)
-            self.parameter_dict['Displayed_signal_input'] = value
 
     def update_filter_order(self, filter_order):
         self.device.demods[0].order(filter_order)
@@ -179,15 +170,11 @@ class Lock_In():
         self.device.demods[4].timeconstant(time_constant)
         print(f'Time constant set to {time_constant} s')
 
-    def update_displayed_signal_input(self, displayed_signal_input):
-        self.device.scopes[0].channel(displayed_signal_input - 1)  
-        print(f'Displayed signal input set to channel {displayed_signal_input}')
-
-    def Scope_acquire(self):
-        self.device.scopes[0].channels[0].inputselect(self.parameter_dict['Displayed_signal_input'] - 1) 
-        self.scope_module.execute()         # Start the scope acquisition
-        self.device.scopes[0].enable(True)  # Enable the scope
-        self.session.sync()                 # Sync the session
+    # def Scope_acquire(self):
+    #     self.device.scopes[0].channels[0].inputselect(self.parameter_dict['Displayed_signal_input'] - 1) 
+    #     self.scope_module.execute()         # Start the scope acquisition
+    #     self.device.scopes[0].enable(True)  # Enable the scope
+    #     self.session.sync()                 # Sync the session
 
         # Wait until at least one record is available
         while self.scope_module.records() == 0:

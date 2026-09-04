@@ -29,31 +29,6 @@ class PI863Demo():
         self.parameter_display_dict['speed']['max'] = 20
         self.parameter_display_dict['speed']['read'] = False
 
-        self.parameter_display_dict['target_position']['val'] = 0
-        self.parameter_display_dict['target_position']['unit'] = ' mm'
-        self.parameter_display_dict['target_position']['max'] = 50
-        self.parameter_display_dict['target_position']['read'] = False
-        
-        self.parameter_display_dict['scan_initial_position']['val'] = 0
-        self.parameter_display_dict['scan_initial_position']['unit'] = ' mm'
-        self.parameter_display_dict['scan_initial_position']['max'] = 50
-        self.parameter_display_dict['scan_initial_position']['read'] = False
-
-        self.parameter_display_dict['scan_final_position']['val'] = 50
-        self.parameter_display_dict['scan_final_position']['unit'] = ' mm'
-        self.parameter_display_dict['scan_final_position']['max'] = 50
-        self.parameter_display_dict['scan_final_position']['read'] = False
-
-        self.parameter_display_dict['autocorrelation_step']['val'] = 1
-        self.parameter_display_dict['autocorrelation_step']['unit'] = ' µm'
-        self.parameter_display_dict['autocorrelation_step']['max'] = 50000
-        self.parameter_display_dict['autocorrelation_step']['read'] = False
-
-        self.parameter_display_dict['scan_resolution']['val'] = 10
-        self.parameter_display_dict['scan_resolution']['unit'] = ' µm'
-        self.parameter_display_dict['scan_resolution']['max'] = 1000
-        self.parameter_display_dict['scan_resolution']['read'] = False
-
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
         for key in self.parameter_display_dict.keys():
