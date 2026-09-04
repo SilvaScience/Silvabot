@@ -174,8 +174,12 @@ class Lock_In():
             self.update_displayed_signal_input(value)
             self.parameter_dict['Displayed_signal_input'] = value
         if parameter == 'Averageing':
-            self.parameter_dict['Averageing'] = value
-    
+            self.update_averaging(value)
+
+    def update_averaging(self, averaging):
+        self.parameter_dict['Averageing'] = averaging
+        print(f'Averaging set to {averaging}')
+
     def update_filter_order(self, filter_order):
         self.device.demods[0].order(filter_order)
         self.device.demods[4].order(filter_order)

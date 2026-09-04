@@ -422,6 +422,9 @@ class TSeriesMeasurement(QtCore.QThread):
 # Measurement of coordinate translation stage scan and UHF data acquisition (like plotter in LabOne) for a back and forth scan of the stage
 class THzAcquisition(QtCore.QThread):
     # Define used signals
+    sendTargetPosition = QtCore.pyqtSignal(float, int)
+    sendSpeed = QtCore.pyqtSignal(float, int)
+    sendWaitOnTarget = QtCore.pyqtSignal(int, int)
     sendProgress = QtCore.pyqtSignal(float)
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     plotDataSignal = QtCore.pyqtSignal(np.ndarray, np.ndarray)
@@ -492,17 +495,18 @@ class THzAcquisition(QtCore.QThread):
     def single_scan(self):
         # Initialize the scan
         print('Moving to initial position')
-        self.tstage.pidevice.VEL(1, 10)                              # Set speed to a fast value (10 mm/s) for moving to the initial position        
-        self.tstage.pidevice.MOV(1, self.initial_pos)                # Move the stage to the initial position
+        self.sendSpeed.emit(10, 1)                                   # Set speed to a fast value (10 mm/s) for moving to the initial position     
+        self.sendTargetPosition.emit(self.initial_pos, 1)            # Move the stage to the initial position
+        #self.sendWaitOnTarget.emit(1, 10000)                                   # Wait until the stage has reached the initial position
         pitools.waitontarget(self.tstage.pidevice, 1, timeout=10000) # Wait until the stage has reached the initial position
-        self.tstage.pidevice.VEL(1, self.scan_speed)                 # Set speed to the desired scan value
+        self.sendSpeed.emit(self.scan_speed, 1)                      # Set speed to the desired scan value
 
         # Scanning
         print('Starting position reached, starting scan')
         clockbase, nodes, module = self.lock_in.DAQ_setup(self.burst_duration)  # Configure UHF for burst acquisition with the defined burst duration and sampling rate
 
         if self.scan_type == 'Continuous':
-            self.tstage.pidevice.MOV(1, self.final_pos)        # Move the stage to the final position
+            self.sendTargetPosition.emit(self.final_pos, 1)           # Move the stage to the final position
             voltages = self.Plotter_acquire(clockbase, nodes, module) # Start UHF data acquisition during the scan
             positions = np.linspace(self.initial_pos, self.final_pos, len(voltages)) # Create a list of positions associated with the voltages
 
@@ -516,7 +520,7 @@ class THzAcquisition(QtCore.QThread):
             
             for i in range(self.spec_length):
                 self.acquisition_number = i
-                self.tstage.pidevice.MOV(1, self.target_positions[i])        # Move the stage to ith target position
+                self.sendTargetPosition.emit(self.target_positions[i], 1)    # Move the stage to ith target position
                 pitools.waitontarget(self.tstage.pidevice, 1, timeout=10000) # Wait until the stage has reached the ith target position
                 time.sleep(self.time_constant * 4)                           # Wait for the filter of the lock-in to settle
                 positions[i] = self.tstage.pidevice.qPOS(1)[1]     # Measure the exact position of the stage
@@ -532,8 +536,6 @@ class THzAcquisition(QtCore.QThread):
             positions, voltages = self.single_scan()
             p_sets.append(positions)
             v_sets.append(voltages)
-            print(len(positions))
-            print(len(voltages))
         if self.averageing_nb == 1:
             self.plotDataSignal.emit(positions, voltages)
         else:
