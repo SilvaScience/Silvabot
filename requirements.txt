@@ -25,3 +25,4 @@ numba~=0.61.2
 joblib
 requests
 matplotlib
+pipython

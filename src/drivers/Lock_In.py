@@ -37,11 +37,6 @@ class Lock_In():
         self.parameter_display_dict['Displayed_signal_input']['min'] = 1
         self.parameter_display_dict['Displayed_signal_input']['max'] = 2
         self.parameter_display_dict['Displayed_signal_input']['read'] = False
-        self.parameter_display_dict['Averageing']['val'] = 1
-        self.parameter_display_dict['Averageing']['unit'] = ' '
-        self.parameter_display_dict['Averageing']['min'] = 1
-        self.parameter_display_dict['Averageing']['max'] = 100
-        self.parameter_display_dict['Averageing']['read'] = False
 
         # set up parameter dict that only contains value
         self.parameter_dict = {}
@@ -173,12 +168,6 @@ class Lock_In():
         if parameter == 'Displayed_signal_input':
             self.update_displayed_signal_input(value)
             self.parameter_dict['Displayed_signal_input'] = value
-        if parameter == 'Averageing':
-            self.update_averaging(value)
-
-    def update_averaging(self, averaging):
-        self.parameter_dict['Averageing'] = averaging
-        print(f'Averaging set to {averaging}')
 
     def update_filter_order(self, filter_order):
         self.device.demods[0].order(filter_order)

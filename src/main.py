@@ -113,10 +113,6 @@ class MainInterface(QtWidgets.QMainWindow):
         vbox.addWidget(self.ParameterPlot)
         self.parameter_tab.setLayout(vbox)
 
-        vbox = QtWidgets.QVBoxLayout()
-        if hasattr(self, 'SLM'):
-            vbox.addWidget(self.SLM)
-        self.SLM_tab.setLayout(vbox)
 
         # Initialize the THz tab with plot widget
         import pyqtgraph as pg
@@ -218,21 +214,11 @@ class MainInterface(QtWidgets.QMainWindow):
         self.Powerseries_run_pushButton.clicked.connect(self.Powerseries_measurement)
         self.chirp_scan_run_pushButton.clicked.connect(self.chirp_scan_measurement)
         self.compressor_scan_run_pushButton.clicked.connect(self.compressor_scan_measurement)
-        self.BF_scan_run_pushButton.clicked.connect(self.BF_measurement)
-        self.Tseries_run_button.clicked.connect(self.Tseries_measurement)
+        self.delay_stage_scan_run_pushButton.clicked.connect(self.delay_stage_measurement)
         
         # THz tab button connections
         self.thz_acquisition.clicked.connect(self.thz_acquisition_measurement)
-        self.autocorrelation.clicked.connect(self.Autocorrelation_measurement)
         self.thz_clear.clicked.connect(self.THz_clear)
-        self.THz_StartPos_DoubleSpinBox.valueChanged.connect(self.update_THzStartPos)
-        self.THz_EndPos_DoubleSpinBox.valueChanged.connect(self.update_THzEndPos)
-        self.THz_ScanSpeed_DoubleSpinBox.valueChanged.connect(self.update_THzScanSpeed)
-        self.THz_ScanResolution_DoubleSpinBox.valueChanged.connect(self.update_THzScanResolution)
-        self.THz_averaging_DoubleSpinBox.valueChanged.connect(self.update_THzAveraging)
-        self.ContinuousScan_checkBox.stateChanged.connect(self.update_continuous_scan)
-        self.THz_TimeConstant_DoubleSpinBox.valueChanged.connect(self.update_THzTimeConstant)
-        self.THz_FilterOrder_DoubleSpinBox.valueChanged.connect(self.update_THzFilterOrder)
 
         # run some functions once to define default values
         self.change_filename()
@@ -247,7 +233,7 @@ class MainInterface(QtWidgets.QMainWindow):
 
     # Generic replacement to start any measurement defined in MeasurementClasses through a GUI button 
     # initialized in the "measurements" section below
-    def start_measurement(self, cls, *args, extra_connections=None):
+    def start_measurement(self, cls, *args, extra_connections=None,speclength = None):
         """
         Starts a measurement, clears DataHandling and connects signals to slots
         - cls: Name of class stored in MeasurementClasses (str)
@@ -260,6 +246,8 @@ class MainInterface(QtWidgets.QMainWindow):
             return
         else:
             self.measurement_busy = True
+            if speclength: # needed for some specific measurements, such as THz
+                self.DataHandling.speclength = speclength
             self.DataHandling.clear_data()
 
         try:
@@ -432,10 +420,10 @@ class MainInterface(QtWidgets.QMainWindow):
             self.bg_scans_spinBox.value(), self.filename, self.comments_textEdit.toPlainText(),
             extra_connections={"sendSave": self.DataHandling.save_data})
 
-    def BF_measurement(self):
-        # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
-        self.start_measurement('BFMeasurement', self.devices, self.BF_scan_lineEdit.text(),
-                               self.BF_axis_spinBox.value())
+    def delay_stage_measurement(self):
+        # performs 2D scan by moving the any selected translation stage
+        self.start_measurement('DelayStageMeasurement', self.devices, self.delay_stage_scan_lineEdit.text(),
+                               self.delay_stage_axis_spinBox.value())
 
     def chirp_scan_measurement(self):
         # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
@@ -496,63 +484,9 @@ class MainInterface(QtWidgets.QMainWindow):
 
     def thz_acquisition_measurement(self):
         # Conducts a THz measurement using the translation stage and the lock in.
-        if not self.measurement_busy:
-            self.measurement_busy = True
-            self.measurement = THzAcquisition(self.devices, self.thz_plot_widget)
-            self.measurement.sendProgress.connect(self.set_progress)
-            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.sendTargetPosition.connect(self.tstage.update_target_position)
-            self.measurement.sendSpeed.connect(self.tstage.update_speed)
-            self.measurement.sendWaitOnTarget.connect(self.tstage.wait_on_target)
-            self.DataHandling.spec_length = self.measurement.spec_length
-            self.DataHandling.clear_data()
-            self.measurement.start()
-        else:
-            print('Measurement not started, devices are busy')
-    
-    def Scope_view(self):
-        # This function plots scope data from the UHF lock-in amplifier and plots it (acts like the Scope in LabOne)
-        if not self.measurement_busy:
-            self.measurement_busy = True
-            self.DataHandling.clear_data()
-            self.measurement = ScopeView(self.devices)
-            self.measurement.sendProgress.connect(self.set_progress)
-            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.clearPlot.connect(self.SpectrometerPlot.clear_plot)
-            self.measurement.start()
-        else:
-            print('Measurement not started, devices are busy')
-    
-    def Autocorrelation_measurement(self):
-        # start an autocorrelation scan using parameters from Tstage dropdown menu
-        if not self.measurement_busy:
-            self.measurement_busy = True
-            self.DataHandling.clear_data()
+        self.start_measurement('THzAcquisition',self.devices, self.thz_plot_widget, self.THz_lineEdit.text(), self.THzScanSpeed_doubleSpinBox.value(), self.ContinuousScan_CheckBox.isChecked(),
+                               self.THzAveraging_spinBox.value(), speclength = self.measurement.speclength )
 
-            # Get parameters for autocorrelation from the GUI
-            initial_pos = self.tstage.parameter_dict['scan_initial_position']
-            final_pos = self.tstage.parameter_dict['scan_final_position']
-            interval = self.tstage.parameter_dict.get('autocorrelation_interval',
-                                                        self.tstage.parameter_dict.get('autocorrelation_step'))
-
-            # Run the autocorrelation measurement
-            self.measurement = Autocorrelation(self.devices, initial_pos, final_pos, interval, plot_widget=self.thz_plot_widget)
-            
-            # Connect the different signals
-            self.measurement.sendProgress.connect(self.set_progress)
-            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            self.measurement.sendSpectrum.connect(self.plot_autocorrelation)
-            self.measurement.start()
-        else:
-            print('Measurement not started, devices are busy')
-    
-    def plot_autocorrelation(self, times_in_ps, power_in_nW):
-        """Plot autocorrelation data vs time on the THz plot widget"""
-        if self.thz_plot_widget is not None:
-            self.thz_plot_widget.clear()
-            self.thz_plot_widget.plot(times_in_ps, power_in_nW * 1e-3, pen='b')
-            self.thz_plot_widget.setLabel('bottom', 'Time (ps)')
-            self.thz_plot_widget.setLabel('left', 'Power (µW)')
 
     def update_THzStartPos(self, value):
         self.tstage.update_scan_initial_position(value)

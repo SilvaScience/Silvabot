@@ -18,8 +18,8 @@ devices:
     fallback: drivers.powermeter.ThorlabsPM100DDemo
   arduino:
     enabled: false
-    driver: drivers.arduino.Arduino
-    fallback: drivers.arduino.ArduinoDemo
+    driver: drivers.Arduino.Arduino
+    fallback: drivers.ArduinoDemo.ArduinoDemo
     init_args:
       port: COM14
   piezos:
@@ -30,6 +30,14 @@ devices:
   lakeshore:
     enabled: false
     driver: drivers.lakeshore.Lakeshore
+  PI863:
+    enabled: true
+    driver: drivers.PI863.PI863
+    fallback: drivers.PI863Demo.PI863Demo
+  Lock_In:
+    enabled: true
+    driver: drivers.Lock_In.Lock_In
+    fallback: drivers.Lock_InDemo.Lock_InDemo
 comment: 'User: DT
 
   Sample:
