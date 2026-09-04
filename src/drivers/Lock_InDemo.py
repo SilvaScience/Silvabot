@@ -13,18 +13,35 @@ class Lock_InDemo():
         # setting up the parameter dict
         self.parameter_dict = defaultdict()
 
-###################### These parameters need to be changed
         self.total_duration = 5
         self.sampling_rate = 10000
         self.burst_duration = 0.2        
         self.parameter_display_dict = defaultdict(dict)
 
-        self.parameter_dict['sampling_rate'] = 0
+        self.parameter_dict['filter_order'] = 0
+        self.parameter_dict['time_constant'] = 0
+        self.parameter_dict['Displayed_signal_input'] = 0
+        self.parameter_display_dict = defaultdict(dict)
 
-        self.parameter_display_dict['sampling_rate']['val'] = 10000
-        self.parameter_display_dict['sampling_rate']['unit'] = ' samples/s'
-        self.parameter_display_dict['sampling_rate']['max'] = 100000
-        self.parameter_display_dict['sampling_rate']['read'] = False
+        self.parameter_display_dict['filter_order']['val'] = 4
+        self.parameter_display_dict['filter_order']['unit'] = ' '
+        self.parameter_display_dict['filter_order']['max'] = 8
+        self.parameter_display_dict['filter_order']['min'] = 1
+        self.parameter_display_dict['filter_order']['read'] = False
+        self.parameter_display_dict['time_constant']['val'] = 0.025
+        self.parameter_display_dict['time_constant']['unit'] = 's'
+        self.parameter_display_dict['time_constant']['max'] = 100
+        self.parameter_display_dict['time_constant']['read'] = False
+        self.parameter_display_dict['Displayed_signal_input']['val'] = 1
+        self.parameter_display_dict['Displayed_signal_input']['unit'] = ' '
+        self.parameter_display_dict['Displayed_signal_input']['min'] = 1
+        self.parameter_display_dict['Displayed_signal_input']['max'] = 2
+        self.parameter_display_dict['Displayed_signal_input']['read'] = False
+        self.parameter_display_dict['Averageing']['val'] = 1
+        self.parameter_display_dict['Averageing']['unit'] = ' '
+        self.parameter_display_dict['Averageing']['min'] = 1
+        self.parameter_display_dict['Averageing']['max'] = 100
+        self.parameter_display_dict['Averageing']['read'] = False
 
         # set up parameter dict that only contains value
         self.parameter_dict = {}
