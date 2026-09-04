@@ -158,6 +158,8 @@ class MainInterface(QtWidgets.QMainWindow):
         self.THz_ScanResolution_DoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, 'THzScanRes_doubleSpinBox')
         self.ContinuousScan_checkBox = self.findChild(QtWidgets.QCheckBox, 'ContinuousScan_CheckBox')
         self.THz_averaging_DoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, 'THzAveraging_doubleSpinBox')
+        self.THz_TimeConstant_DoubleSpinBox = self.findChild(QtWidgets.QDoubleSpinBox, 'THzTimeConstant_doubleSpinBox')
+        self.THz_FilterOrder_DoubleSpinBox = self.findchild(QtWidgets.QDoubleSpinBox, 'THzFilterOrder_doubleSpinBox')
 
         # initial parameter values, retrieved from devices
         self.parameter_dic = defaultdict(lambda: defaultdict(dict))
@@ -276,6 +278,8 @@ class MainInterface(QtWidgets.QMainWindow):
         self.THz_ScanResolution_DoubleSpinBox.valueChanged.connect(self.update_THzScanResolution)
         self.THz_averaging_DoubleSpinBox.valueChanged.connect(self.update_THzAveraging)
         self.ContinuousScan_checkBox.stateChanged.connect(self.update_continuous_scan)
+        self.THz_TimeConstant_DoubleSpinBox.valueChanged.connect(self.update_THzTimeConstant)
+        self.THz_FilterOrder_DoubleSpinBox.valueChanged.connect(self.update_THzFilterOrder)
 
         # run some functions once to define default values
         self.change_filename()
@@ -580,7 +584,15 @@ class MainInterface(QtWidgets.QMainWindow):
         else:
             self.tstage.update_continuous_scan(False)
             print("Continuous scan disabled.")
-    
+
+    def update_THzTimeConstant(self, value):
+        self.lock_in.update_time_constant(value)
+        print('Placeholder for updating THz time constant to:', value)
+
+    def update_THzFilterOrder(self, value):
+        self.lock_in.update_filter_order(value)
+        print('Placeholder for updating THz filter order to:', value)
+
     def THz_clear(self):
         self.thz_plot_widget.clear()
 
