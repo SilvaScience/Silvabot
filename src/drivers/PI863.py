@@ -70,6 +70,10 @@ class PI863():
         self.pidevice.MOV(stage_number, new_position)
         self.parameter_dict['target_position'] = new_position
 
+    def close_device(self):
+        self.pidevice.CloseConnection()
+        print('Translation stage has been safely disconnected')
+
 
 class UpdateWorker_Position(QtCore.QThread):
     new_Position = QtCore.pyqtSignal(float)
