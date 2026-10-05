@@ -138,7 +138,7 @@ class Lock_In():
         self.device.demods[1].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
         self.device.demods[1].oscselect(0)                                         # Set the oscillator to use
         self.device.demods[1].sinc()                                               # Enable sinc filter
-        self.device.demods[1].rate()                                               # Set the sampling rate, to be determined
+        self.device.demods[1].rate(3)                                               # Set the sampling rate, to be determined
         self.device.extrefs[1].enable(1)                                           # Enable external reference
         self.device.demods[3].adcselect(2)                                         # Select the input channel to use for the reference
         
