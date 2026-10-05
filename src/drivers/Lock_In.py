@@ -128,9 +128,9 @@ class Lock_In():
         self.device.demods[0].oscselect(0)                                         # Set the oscillator to use
         self.device.demods[0].sinc()                                               # Enable sinc filter
         self.device.demods[0].rate()                                               # Set the sampling rate, to be determined
-        #self.device.extrefs[0].enable(1)                                            # Enable external reference
-
-
+        self.device.extrefs[0].enable(1)                                           # Enable external reference
+        self.device.demods[1].adcselect(2)                                         # Select the input channel to use for the reference
+        
         # Configure the second demodulation (verified the parameters)
         self.device.demods[1].adcselect(1)                                         # Select the input channel to use
         self.device.demods[1].enable(True)                                         # Enable the demodulator
@@ -139,8 +139,9 @@ class Lock_In():
         self.device.demods[1].oscselect(0)                                         # Set the oscillator to use
         self.device.demods[1].sinc()                                               # Enable sinc filter
         self.device.demods[1].rate()                                               # Set the sampling rate, to be determined
-        #self.device.extrefs[1].enable(1)                                            # Enable external reference
-
+        self.device.extrefs[1].enable(1)                                           # Enable external reference
+        self.device.demods[3].adcselect(2)                                         # Select the input channel to use for the reference
+        
 
         # Configure the scope parameters
         self.scope_module = self.session.modules.scope # Create scope module
