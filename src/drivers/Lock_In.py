@@ -24,7 +24,7 @@ class Lock_In():
         self.parameter_dict['Displayed_signal_input'] = 0
         self.parameter_display_dict = defaultdict(dict)
 
-        self.parameter_display_dict['filter_order']['val'] = 4
+        self.parameter_display_dict['filter_order']['val'] = 3
         self.parameter_display_dict['filter_order']['unit'] = ' '
         self.parameter_display_dict['filter_order']['max'] = 8
         self.parameter_display_dict['filter_order']['min'] = 1
@@ -111,14 +111,10 @@ class Lock_In():
 
         # Configure the signal input
         # Voltage input 1
-        self.device.sigins[0].range(1.0)  # Set input range 1.0m (to be determined)
-        self.device.sigins[0].scaling(1.0) # Set input scaling to 1.0 V
+        self.device.sigins[0].range(1.0)    # Set input range 1.0m (to be determined)
+        self.device.sigins[0].scaling(1.0)  # Set input scaling to 1.0 V
         self.device.sigins[0].ac(False)     # Set the device to AC or DC coupling, to be determined
-        #self.device.sigins[0].imp50()  # Set the input impedance to 50 Ohm, to be determined
-
-        # Current input 1
-        #self.device.sigins[1].range(10.0)  # Set input range to 10.0m (to be determined)
-        #self.device.sigins[1].scaling(1.0)     # Set the scaling of current input 1 to 1.0 A
+        self.device.sigins[0].imp50(True)   # Set the input impedance to 50 Ohm, to be determined
 
         # Configure the first demodulation (verified the parameters)
         self.device.demods[0].adcselect(0)                                         # Select the input channel to use
@@ -138,23 +134,23 @@ class Lock_In():
         self.device.demods[1].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
         self.device.demods[1].oscselect(0)                                         # Set the oscillator to use
         self.device.demods[1].sinc()                                               # Enable sinc filter
-        self.device.demods[1].rate(3)                                               # Set the sampling rate, to be determined
+        self.device.demods[1].rate()                                               # Set the sampling rate, to be determined
         self.device.extrefs[1].enable(1)                                           # Enable external reference
         self.device.demods[3].adcselect(2)                                         # Select the input channel to use for the reference
         
 
         # Configure the scope parameters
-        self.scope_module = self.session.modules.scope # Create scope module
-        self.scope_module.mode(1)                      # Select the mode of operation (1 = time domain and triggered acquisition)
-        self.wave_node = self.device.scopes[0].wave    # Define node to acquire data from
-        self.scope_module.subscribe(self.wave_node)    # Subscribe to the scope wave node
+        self.scope_module = self.session.modules.scope  # Create scope module
+        self.scope_module.mode(1)                       # Select the mode of operation (1 = time domain and triggered acquisition)
+        self.wave_node = self.device.scopes[0].wave     # Define node to acquire data from
+        self.scope_module.subscribe(self.wave_node)     # Subscribe to the scope wave node
         with self.device.set_transaction():
             self.device.scopes[0].channel(self.parameter_dict['Displayed_signal_input']) # Select the input channel to acquire
-            self.device.scopes[0].trigenable(True)   # Enable the scope trigger
-            self.device.scopes[0].trigchannel()     # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 2: ref trigger 1, 3: ref trigger 2) (to verified)
-            self.device.scopes[0].trigrising(1)      # Trigger on rising edge
-            self.device.scopes[0].triglevel()        # Trigger level in V (to be determined)
-            self.device.scopes[0].length()           # Set the number of points in the scope (65536 is the maximum number of points) (to be determined)
+            self.device.scopes[0].trigenable(True)      # Enable the scope trigger
+            self.device.scopes[0].trigchannel()         # Selection which input to use for the triger (0 : sig in 1, 1 : sig in 2, 2: ref trigger 1, 3: ref trigger 2) (to verified)
+            self.device.scopes[0].trigrising(1)         # Trigger on rising edge
+            self.device.scopes[0].triglevel()           # Trigger level in V (to be determined)
+            self.device.scopes[0].length()              # Set the number of points in the scope (65536 is the maximum number of points) (to be determined)
 
 
         # Get the internal clock frequency of the device
