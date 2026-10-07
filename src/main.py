@@ -1,10 +1,10 @@
 import yaml
 import importlib
+import inspect
 import sys
 import time
 import numpy as np
 import re
-import os
 from collections import defaultdict
 from pathlib import Path
 from PyQt5 import QtCore, QtWidgets, uic
@@ -113,9 +113,9 @@ class MainInterface(QtWidgets.QMainWindow):
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(self.ParameterPlot)
         self.parameter_tab.setLayout(vbox)
- 
 
-        # Initialize THz tab with plot widget
+
+        # Initialize the THz tab with plot widget
         import pyqtgraph as pg
         self.thz_plot_widget = pg.PlotWidget(title="THz Plot")
         self.thz_plot_widget.setLabel('left', 'Intensity')
@@ -126,7 +126,7 @@ class MainInterface(QtWidgets.QMainWindow):
             self.thz_plot_group.setLayout(thz_plot_layout)
         thz_plot_layout.addWidget(self.thz_plot_widget)
 
-        """ This initializes the parameter tree. It is constructed based on the device dict,
+        """ This initializes the parameter tree. It is constructed based on the device dict, 
         that includes parameter information of each device """
         self.parameters_treeWidget.setColumnCount(2)
         self.parameters_treeWidget.setHeaderLabels(["Name", "Value"])
@@ -187,14 +187,11 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # set variables
         self.measurement_busy = False
-        #self.save_folder_path = r'C:/TEMP'
-        self.save_folder_path = os.path.join(os.path.expanduser("~"), "Silvabot_data")
+        self.save_folder_path = r'C:/TEMP'
         #a default data folder is always required and it would be good to keep it seperated from the code.
         #can everyone simply create a C:/Data/test' path on their device? # Not sure how to handle different OS here.
-        #self.filename = r'C:/TEMP/test'
-        self.filename = os.path.join(self.save_folder_path, "test")
-        #self.ref_filename = r'C:/TEMP/ref'
-        self.ref_filename = os.path.join(self.save_folder_path, "ref")
+        self.filename = r'C:/TEMP/test'
+        self.ref_filename = r'C:/TEMP/ref'
         self.power_calib_array = []
 
         # set connect events
@@ -209,22 +206,19 @@ class MainInterface(QtWidgets.QMainWindow):
         self.acquire_bg_pushButton.clicked.connect(self.background_measurement)
         self.select_bg_pushButton.clicked.connect(self.load_bg)
         self.bg_checkBox.stateChanged.connect(self.update_check_bg)
-        #self.twoD_tau_lineEdit.editingFinished.connect(self.twoD_tau_positions)
-        self.twoD_run_pushButton.clicked.connect(self.twoD_measurement)
-        #self.helicam_bg_button.clicked.connect(self.helicam_background_measurement)
         self.ParameterPlot.send_idx_change.connect(self.DataHandling.change_send_idx)
         self.ParameterPlot.send_parameter_filename.connect(self.DataHandling.save_parameter)
         self.kinetic_lineEdit.editingFinished.connect(self.change_kinetic_interval)
         self.kinetic_run_pushButton.clicked.connect(self.kinetic_measurement)
         self.Tseries_lineEdit.editingFinished.connect(self.change_Tseries)
         self.Tseries_run_pushButton.clicked.connect(self.Tseries_measurement)
-        # THz tab button connections
-        self.thz_acquisition_pushButton.clicked.connect(self.thz_acquisition_measurement)
-        #self.autocorrelation_pushButton.clicked.connect(self.Autocorrelation_measurement) 
-        self.thz_clear_pushButton.clicked.connect(self.THz_clear)
         self.Powerseries_run_pushButton.clicked.connect(self.Powerseries_measurement)
         self.chirp_scan_run_pushButton.clicked.connect(self.chirp_scan_measurement)
         self.compressor_scan_run_pushButton.clicked.connect(self.compressor_scan_measurement)
+        self.delay_stage_scan_run_pushButton.clicked.connect(self.delay_stage_measurement)
+        
+        # THz tab button connections
+        self.thz_acquisition.clicked.connect(self.thz_acquisition_measurement)
 
         # run some functions once to define default values
         self.change_filename()
@@ -239,7 +233,7 @@ class MainInterface(QtWidgets.QMainWindow):
 
     # Generic replacement to start any measurement defined in MeasurementClasses through a GUI button 
     # initialized in the "measurements" section below
-    def start_measurement(self, cls, *args, extra_connections=None):
+    def start_measurement(self, cls, *args, extra_connections=None,speclength = None):
         """
         Starts a measurement, clears DataHandling and connects signals to slots
         - cls: Name of class stored in MeasurementClasses (str)
@@ -252,10 +246,17 @@ class MainInterface(QtWidgets.QMainWindow):
             return
         else:
             self.measurement_busy = True
+            if speclength: # needed for some specific measurements, such as THz
+                self.DataHandling.speclength = speclength
             self.DataHandling.clear_data()
 
         try:
             cls = load_class(f"{'measurements.MeasurementClasses'}.{cls}")
+
+            # Save the inputs of the function in the H5 file
+            input_names = list(inspect.signature(cls).parameters)   # Gets the name of every input
+            self.DataHandling.set_measurement_metadata(cls.__name__, input_names, [repr(value) for value in args])  # Sends the information to datahandling
+
             self.measurement = cls(*args)
 
             # standard connections
@@ -424,10 +425,10 @@ class MainInterface(QtWidgets.QMainWindow):
             self.bg_scans_spinBox.value(), self.filename, self.comments_textEdit.toPlainText(),
             extra_connections={"sendSave": self.DataHandling.save_data})
 
-    def twoD_measurement(self):
-        # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
-        self.start_measurement('TwoDMeasurement', self.devices, self.twoD_tau_spinBox.value(),
-            self.twoD_step_spinBox.value(), self.twoD_tau_start_spinBox.value(),self.twoD_avg_spinBox.value())
+    def delay_stage_measurement(self):
+        # performs 2D scan by moving the any selected translation stage
+        self.start_measurement('DelayStageMeasurement', self.devices, self.delay_stage_scan_lineEdit.text(),
+                               self.delay_stage_axis_spinBox.value())
 
     def chirp_scan_measurement(self):
         # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
@@ -438,9 +439,6 @@ class MainInterface(QtWidgets.QMainWindow):
         # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
         self.start_measurement('CompressorMeasurement',self.devices,self.compressor_scan_lineEdit.text(),
                                self.twoD_avg_spinBox.value())
-
-    def helicam_background_measurement(self):
-        self.start_measurement('HelicamBackgroundMeasurement',self.devices)
 
     def kinetic_measurement(self):
         # take time dependent measurement as defined in autmoation GUI section
@@ -454,7 +452,7 @@ class MainInterface(QtWidgets.QMainWindow):
             self.Tseries_ref_power_doubleSpinBox.value(), self.Tseries_int_time_WL_doubleSpinBox.value(),
             self.Tseries_int_time_orpheus_doubleSpinBox.value(), self.Tseries_spectra_avg_spinBox.value(),
             self.Tseries_power_dep_checkBox.isChecked(), self.Tseries_filter_pos_lineEdit.text(),
-            self.Tseries_int_time_lineEdit.text())
+            self.Tseries_int_time_lineEdit.text(),self.Tseries_sequence_checkBox.isChecked(),self.Tseries_sequence_lineEdit.text())
 
     def Powerseries_measurement(self):
         # take power dependent measurements as defined in automation GUI section
@@ -468,44 +466,6 @@ class MainInterface(QtWidgets.QMainWindow):
         self.measurement.stop()
         self.measurement_busy = False
 
-    def thz_acquisition_measurement(self):
-        # Conducts a THz measurement using the translation stage and the lock in.
-        self.start_measurement('THzAcquisition',self.devices, self.thz_plot_widget)
-    
-    def Scope_view(self):
-        # This function plots scope data from the UHF lock-in amplifier and plots it (acts like the Scope in LabOne)
-        self.start_measurement('Scope_view',self.devices)
-    
-    def Autocorrelation_measurement(self):
-        # start an autocorrelation scan using parameters from Tstage dropdown menu
-        # Get parameters for autocorrelation from the GUI
-        initial_pos = self.tstage.parameter_dict['scan_initial_position']
-        final_pos = self.tstage.parameter_dict['scan_final_position']
-        interval = self.tstage.parameter_dict['autocorrelation_interval']
-        self.start_measurement('Autocorrelation',self.devices, initial_pos, final_pos, interval, plot_widget=self.thz_plot_widget)
-        ### WARNING: connections are currently not well implemented. Old code used: 
-                    # Connect the different signals
-        #    self.measurement.sendProgress.connect(self.set_progress)
-        #    self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-        #    self.measurement.sendSpectrum.connect(self.plot_autocorrelation)
-        
-    
-    def plot_autocorrelation(self, times_in_ps, power_in_nW):
-        """Plot autocorrelation data vs time on the THz plot widget"""
-        if self.thz_plot_widget is not None:
-            self.thz_plot_widget.clear()
-            self.thz_plot_widget.plot(times_in_ps, power_in_nW * 1e-3, pen='b')
-            self.thz_plot_widget.setLabel('bottom', 'Time (ps)')
-            self.thz_plot_widget.setLabel('left', 'Power (µW)')
-    
-    def THz_clear(self):
-        self.thz_plot_widget.clear()
-
-    def closeEvent(self, event):
-        # Function that executes when the GUI is closed to appropriately disconect the translation stage (Other disconections may be added)
-        self.tstage.pidevice.CloseConnection()
-        print("Translation stage disconnected")
-        event.accept()
     def closeEvent(self, event):
         for device in self.devices:
             if hasattr(self.devices[device], 'close_device'):
@@ -526,6 +486,21 @@ class MainInterface(QtWidgets.QMainWindow):
 
         # close Qt
         event.accept()
+
+    def thz_acquisition_measurement(self):
+        line_components = [float(x) for x in re.split(':', self.THz_lineEdit.text())]
+        self.initial_pos = line_components[0]
+        self.scan_resolution = line_components[1]
+        self.final_pos = line_components[2]
+        if self.ContinuousScan_CheckBox.isChecked():
+            self.burst_duration = (self.final_pos - self.initial_pos) / self.THzScanSpeed_doubleSpinBox.value()
+            self.spec_length = int(self.burst_duration * 429.2 - 1)
+        else:
+            self.spec_length = np.ceil((self.final_pos - self.initial_pos) / self.scan_resolution).astype(int)
+            
+        # Conducts a THz measurement using the translation stage and the lock in.
+        self.start_measurement('THzAcquisition',self.devices, self.thz_plot_widget, self.THz_lineEdit.text(), self.THzScanSpeed_doubleSpinBox.value(), self.ContinuousScan_CheckBox.isChecked(),
+                               self.THzAveraging_spinBox.value(), speclength = self.spec_length)
 
 
 class UpdateWorker(QtCore.QThread):

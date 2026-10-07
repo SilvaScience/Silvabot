@@ -18,8 +18,8 @@ devices:
     fallback: drivers.powermeter.ThorlabsPM100DDemo
   arduino:
     enabled: false
-    driver: drivers.arduino.Arduino
-    fallback: drivers.arduino.ArduinoDemo
+    driver: drivers.Arduino.Arduino
+    fallback: drivers.ArduinoDemo.ArduinoDemo
     init_args:
       port: COM14
   piezos:
@@ -30,14 +30,16 @@ devices:
   lakeshore:
     enabled: false
     driver: drivers.lakeshore.Lakeshore
-  harpia:
-    enabled: true
-    driver: drivers.Harpia.Harpia
-    fallback: drivers.HarpiaDemo.HarpiaDemo
-  lock-in:
-    enabled: true
+  tstage:
+    enabled: false
+    driver: drivers.PI863.PI863
+    fallback: drivers.PI863Demo.PI863Demo
+  lock_In:
+    enabled: false
     driver: drivers.Lock_In.Lock_In
-
+    fallback: drivers.Lock_InDemo.Lock_InDemo
+    init_args:
+      lock_in_type: UHF
 comment: 'User: DT
 
   Sample:

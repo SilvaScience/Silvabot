@@ -7,24 +7,32 @@ class Lock_InDemo():
 
     name = 'Lock_InDemo'
 
-    def __init__(self):
+    def __init__(self, lock_in_type):
         super(Lock_InDemo, self).__init__()
 
         # setting up the parameter dict
         self.parameter_dict = defaultdict()
 
-###################### These parameters need to be changed
         self.total_duration = 5
         self.sampling_rate = 10000
         self.burst_duration = 0.2        
         self.parameter_display_dict = defaultdict(dict)
 
-        self.parameter_dict['sampling_rate'] = 0
+        self.parameter_dict['filter_order'] = 0
+        self.parameter_dict['time_constant'] = 0
+        self.parameter_dict['Displayed_signal_input'] = 0
+        self.parameter_display_dict = defaultdict(dict)
 
-        self.parameter_display_dict['sampling_rate']['val'] = 10000
-        self.parameter_display_dict['sampling_rate']['unit'] = ' samples/s'
-        self.parameter_display_dict['sampling_rate']['max'] = 100000
-        self.parameter_display_dict['sampling_rate']['read'] = False
+        self.parameter_display_dict['filter_order']['val'] = 4
+        self.parameter_display_dict['filter_order']['unit'] = ' '
+        self.parameter_display_dict['filter_order']['max'] = 8
+        self.parameter_display_dict['filter_order']['min'] = 1
+        self.parameter_display_dict['filter_order']['read'] = False
+        
+        self.parameter_display_dict['time_constant']['val'] = 0.025
+        self.parameter_display_dict['time_constant']['unit'] = 's'
+        self.parameter_display_dict['time_constant']['max'] = 100
+        self.parameter_display_dict['time_constant']['read'] = False
 
         # set up parameter dict that only contains value
         self.parameter_dict = {}

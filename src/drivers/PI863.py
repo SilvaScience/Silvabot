@@ -13,16 +13,9 @@ class PI863():
 
         # setting up the parameter dict
         self.parameter_dict = defaultdict()
-
-        self.speed = []
-        self.target_position = []
-        self.position = []
-        self.stop = False
         self.parameter_display_dict = defaultdict(dict)
+        self.stop = False
 
-        # self.parameter_dict['speed'] = 0
-        # self.parameter_dict['target_position'] = 0
-        # self.parameter_dict['position'] = 0
 
         self.parameter_display_dict['position']['val'] = 0
         self.parameter_display_dict['position']['unit'] = ' mm'
@@ -37,22 +30,8 @@ class PI863():
         self.parameter_display_dict['target_position']['val'] = 0
         self.parameter_display_dict['target_position']['unit'] = ' mm'
         self.parameter_display_dict['target_position']['max'] = 50
+        self.parameter_display_dict['target_position']['min'] = 0
         self.parameter_display_dict['target_position']['read'] = False
-        
-        self.parameter_display_dict['scan_initial_position']['val'] = 0
-        self.parameter_display_dict['scan_initial_position']['unit'] = ' mm'
-        self.parameter_display_dict['scan_initial_position']['max'] = 50
-        self.parameter_display_dict['scan_initial_position']['read'] = False
-
-        self.parameter_display_dict['scan_final_position']['val'] = 50
-        self.parameter_display_dict['scan_final_position']['unit'] = ' mm'
-        self.parameter_display_dict['scan_final_position']['max'] = 50
-        self.parameter_display_dict['scan_final_position']['read'] = False
-
-        self.parameter_display_dict['autocorrelation_step']['val'] = 1
-        self.parameter_display_dict['autocorrelation_step']['unit'] = ' µm'
-        self.parameter_display_dict['autocorrelation_step']['max'] = 50000
-        self.parameter_display_dict['autocorrelation_step']['read'] = False
 
         # set up parameter dict that only contains value. (faster to access)
         self.parameter_dict = {}
@@ -79,33 +58,18 @@ class PI863():
             self.update_target_position(value)
         if parameter == 'position':
             self.update_position(value)
-        if parameter == 'scan_initial_position':
-            self.update_scan_initial_position(value)
-        if parameter == 'scan_final_position':
-            self.update_scan_final_position(value)
-        if parameter == 'autocorrelation_step':
-            self.update_autocorrelation_step(value)
 
-    def update_speed(self, new_speed):
-        self.pidevice.VEL(1, new_speed)
-        get_speed = self.pidevice.qVEL()
-        print(f'Speed set to {get_speed["1"]} mm/s')
-    
-    def update_target_position(self, new_set_position):
-        print(f'Moving to {new_set_position}')
-        self.pidevice.MOV(1, new_set_position)
+    def update_position(self, new_position):
+        self.parameter_dict['position'] = new_position
 
-    def update_position(self, new_Position):
-        self.parameter_dict['position'] = new_Position
-    
-    def update_scan_initial_position(self, new_initial_pos):
-        self.parameter_dict['scan_initial_position'] = new_initial_pos
-    
-    def update_scan_final_position(self, new_final_pos):
-        self.parameter_dict['scan_final_position'] = new_final_pos
+    def update_speed(self, new_speed, stage_number=1):
+        self.pidevice.VEL(stage_number, new_speed)
+        self.parameter_dict['speed'] = new_speed
 
-    def update_autocorrelation_step(self, new_step):
-        self.parameter_dict['autocorrelation_step'] = new_step * 1e-3
+    def update_target_position(self, new_position, stage_number=1):
+        self.pidevice.MOV(stage_number, new_position)
+        self.parameter_dict['target_position'] = new_position
+
 
 class UpdateWorker_Position(QtCore.QThread):
     new_Position = QtCore.pyqtSignal(float)

@@ -67,6 +67,7 @@ class DataHandling(QtCore.QThread):
         self.temp_filename = os.path.join(os.path.expanduser("~"),"Silvabot_temp","temp.h5")
         #self.temp_filename = r"C:\TEMP\temp.h5"
         self.filename = 'test'
+        self.measurement_name = None
 
         # initialize Calibration dict
         self.calibration = {}
@@ -81,16 +82,6 @@ class DataHandling(QtCore.QThread):
         self.BufferWorker.moveToThread(self.thread)
         self.thread.start()
         self.bufferSaveSignal.connect(self.BufferWorker.save_buffer)
-
-    def update_array_size(self, input_array):
-        if input_array.ndim  == 1:
-            self.spec = np.empty([len(input_array), 0])
-            self.background = np.empty([len(input_array), 1])
-            self.wls = np.empty([len(input_array), 1])
-        else:
-            self.spec = np.empty([0,len(input_array[0]),len(input_array[1])])
-            self.background = np.empty([0,len(input_array[0]),len(input_array[1])])
-            self.wls = np.empty([len(input_array[1]), 1])
 
     # main update device parameter function
     def update_parameter(self, parameter):
@@ -122,8 +113,6 @@ class DataHandling(QtCore.QThread):
         """ This function concatenates all received spectra. it keeps the last 100 spectra directly accessible. If
         more than 100 spectra are acquired, they are buffersaved in a .h5 file, to prevent memory overload and allow
         acquisiton of infinite spectra. """
-        # add data to data array, not used for now
-        self.update_array_size(spec)
         curr_time = time.time() - self.starttime
         self.wls = wls
         if self.data_dim == 1:
@@ -141,38 +130,6 @@ class DataHandling(QtCore.QThread):
         if self.data_in_flash > 49:
             self.save_buffer()
             self.data_in_flash = 0
-
-        # Extract maxima of data to display them in SpectrumViewer
-        self.maximum[1] = np.amax(spec)
-        if self.data_dim == 1:
-            try:
-                self.maximum[2] = wls[np.argmax(spec)]
-            except:
-                self.maximum[2] = 0
-        else:
-            self.maximum[2] = wls[np.unravel_index(spec.argmax(), spec.shape)[1]]
-        self.maximum[0] = curr_time
-        self.sendMaximum.emit(self.maximum)
-
-    def replace_data(self, wls, spec):
-        """ This function replaces the current data with new data, keeping only the latest acquisition.
-        Used for real-time scope viewing where only the most recent measurement should be displayed. """
-        # add data to data array
-        self.update_array_size(spec)
-        curr_time = time.time() - self.starttime
-        self.wls = wls
-        if self.data_dim == 1:
-            self.spec = np.c_[np.empty([len(spec), 0]), spec]
-        else:
-            self.spec = np.empty([0,len(spec[0]),len(spec[1])])
-            self.spec = np.concatenate([self.spec, spec[np.newaxis,...]])
-        for idx, param in enumerate(self.parameter_queue.keys()):
-            self.param_from_deque[idx] = self.parameter_queue[param][-1]
-        self.parameter_measured = np.zeros([len(self.parameter) + 2, 0])
-        self.parameter_measured = np.c_[self.parameter_measured, self.param_from_deque]
-        self.parameter_measured[0, -1] = curr_time
-        self.parameter_measured[1, -1] = time.time()
-        self.sendSpectrum.emit(wls, spec)
 
         # Extract maxima of data to display them in SpectrumViewer
         self.maximum[1] = np.amax(spec)
@@ -225,11 +182,26 @@ class DataHandling(QtCore.QThread):
         time.sleep(0.5) # allow for BufferWorker to create temp file
         with h5py.File(self.temp_filename, 'a') as hf:
             hf.attrs["comments"] = comments
+
+            # Save measurement parameters
+            if self.measurement_name is not None:
+                hf.attrs["measurement_name"] = self.measurement_name    # Sets the measurement name in the save file
+                string_dtype = h5py.string_dtype(encoding='utf-8')      # Define the dtype that will be used to save the data 
+                measurement_parameters = hf.create_dataset("measurement settings",
+                    data=np.asarray(self.measurement_inputs, dtype=string_dtype), dtype=string_dtype)
+                measurement_parameters.attrs["parameter_keys"] = self.measurement_input_names
+
         ty_res = time.localtime(time.time())
         timestamp = time.strftime("%H_%M_%S", ty_res)
         savename = filename + '_' + timestamp + '.h5'
         shutil.copyfile(self.temp_filename, savename)
         print('Data saved as: ' + savename )
+
+    # Function to store experiment parameters before saving
+    def set_measurement_metadata(self, name, input_names, inputs):
+        self.measurement_name = name
+        self.measurement_input_names = input_names
+        self.measurement_inputs = inputs
 
     #@QtCore.pyqtSlot
     def add_calibration(self,calibration):

@@ -23,3 +23,4 @@ harvesters~=1.4.3
 genicam~=1.5.1
 numba~=0.61.2
 lightcon ~= 1.5.15
+pipython
