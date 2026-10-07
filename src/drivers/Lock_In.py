@@ -104,12 +104,8 @@ class Lock_In():
 
         # Connect to appropriate lock-in device
         #self.lock_in_type == 'MFLI'
-        #self.session = Session("localhost")   # Create a session with the Data Server
-        self.session = Session("192.168.1.116") # 192.168.1.116  127.0.0.1
-        devices = self.session.devices
-        print(devices)
-        print(type(devices))
-        print(devices[0])
+        self.session = Session("localhost")   # Create a session with the Data Server
+        #self.session = Session("127.0.0.1")
         self.device = self.session.connect_device("DEV7797", interface="1GbE")           # Connect to the MFLI
         print('Connection established with the Lock-In')
 
