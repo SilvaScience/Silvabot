@@ -1,85 +1,132 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Tue  10 14:03:53 2025
-
-@author: Beatrice Viscogliosi
-Hardware class to control the Bigfoot MDCS spectrometer. All hardware classes require a definition of
-parameter_dict (set write and read parameter)
-parameter_display_dict (set Spinbox options)
-set_parameter function (assign set functions)
-
-This driver can:
-establish connection to MFLI
-start poll with three channels and fixed duration
-
-Nice to have:
-ability to stop poll during measurement
-
-"""
-
-import requests
-import numpy as np
-import json
 from PyQt5 import QtCore
-import time
 from collections import defaultdict
 import time
-import zhinst
+from zhinst.toolkit import Session
+import numpy as np
+import matplotlib.pyplot as plt
+from collections import deque
 
 
-class MFLI(QtCore.QThread):
+class MFLI():
 
     name = 'MFLI'
-    
+    sendProgress = QtCore.pyqtSignal(float)
+
     def __init__(self):
         super(MFLI, self).__init__()
+        # Define the type of lock-in used
+        #self.lock_in_type = lock_in_type
+        self.lock_in_type = 'MFLI'
 
-        # parameters
-
-        # set parameter dict
+        # setting up the parameter dict
         self.parameter_dict = defaultdict()
-        
-        # setting up variables, open array
-        self.stop = False
+        self.parameter_dict['filter_order'] = 0
+        self.parameter_dict['time_constant'] = 0
+        self.parameter_dict['Displayed_signal_input'] = 0
         self.parameter_display_dict = defaultdict(dict)
-        self.parameter_display_dict['li_idle']['val'] = 0
-        self.parameter_display_dict['li_idle']['unit'] = ' per'
-        self.parameter_display_dict['li_idle']['max'] = 100
-        self.parameter_display_dict['li_idle']['read'] = True
 
-        # set up parameter dict that only contains value. (faster to access)
+        self.parameter_display_dict['filter_order']['val'] = 3
+        self.parameter_display_dict['filter_order']['unit'] = ' '
+        self.parameter_display_dict['filter_order']['max'] = 8
+        self.parameter_display_dict['filter_order']['min'] = 1
+        self.parameter_display_dict['filter_order']['read'] = False
+        self.parameter_display_dict['time_constant']['val'] = 0.025
+        self.parameter_display_dict['time_constant']['unit'] = 's'
+        self.parameter_display_dict['time_constant']['max'] = 100
+        self.parameter_display_dict['time_constant']['read'] = False
+        self.parameter_display_dict['Displayed_signal_input']['val'] = 1
+        self.parameter_display_dict['Displayed_signal_input']['unit'] = ' '
+        self.parameter_display_dict['Displayed_signal_input']['min'] = 1
+        self.parameter_display_dict['Displayed_signal_input']['max'] = 2
+        self.parameter_display_dict['Displayed_signal_input']['read'] = False
+
+        # set up parameter dict that only contains value
         self.parameter_dict = {}
         for key in self.parameter_display_dict.keys():
             self.parameter_dict[key] = self.parameter_display_dict[key]['val']
 
-        # connect to MFLI interface
-        device_id = 'dev7797'  # , #: str =
-        server_host: str = '127.0.0.1'  # "localhost"
-        server_port: int = 8004
-        plot: bool = True
-        apilevel_example = 5
-        (daq, device, _) = zhinst.utils.create_api_session(
-            device_id, apilevel_example, server_host=server_host, server_port=server_port
-        )
+        # Connect to appropriate lock-in device
+        #self.lock_in_type == 'MFLI'
+        #self.session = Session("localhost")   # Create a session with the Data Server
+        self.session = Session("192.168.1.116") # 192.168.1.116  127.0.0.1
+        self.device = self.session.connect_device("DEV7797", interface="1GbE")  # Connect to the MFLI
+
+        print('Connection established with the Lock-In')
+
+        # Configure the first demodulation (verified the parameters)
+        self.device.demods[0].enable(True)                                         # Enable the demodulator
+        self.device.demods[0].order(self.parameter_dict['filter_order'])           # Set the filter order
+        self.device.demods[0].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
+        print('Configuration of the Lock-In completed')
+
+        # set up R fi-fo
+        self.r_history = deque(maxlen=4000)
+
+        # set up and start Worker
+        self.worker = UpdateWorker(self.session,self.device)
+        self.worker.sendPoll.connect(self.update_demodulator_values) # connect where signals of worker go to.
+        self.worker.start()
+
 
     def set_parameter(self,parameter,value):
-            pass
-              
-    def run_scan(self,t_delay):
-        # change_scan(type, t_length, step_length, fixed_delay)
-        # type: 1Q (Single Quantum), 0Q (Zero Quantum), 2Q (Double Quantum), 1Q-NR (Rephasing), 1Q-NR (Non-rephasing)
-        # t_length: t-axis Scan Length in ps
-        # step_length: 2D-axis Scan Length in ps
-        # fixed_delay: Fixed Delay (pulse width) in ps
-        #lv.LV_Control.change_scan('1Q-R', t_delay, 0, 1)
-        lv.LV_Control.run_scan()
-        # to be filled
+        if parameter == 'filter_order':
+            self.update_filter_order(value)
+            self.filter_order = value
+        if parameter == 'time_constant':
+            self.update_time_constant(value)
+            self.time_constant = value
+    
+    def update_filter_order(self, filter_order):
+        self.device.demods[0].order(filter_order)
+        self.device.demods[4].order(filter_order)
+        print(f'Filter order is set to {filter_order}')
 
-    def check_stage(self):
-        stage_status  = lv.LV_Control.check_stage_move()
-        # Returns array of stage movement true (1)/false (0) in the following order: tau/T/t
-        if stage_status == [0, 0, 0]:
-            self.parameter_dict['bf_idle'] = 100
-        else:
-            self.parameter_dict['bf_idle'] = 0
+    def update_time_constant(self, time_constant):
+        self.device.demods[0].timeconstant(time_constant)
+        print(f'Time constant set to {time_constant} s')
+
+
+    def get_demodulator_values(self):
+        return self.r_history
+
+    def update_demodulator_values(self,r_values):
+        self.r_history.extend(r_values.tolist())
+        #print(f'The demodulator values are {r_values}')
+
+
+class UpdateWorker(QtCore.QThread):
+    """ This is a UpdateWorker for the MFLI.
+    It continuously polls the last values of the demodulator and sends it to the driver.
+     """
+    # These are signals that allow to send data from a child thread to the parent hierarchy.
+    sendPoll = QtCore.pyqtSignal(np.ndarray)
+
+
+    def __init__(self,Session, device):
+        super(UpdateWorker, self).__init__() # Elevates this thread to be independent.
+
+        # set up subscription of data poll
+        self.Session = Session
+        self.device = device
+        self.demodulator = self.device.demods[0]
+        self.sample_node = self.demodulator.sample
+        self.sample_node.subscribe()
+        self.poll_interval = 0.1
+        self.terminate = False
+
+
+    def run(self):
+        """" Continuous tasks of the Worker are defined here.
+        If loops check for requested changes in settings prior each acquisition. """
+        while not self.terminate: #infinite loop
+            data = self.Session.poll(recording_time=self.poll_interval)
+            samples = data.get(self.sample_node)
+            time.sleep(self.poll_interval/2)
+            x_values = np.asarray(samples["x"]).ravel()
+            y_values = np.asarray(samples["y"]).ravel()
+            sample_count = min(len(x_values), len(y_values))
+            r_values = np.sqrt(x_values[:sample_count] ** 2 + y_values[:sample_count] ** 2)
+            self.sendPoll.emit(r_values)
+        print('Worker closes')
+        return
 
