@@ -645,7 +645,6 @@ class DelayStageMeasurement(QtCore.QThread):
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
 
-
 class ChirpMeasurement(QtCore.QThread):
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)  # Final averaged image (e.g., A_opt)
     sendProgress = QtCore.pyqtSignal(float)
@@ -872,3 +871,65 @@ class THzAcquisition(QtCore.QThread):
 
     def stop(self):
         self.terminate = True
+
+# Measurement to continuously view spectra
+class ViewDemodMeasurement(QtCore.QThread):
+    # set used signal types, destination is set in main script
+    sendPoll = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendClear = QtCore.pyqtSignal()
+
+    def __init__(self, devices, parameter):
+        super(ViewDemodMeasurement, self).__init__()
+        self.lock_in = devices['lock-in']
+        self.wls = []  # preallocate wls array
+        self.spec = []  # preallocate spec array
+        self.terminate = False
+
+    def run(self):
+        while not self.terminate:  # check whether stopping measurement is called
+            t = time.time()
+            self.sendProgress.emit(50)
+            self.t_history, self.r_history = self.lock_in.get_demodulator_values()
+            self.sendPoll.emit(self.t_history, self.r_history)
+            time.sleep(0.1)
+        # Finish measurement when loop is terminated
+        print(time.strftime('%H:%M:%S') + ' Finished')
+        self.sendProgress.emit(100)
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+class ECPLMeasurement(QtCore.QThread):
+    sendPoll = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendParameter = QtCore.pyqtSignal(str, float)
+
+    def __init__(self, devices, ECPL_scan_lineEdit, ECPL_wait_time):
+        super(ECPLMeasurement, self).__init__()
+        self.lock_in = devices['lock-in']
+        self.wait_time = ECPL_wait_time
+        line_components = [float(x) for x in re.split(':', ECPL_scan_lineEdit)]
+        self.delay_stage_scan_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
+        print(f'Measure ECPL scan following delays:', self.delay_stage_scan_array)
+        self.terminate = False
+
+    def run(self):
+        for i,t_value in enumerate(self.delay_stage_scan_array):
+            if not self.terminate:  # check whether stopping measurement is called
+                self.sendProgress.emit(i/len(self.delay_stage_scan_array)*100)
+                self.sendParameter.emit('TB_target_delay', t_value)
+                self.t_history, self.r_history = self.lock_in.get_demodulator_values()
+                self.sendPoll.emit(self.t_history, self.r_history)
+                time.sleep(self.wait_time)
+                #time.sleep(0.5) # no feedback on when SCMP is set.
+                print(time.strftime('%H:%M:%S') + f' Move to next delay: {t_value} ps')
+
+        self.sendProgress.emit(100)
+        print(time.strftime('%H:%M:%S') + ' Finished')
+        return
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')

@@ -25,6 +25,7 @@ class DataHandling(QtCore.QThread):
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     sendMaximum = QtCore.pyqtSignal(np.ndarray) # not used for now, to be implemented for direct measurement control
     sendParameterarray = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendPoll = QtCore.pyqtSignal(np.ndarray,np.ndarray)
     sendBeams = QtCore.pyqtSignal(object)
     bufferSaveSignal = QtCore.pyqtSignal(object, object, object, object)
 
@@ -83,6 +84,11 @@ class DataHandling(QtCore.QThread):
         self.thread.start()
         self.bufferSaveSignal.connect(self.BufferWorker.save_buffer)
 
+        # initialize poll data
+        self.poll_data = np.array([0])
+        self.poll_time = np.array([0])
+
+
     # main update device parameter function
     def update_parameter(self, parameter):
         """ This is an important part of hardware parameter control. We use "deque" as efficient First-In-First-Out
@@ -104,6 +110,7 @@ class DataHandling(QtCore.QThread):
             self.spec = np.empty([1,self.speclength[0],self.speclength[1]])
         self.BufferWorker.firstbuffer = True
         self.parameter_measured = np.zeros([len(self.parameter) + 2, 0])
+        self.poll_data = np.array([0])  # reset poll data array
         try:
             os.remove(self.temp_filename)
         except:
@@ -143,6 +150,18 @@ class DataHandling(QtCore.QThread):
         self.maximum[0] = curr_time
         self.sendMaximum.emit(self.maximum)
 
+    def concatenate_poll_data(self,t_array, r_array):
+        """ This function concatenates all poll arrays."""
+        if self.poll_data.size == 1:
+            self.poll_data = r_array
+            self.poll_time = t_array
+        else:
+            t_new_idx = np.where(t_array == self.poll_time[-1])[0][0]
+            self.poll_data = np.append(self.poll_data, r_array[t_new_idx:])
+            self.poll_time = np.append(self.poll_time, t_array[t_new_idx:])
+        self.sendPoll.emit(self.poll_time,self.poll_data)
+
+
     # save data to temp file and clear data in memory
     def save_buffer(self):
         """ Saves data to a temporary file and populates it each time more than 100 spectra have been acquired.
@@ -178,7 +197,18 @@ class DataHandling(QtCore.QThread):
     @QtCore.pyqtSlot(str, str)
     def save_data(self, filename, comments):
         """saves data. Each time data is saved, parameters are saved aswell. """
-        self.save_buffer()
+        if self.poll_data.size == 1: # spectral data: saving through buffer
+            self.save_buffer()
+        else: # now buffer implemented for poll data
+            save_length = len(self.parameter_queue['time'])
+            save_array = np.empty((len(self.parameter_queue), save_length))
+            for idx, param in enumerate(self.parameter_queue.keys()):
+                save_array[idx, :] = np.array(self.parameter_queue[param])[0:save_length]
+            with h5py.File(self.temp_filename, 'w') as hf:
+                spec = [self.poll_time,self.poll_data]
+                hf.create_dataset("poll", data=spec, compression="gzip", chunks=True,
+                                      maxshape=(np.shape(spec)[0], None))
+                hf.create_dataset("parameter", data=save_array, compression="gzip", chunks=True)
         time.sleep(0.5) # allow for BufferWorker to create temp file
         with h5py.File(self.temp_filename, 'a') as hf:
             hf.attrs["comments"] = comments
@@ -186,7 +216,7 @@ class DataHandling(QtCore.QThread):
             # Save measurement parameters
             if self.measurement_name is not None:
                 hf.attrs["measurement_name"] = self.measurement_name    # Sets the measurement name in the save file
-                string_dtype = h5py.string_dtype(encoding='utf-8')      # Define the dtype that will be used to save the data 
+                string_dtype = h5py.string_dtype(encoding='utf-8')      # Define the dtype that will be used to save the data
                 measurement_parameters = hf.create_dataset("measurement settings",
                     data=np.asarray(self.measurement_inputs, dtype=string_dtype), dtype=string_dtype)
                 measurement_parameters.attrs["parameter_keys"] = self.measurement_input_names

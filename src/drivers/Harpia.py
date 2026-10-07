@@ -29,25 +29,26 @@ class Harpia():
         # Delay position
         self.parameter_display_dict["delay"]["val"] = 0.0
         self.parameter_display_dict["delay"]["unit"] = "ps"
-        #self.parameter_display_dict['delay']['max'] = 10000 # to be verified
+        self.parameter_display_dict['delay']['max'] = 7500 # to be verified
         self.parameter_display_dict["delay"]["read"] = True
 
         # Target delay
         self.parameter_display_dict["target_delay"]["val"] = 0.0
         self.parameter_display_dict["target_delay"]["unit"] = "ps"
-        #self.parameter_display_dict["target_delay"]["max"] = 10000 # to be verified
+        self.parameter_display_dict["target_delay"]["max"] = 7500 # to be verified
         self.parameter_display_dict["target_delay"]["read"] = False
 
-        # Scan position
-        self.parameter_display_dict["scan_initial_position"]["val"] = 0.0
-        self.parameter_display_dict["scan_initial_position"]["unit"] = "ps"
-        #self.parameter_display_dict["scan_initial_position"]["max"] = 10000 # to be verified
-        self.parameter_display_dict["scan_initial_position"]["read"] = False
+        # Delay position
+        self.parameter_display_dict["TB_delay"]["val"] = 0.0
+        self.parameter_display_dict["TB_delay"]["unit"] = "ps"
+        self.parameter_display_dict['TB_delay']['max'] = 7500 # to be verified
+        self.parameter_display_dict["TB_delay"]["read"] = True
 
-        self.parameter_display_dict["scan_final_position"]["val"] = 0.0
-        self.parameter_display_dict["scan_final_position"]["unit"] = "ps"
-        #self.parameter_display_dict["scan_final_position"]["max"] = 10000 # to be verified
-        self.parameter_display_dict["scan_final_position"]["read"] = False
+        # Target delay
+        self.parameter_display_dict["TB_target_delay"]["val"] = 0.0
+        self.parameter_display_dict["TB_target_delay"]["unit"] = "ps"
+        self.parameter_display_dict["TB_target_delay"]["max"] = 7500 # to be verified
+        self.parameter_display_dict["TB_target_delay"]["read"] = False
 
         # Fast access dictionary
         self.parameter_dict = {}
@@ -78,6 +79,9 @@ class Harpia():
             
         elif parameter == "target_delay":
             self.update_target_delay(value)
+
+        elif parameter == "TB_target_delay":
+            self.update_TB_target_delay(value)
         """    
         elif parameter == "scan_initial_position":
             self.update_scan_initial_position(value)
@@ -111,12 +115,20 @@ class Harpia():
         self.parameter_dict["third_beam_shutter"] = state
         
     # Delay line
+    # probe beam
     def update_target_delay(self, target):
         print(f"Moving delay line to {target} ps")
         self.harpia.set_delay_line_target_delay(target)
 
-    def update_delay(self,delay):
+    # Third beam
+    def update_TB_target_delay(self, target):
+        print(f"Moving TB delay line to {target} ps")
+        self.harpia.harpiatb_set_delay_line_target_delay(target)
+
+
+    def update_delay(self,delay,TB_delay):
         self.parameter_dict["delay"] = delay
+        self.parameter_dict["TB_delay"] = TB_delay
 
     def position_delay(self, target, tolerance=0.001):
         while True:
@@ -126,7 +138,7 @@ class Harpia():
             time.sleep(0.2)
 
 class UpdateWorker_Delay(QtCore.QThread):
-    new_Delay = QtCore.pyqtSignal(float)
+    new_Delay = QtCore.pyqtSignal(float,float)
     
     def __init__(self, harpia):
         super().__init__()
@@ -136,14 +148,14 @@ class UpdateWorker_Delay(QtCore.QThread):
 
     def run(self):
         while not self.stop:
-            delay = self.read_delay()
+            delay, TB_delay = self.read_delays()
             if delay is not None:
-                self.new_Delay.emit(delay)
+                self.new_Delay.emit(delay,TB_delay)
                 time.sleep(self.waitTime)
     
-    def read_delay(self):
+    def read_delays(self):
         try:
-            return self.harpia.delay_line_actual_delay()
+            return self.harpia.delay_line_actual_delay(), self.harpia.harpiatb_delay_line_actual_delay()
         except:
             return None
         

@@ -184,13 +184,13 @@
           <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
 &lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
 p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'MS Shell Dlg 2'; font-size:8pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;User:&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;Sample:&lt;br /&gt;Power:&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;Wavelength:&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;Freq:&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;THz emitter:&lt;/span&gt;&lt;/p&gt;
-&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-size:8.25pt;&quot;&gt;THz detector: &lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'MS Shell Dlg 2'; font-size:8.25pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;User:&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Sample:&lt;br /&gt;Power:&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Wavelength:&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Freq:&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;THz emitter:&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;THz detector: &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
         </widget>
         <widget class="QLabel" name="label">
@@ -313,7 +313,7 @@ p, li { white-space: pre-wrap; }
       <item>
        <widget class="QTabWidget" name="tabWidget">
         <property name="currentIndex">
-         <number>0</number>
+         <number>3</number>
         </property>
         <widget class="QWidget" name="spectro_tab">
          <attribute name="title">
@@ -1089,7 +1089,7 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
           <widget class="QLineEdit" name="chirp_scan_lineEdit">
            <property name="geometry">
             <rect>
-             <x>300</x>
+             <x>240</x>
              <y>110</y>
              <width>141</width>
              <height>20</height>
@@ -1105,7 +1105,7 @@ Start:Stepnumber:Stop  Start:Stepnum...</string>
           <widget class="QLabel" name="label_12">
            <property name="geometry">
             <rect>
-             <x>300</x>
+             <x>240</x>
              <y>40</y>
              <width>311</width>
              <height>41</height>
@@ -1119,7 +1119,7 @@ Start(μm):Step(μm):Stop(μm)  </string>
           <widget class="QPushButton" name="chirp_scan_run_pushButton">
            <property name="geometry">
             <rect>
-             <x>300</x>
+             <x>240</x>
              <y>140</y>
              <width>81</width>
              <height>23</height>
@@ -1132,7 +1132,7 @@ Start(μm):Step(μm):Stop(μm)  </string>
           <widget class="QLabel" name="label_23">
            <property name="geometry">
             <rect>
-             <x>470</x>
+             <x>410</x>
              <y>40</y>
              <width>191</width>
              <height>41</height>
@@ -1146,7 +1146,7 @@ Start(μm):Step(μm):Stop(μm)  </string>
           <widget class="QLineEdit" name="compressor_scan_lineEdit">
            <property name="geometry">
             <rect>
-             <x>470</x>
+             <x>410</x>
              <y>110</y>
              <width>141</width>
              <height>20</height>
@@ -1162,7 +1162,7 @@ Start(μm):Step(μm):Stop(μm)  </string>
           <widget class="QPushButton" name="compressor_scan_run_pushButton">
            <property name="geometry">
             <rect>
-             <x>470</x>
+             <x>410</x>
              <y>140</y>
              <width>121</width>
              <height>23</height>
@@ -1217,6 +1217,84 @@ Start(fs):Step(fs):Stop(fs)
  T:2 
  t:3 
  target_position:4</string>
+           </property>
+          </widget>
+          <widget class="QLineEdit" name="ECPL_scan_lineEdit">
+           <property name="geometry">
+            <rect>
+             <x>600</x>
+             <y>110</y>
+             <width>141</width>
+             <height>20</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="text">
+            <string>0:100:1000</string>
+           </property>
+          </widget>
+          <widget class="QPushButton" name="ECPL_scan_run_pushButton">
+           <property name="geometry">
+            <rect>
+             <x>600</x>
+             <y>140</y>
+             <width>121</width>
+             <height>23</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Run ECPL Scan</string>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_26">
+           <property name="geometry">
+            <rect>
+             <x>600</x>
+             <y>40</y>
+             <width>191</width>
+             <height>41</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Enter Harpia delay stage position  in format: 
+Start(ps):Step(ps):Stop(ps)  </string>
+           </property>
+          </widget>
+          <widget class="QSpinBox" name="ECPL_wait_time_spinBox">
+           <property name="geometry">
+            <rect>
+             <x>600</x>
+             <y>80</y>
+             <width>61</width>
+             <height>22</height>
+            </rect>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">background-color: rgb(255, 255, 255);</string>
+           </property>
+           <property name="suffix">
+            <string> s</string>
+           </property>
+           <property name="maximum">
+            <number>10000</number>
+           </property>
+           <property name="value">
+            <number>5</number>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_7">
+           <property name="geometry">
+            <rect>
+             <x>670</x>
+             <y>82</y>
+             <width>121</width>
+             <height>21</height>
+            </rect>
+           </property>
+           <property name="text">
+            <string>Wait time (s) </string>
            </property>
           </widget>
          </widget>
@@ -1279,7 +1357,7 @@ Start(fs):Step(fs):Stop(fs)
      <x>0</x>
      <y>0</y>
      <width>1272</width>
-     <height>18</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">

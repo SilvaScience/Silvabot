@@ -22,16 +22,28 @@ class HarpiaDemo():
         self.parameter_display_dict["third_beam_shutter"]["read"] = False
 
         # Delay position
-        self.parameter_display_dict["delay_position"]["val"] = 0.0
-        self.parameter_display_dict["delay_position"]["unit"] = "ps"
-        #self.parameter_display_dict['position']['max'] = 10000 # to be verified
-        self.parameter_display_dict["delay_position"]["read"] = True
+        self.parameter_display_dict["delay"]["val"] = 0.0
+        self.parameter_display_dict["delay"]["unit"] = " ps"
+        self.parameter_display_dict['delay']['max'] = 7500 # to be verified
+        self.parameter_display_dict["delay"]["read"] = True
 
         # Target delay
         self.parameter_display_dict["target_delay"]["val"] = 0.0
-        self.parameter_display_dict["target_delay"]["unit"] = "ps"
-        #self.parameter_display_dict["target_delay"]["max"] = 10000 # to be verified
+        self.parameter_display_dict["target_delay"]["unit"] = " ps"
+        self.parameter_display_dict["target_delay"]["max"] = 7500 # to be verified
         self.parameter_display_dict["target_delay"]["read"] = False
+
+        # Delay position
+        self.parameter_display_dict["TB_delay"]["val"] = 0.0
+        self.parameter_display_dict["TB_delay"]["unit"] = " ps"
+        self.parameter_display_dict['TB_delay']['max'] = 7500 # to be verified
+        self.parameter_display_dict["TB_delay"]["read"] = True
+
+        # Target delay
+        self.parameter_display_dict["TB_target_delay"]["val"] = 0.0
+        self.parameter_display_dict["TB_target_delay"]["unit"] = " ps"
+        self.parameter_display_dict["TB_target_delay"]["max"] = 7500 # to be verified
+        self.parameter_display_dict["TB_target_delay"]["read"] = False
 
         self.parameter_dict = {}
         for key in self.parameter_display_dict.keys():
@@ -42,8 +54,11 @@ class HarpiaDemo():
         self.UpdateWorker_Delay.start()
 
     def set_parameter(self, parameter, value):
-        if parameter == "targer_delay":
+        if parameter == "target_delay":
             self.update_target_delay(value)
+
+        elif parameter == "TB_target_delay":
+            self.update_TB_target_delay(value)
 
         elif parameter == "pump_shutter":
             self.update_pump_shutter(value)
@@ -57,6 +72,10 @@ class HarpiaDemo():
 
     def update_delay(self, delay):
         self.parameter_dict["delay"] = delay
+
+    def update_TB_target_delay(self, delay):
+        print(f"Moving delay to {delay} ps")
+        self.parameter_dict["TB_delay"] = delay
 
     def update_pump_shutter(self, state):
         print(f"Pump shutter set to {state}")

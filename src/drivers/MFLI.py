@@ -61,6 +61,7 @@ class MFLI():
 
         # set up R fi-fo
         self.r_history = deque(maxlen=4000)
+        self.t_history = deque(maxlen=4000)
 
         # set up and start Worker
         self.worker = UpdateWorker(self.session,self.device)
@@ -87,10 +88,11 @@ class MFLI():
 
 
     def get_demodulator_values(self):
-        return self.r_history
+        return np.array(self.t_history), np.array(self.r_history)
 
-    def update_demodulator_values(self,r_values):
+    def update_demodulator_values(self,time_array,r_values):
         self.r_history.extend(r_values.tolist())
+        self.t_history.extend(time_array.tolist())
         #print(f'The demodulator values are {r_values}')
 
 
@@ -99,7 +101,7 @@ class UpdateWorker(QtCore.QThread):
     It continuously polls the last values of the demodulator and sends it to the driver.
      """
     # These are signals that allow to send data from a child thread to the parent hierarchy.
-    sendPoll = QtCore.pyqtSignal(np.ndarray)
+    sendPoll = QtCore.pyqtSignal(np.ndarray,np.ndarray)
 
 
     def __init__(self,Session, device):
@@ -113,12 +115,14 @@ class UpdateWorker(QtCore.QThread):
         self.sample_node.subscribe()
         self.poll_interval = 0.1
         self.terminate = False
+        self.t0 = time.time()
 
 
     def run(self):
         """" Continuous tasks of the Worker are defined here.
         If loops check for requested changes in settings prior each acquisition. """
         while not self.terminate: #infinite loop
+            self.t0 = time.time()
             data = self.Session.poll(recording_time=self.poll_interval)
             samples = data.get(self.sample_node)
             time.sleep(self.poll_interval/2)
@@ -126,7 +130,8 @@ class UpdateWorker(QtCore.QThread):
             y_values = np.asarray(samples["y"]).ravel()
             sample_count = min(len(x_values), len(y_values))
             r_values = np.sqrt(x_values[:sample_count] ** 2 + y_values[:sample_count] ** 2)
-            self.sendPoll.emit(r_values)
+            time_array = np.linspace(self.t0, time.time(), sample_count)
+            self.sendPoll.emit(time_array,r_values)
         print('Worker closes')
         return
 

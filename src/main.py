@@ -11,6 +11,7 @@ from PyQt5 import QtCore, QtWidgets, uic
 from functools import partial
 from GUI.ParameterPlot import ParameterPlot
 from GUI.SpectrometerPlot import SpectrometerPlot
+from GUI.LockInPlot import LockInPlot
 from DataHandling.DataHandling import DataHandling
 
 
@@ -114,6 +115,20 @@ class MainInterface(QtWidgets.QMainWindow):
         vbox.addWidget(self.ParameterPlot)
         self.parameter_tab.setLayout(vbox)
 
+        # add Lock In tab if MFLI exists
+        print(self.devices.keys())
+        if "lock-in" in self.devices.keys():
+            self.LockIn_tab =QtWidgets.QWidget()
+            self.tabWidget.addTab(self.LockIn_tab, "MFLI")
+            vbox = QtWidgets.QVBoxLayout()
+            self.LockInPlot = LockInPlot()
+            vbox.addWidget(self.LockInPlot)
+            self.LockIn_tab.setLayout(vbox)
+            self.LockInPlot.view_demod_button.clicked.connect(self.view_demod_measurement)
+
+
+
+
 
         # Initialize the THz tab with plot widget
         import pyqtgraph as pg
@@ -216,6 +231,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.chirp_scan_run_pushButton.clicked.connect(self.chirp_scan_measurement)
         self.compressor_scan_run_pushButton.clicked.connect(self.compressor_scan_measurement)
         self.delay_stage_scan_run_pushButton.clicked.connect(self.delay_stage_measurement)
+        self.ECPL_scan_run_pushButton.clicked.connect(self.ECPL_measurement)
         
         # THz tab button connections
         self.thz_acquisition.clicked.connect(self.thz_acquisition_measurement)
@@ -266,6 +282,10 @@ class MainInterface(QtWidgets.QMainWindow):
                 self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
             if hasattr(self.measurement, "sendParameter"):
                 self.measurement.sendParameter.connect(self.change_parameter)
+            if hasattr(self.measurement, "sendPoll"):
+                #self.measurement.sendPoll.connect(self.LockInPlot.set_data)
+                self.measurement.sendPoll.connect(self.DataHandling.concatenate_poll_data)
+                self.DataHandling.sendPoll.connect(self.LockInPlot.set_data)
 
             # optional extra connections
             if extra_connections:
@@ -459,6 +479,16 @@ class MainInterface(QtWidgets.QMainWindow):
         self.start_measurement('PowerSeriesMeasurement',self.devices, self.parameter,
             self.Powerseries_filter_selection_spinBox.value(), self.Tseries_spectra_avg_spinBox.value(),
             self.Tseries_filter_pos_lineEdit.text())
+
+    def view_demod_measurement(self):
+        # Continuous measurement
+        self.start_measurement('ViewDemodMeasurement', self.devices, self.parameter)
+
+    def ECPL_measurement(self):
+        # performs 2D scan by moving the any selected translation stage
+        self.start_measurement('ECPLMeasurement', self.devices, self.ECPL_scan_lineEdit.text(),
+                               self.ECPL_wait_time_spinBox.value())
+
 
     ### stopping functions ###
     def stop_measurement(self):
