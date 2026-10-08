@@ -151,19 +151,18 @@ class DataHandling(QtCore.QThread):
 
     def concatenate_poll_data(self,t_array, r_array):
         """ This function concatenates all poll arrays."""
-        if
-        #if self.poll_data.size == 1:
-         #   self.poll_data = r_array
-          #  self.poll_time = t_array
-        #else:
-        #    print("Last stored timestamp:", self.poll_time[-1])
-        #    print("First new timestamp:", t_array[0])
-        #    print("Last new timestamp:", t_array[-1])
-        #    print("Timestamp found:", np.any(t_array == self.poll_time[-1]))
+        if len(t_array) == 0:
+            return
+        if self.poll_data.size == 1:
+            self.poll_data = r_array
+            self.poll_time = t_array
+        else:
+            # Find the first timestamp newer than the last stored timestamp
+            t_new_idx = np.searchsorted(t_array, self.poll_time[-1], side = "right")
         #    t_new_idx = np.where(t_array == self.poll_time[-1])[0][0]
-        #    self.poll_data = np.append(self.poll_data, r_array[t_new_idx:])
-        #    self.poll_time = np.append(self.poll_time, t_array[t_new_idx:])
-        #self.sendPoll.emit(self.poll_time,self.poll_data)
+            self.poll_data = np.append(self.poll_data, r_array[t_new_idx:])
+            self.poll_time = np.append(self.poll_time, t_array[t_new_idx:])
+        self.sendPoll.emit(self.poll_time,self.poll_data)
 
 
     # save data to temp file and clear data in memory
