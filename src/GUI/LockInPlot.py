@@ -25,8 +25,6 @@ class LockInPlot(QtWidgets.QMainWindow):
         vbox.addWidget(self.clear_button)
         vbox.addWidget(self.view_demod_button)
 
-        #construct math ROIs
-
 
         #vbox.addWidget(self.graphWidget)
         graph_widget = QtWidgets.QWidget()

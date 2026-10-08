@@ -38,13 +38,13 @@ class Harpia():
         self.parameter_display_dict["target_delay"]["max"] = 7500 # to be verified
         self.parameter_display_dict["target_delay"]["read"] = False
 
-        # Delay position
+        # Delay position of TB
         self.parameter_display_dict["TB_delay"]["val"] = 0.0
         self.parameter_display_dict["TB_delay"]["unit"] = "ps"
         self.parameter_display_dict['TB_delay']['max'] = 7500 # to be verified
         self.parameter_display_dict["TB_delay"]["read"] = True
 
-        # Target delay
+        # Target delay of TB
         self.parameter_display_dict["TB_target_delay"]["val"] = 0.0
         self.parameter_display_dict["TB_target_delay"]["unit"] = "ps"
         self.parameter_display_dict["TB_target_delay"]["max"] = 7500 # to be verified
@@ -82,13 +82,6 @@ class Harpia():
 
         elif parameter == "TB_target_delay":
             self.update_TB_target_delay(value)
-        """    
-        elif parameter == "scan_initial_position":
-            self.update_scan_initial_position(value)
-            
-        elif parameter == "scan_final_position":
-            self.update_scan_final_position(value)
-        """    
         
     # Shutter
     def update_pump_shutter(self, state):
@@ -124,7 +117,6 @@ class Harpia():
     def update_TB_target_delay(self, target):
         print(f"Moving TB delay line to {target} ps")
         self.harpia.harpiatb_set_delay_line_target_delay(target)
-
 
     def update_delay(self,delay,TB_delay):
         self.parameter_dict["delay"] = delay

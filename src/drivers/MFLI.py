@@ -53,7 +53,7 @@ class MFLI():
 
         print('Connection established with the Lock-In')
 
-        # Configure the first demodulation (verified the parameters)
+        # Configure the first demodulation parameters
         self.device.demods[0].enable(True)                                         # Enable the demodulator
         self.device.demods[0].order(self.parameter_dict['filter_order'])           # Set the filter order
         self.device.demods[0].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
@@ -79,13 +79,12 @@ class MFLI():
     
     def update_filter_order(self, filter_order):
         self.device.demods[0].order(filter_order)
-        self.device.demods[4].order(filter_order)
+        #self.device.demods[4].order(filter_order)
         print(f'Filter order is set to {filter_order}')
 
     def update_time_constant(self, time_constant):
         self.device.demods[0].timeconstant(time_constant)
         print(f'Time constant set to {time_constant} s')
-
 
     def get_demodulator_values(self):
         return np.array(self.t_history), np.array(self.r_history)
@@ -117,7 +116,7 @@ class UpdateWorker(QtCore.QThread):
         self.terminate = False
         self.t0 = time.time()
 
-
+    # function to have the plotter of LabOne in Silvabot
     def run(self):
         """" Continuous tasks of the Worker are defined here.
         If loops check for requested changes in settings prior each acquisition. """
@@ -129,7 +128,7 @@ class UpdateWorker(QtCore.QThread):
             x_values = np.asarray(samples["x"]).ravel()
             y_values = np.asarray(samples["y"]).ravel()
             sample_count = min(len(x_values), len(y_values))
-            r_values = np.sqrt(x_values[:sample_count] ** 2 + y_values[:sample_count] ** 2)
+            r_values = np.sqrt(x_values[:sample_count] ** 2 + y_values[:sample_count] ** 2) # Demods R
             time_array = np.linspace(self.t0, time.time(), sample_count)
             self.sendPoll.emit(time_array,r_values)
         print('Worker closes')

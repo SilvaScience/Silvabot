@@ -74,7 +74,6 @@ class DataHandling(QtCore.QThread):
         self.calibration = {}
         
         # initialize beams dict
-                                      
         self.beams={}
 
         # initialize BufferWorker
