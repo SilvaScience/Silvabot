@@ -5,7 +5,7 @@ devices:
     fallback: drivers.CryoDemo.CryoDemo
   spectrometer:
     enabled: true
-    driver: drivers.ThorlabsCCS200.ThorlabsCCS200 # Options: .Heliotis, .Pixis, .OceanSpectrometer,
+    driver: drivers.SpectrometerDemo_advanced.SpectrometerDemo # Options: .Heliotis, .Pixis, .OceanSpectrometer,
     fallback: drivers.SpectrometerDemo_advanced.SpectrometerDemo
     init_args:
       port: 'COM10'
@@ -34,12 +34,12 @@ devices:
     enabled: false
     driver: drivers.PI863.PI863
     fallback: drivers.PI863Demo.PI863Demo
-  lock_In:
+  Harpia:
     enabled: false
-    driver: drivers.Lock_In.Lock_In
-    fallback: drivers.Lock_InDemo.Lock_InDemo
-    init_args:
-      lock_in_type: UHF
+    driver: drivers.Harpia.Harpia
+  lock-in:
+    enabled: true
+    driver: drivers.MFLI.MFLI
 comment: 'User: DT
 
   Sample:

@@ -29,24 +29,28 @@ class Harpia():
         # Delay position
         self.parameter_display_dict["delay"]["val"] = 0.0
         self.parameter_display_dict["delay"]["unit"] = "ps"
+        self.parameter_display_dict["delay"]["min"] = -7500
         self.parameter_display_dict['delay']['max'] = 7500 # to be verified
         self.parameter_display_dict["delay"]["read"] = True
 
         # Target delay
         self.parameter_display_dict["target_delay"]["val"] = 0.0
         self.parameter_display_dict["target_delay"]["unit"] = "ps"
+        self.parameter_display_dict["target_delay"]["min"] = -7500
         self.parameter_display_dict["target_delay"]["max"] = 7500 # to be verified
         self.parameter_display_dict["target_delay"]["read"] = False
 
         # Delay position of TB
         self.parameter_display_dict["TB_delay"]["val"] = 0.0
         self.parameter_display_dict["TB_delay"]["unit"] = "ps"
+        self.parameter_display_dict['TB_delay']['min'] = -7500
         self.parameter_display_dict['TB_delay']['max'] = 7500 # to be verified
         self.parameter_display_dict["TB_delay"]["read"] = True
 
         # Target delay of TB
         self.parameter_display_dict["TB_target_delay"]["val"] = 0.0
         self.parameter_display_dict["TB_target_delay"]["unit"] = "ps"
+        self.parameter_display_dict["TB_target_delay"]["min"] = -7500
         self.parameter_display_dict["TB_target_delay"]["max"] = 7500 # to be verified
         self.parameter_display_dict["TB_target_delay"]["read"] = False
 
@@ -112,6 +116,7 @@ class Harpia():
     def update_target_delay(self, target):
         print(f"Moving delay line to {target} ps")
         self.harpia.set_delay_line_target_delay(target)
+        self.parameter_dict["target_delay"] = target
 
     # Third beam
     def update_TB_target_delay(self, target):
@@ -121,6 +126,7 @@ class Harpia():
     def update_delay(self,delay,TB_delay):
         self.parameter_dict["delay"] = delay
         self.parameter_dict["TB_delay"] = TB_delay
+
 
     def position_delay(self, target, tolerance=0.001):
         while True:
@@ -147,9 +153,18 @@ class UpdateWorker_Delay(QtCore.QThread):
     
     def read_delays(self):
         try:
-            return self.harpia.delay_line_actual_delay(), self.harpia.harpiatb_delay_line_actual_delay()
-        except:
-            return None
+            delay = self.harpia.delay_line_actual_delay()
+            #return self.harpia.delay_line_actual_delay(), self.harpia.harpiatb_delay_line_actual_delay()
+        except Exception as e:
+            print("Error reading Harpia delay:", e)
+            return None, None
+        try:
+            TB_delay = self.harpia.harpiatb_delay_line_actual_delay()
+        except Exception as e:
+            print("Error reading Harpia TB delay:", e)
+            TB_delay = 0.0
+
+        return delay, TB_delay
         
 
     
