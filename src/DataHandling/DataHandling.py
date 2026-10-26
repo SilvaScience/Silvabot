@@ -212,6 +212,7 @@ class DataHandling(QtCore.QThread):
                 hf.create_dataset("poll", data=spec, compression="gzip", chunks=True,
                                       maxshape=(np.shape(spec)[0], None))
                 hf.create_dataset("parameter", data=save_array, compression="gzip", chunks=True)
+                hf['parameter'].attrs["parameter_keys"] = list(self.parameter_queue.keys())
         time.sleep(0.5) # allow for BufferWorker to create temp file
         with h5py.File(self.temp_filename, 'a') as hf:
             hf.attrs["comments"] = comments
