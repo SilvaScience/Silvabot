@@ -727,8 +727,6 @@ class CompressorMeasurement(QtCore.QThread):
 # Measurement of coordinate translation stage scan and UHF data acquisition (like plotter in LabOne) for a back and forth scan of the stage
 class THzAcquisition(QtCore.QThread):
     # Define used signals
-    # sendTargetPosition = QtCore.pyqtSignal(float, int)
-    # sendSpeed = QtCore.pyqtSignal(float, int)
     sendProgress = QtCore.pyqtSignal(float)
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     sendParameter = QtCore.pyqtSignal(str, float)
@@ -804,20 +802,20 @@ class THzAcquisition(QtCore.QThread):
     def single_scan(self):
         # Initialize the scan
         print('Moving to initial position')
-        self.sendParameter.emit('speed', 10)                         # Set speed to a fast value (10 mm/s) for moving to the initial position
-        self.sendParameter.emit('target_position',self.initial_pos)  # Move the stage to the initial position
-        current_position = self.tstage.parameter_dict['position']    # Get current position from parameter dict
+        self.sendParameter.emit('THz stage speed', 10)                         # Set speed to a fast value (10 mm/s) for moving to the initial position
+        self.sendParameter.emit('THz stage target position',self.initial_pos)  # Move the stage to the initial position
+        current_position = self.tstage.parameter_dict['THz stage position']    # Get current position from parameter dict
         while not current_position == self.initial_pos:                # Wait until initial position is reached
             time.sleep(0.1)
-            current_position = self.tstage.parameter_dict['position']
-        self.sendParameter.emit('speed', self.scan_speed)
+            current_position = self.tstage.parameter_dict['THz stage position']    # Get current position from parameter dict
+        self.sendParameter.emit('THz stage speed', self.scan_speed)
 
         # Scanning
         print('Starting position reached, starting scan')
         clockbase, nodes, module = self.lock_in.DAQ_setup(self.burst_duration, self.spec_length)  # Configure UHF for burst acquisition with the defined burst duration and sampling rate
 
         if self.scan_type == 'Continuous':
-            self.sendParameter.emit('target_position',self.final_pos)           # Move the stage to the final position
+            self.sendParameter.emit('THz stage target position',self.final_pos)           # Move the stage to the final position
             voltages = self.Plotter_acquire(clockbase, nodes, module) # Start UHF data acquisition during the scan
             positions = np.linspace(self.initial_pos, self.final_pos, len(voltages)) # Create a list of positions associated with the voltages
 
@@ -829,10 +827,10 @@ class THzAcquisition(QtCore.QThread):
             
             for i in range(self.spec_length):
                 self.acquisition_number = i
-                self.sendParameter.emit('target_position',self.THz_scan_array[i])    # Move the stage to ith target position
+                self.sendParameter.emit('THz stage target position',self.THz_scan_array[i])    # Move the stage to ith target position
                 # consider placeing wait time/while loop to make sure stage has reached its position
                 time.sleep(self.lock_in.time_constant * 4)                           # Wait for the filter of the lock-in to settle
-                positions[i] = self.tstage.parameter_dict['position']     # Measure the exact position of the stage
+                positions[i] = self.tstage.parameter_dict['THz stage position']     # Measure the exact position of the stage
                 voltages[i] = self.Plotter_acquire(clockbase, nodes, module) # Start UHF data acquisition during the scan
         return positions, voltages
     
@@ -872,3 +870,13 @@ class THzAcquisition(QtCore.QThread):
 
     def stop(self):
         self.terminate = True
+
+class THzPumpProbeMeasurement(QtCore.QThread):
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)  # Final averaged image (e.g., A_opt)
+    sendProgress = QtCore.pyqtSignal(float)
+
+    def __init__(self, devices):
+        super(THzPumpProbeMeasurement, self).__init__()
+        self.tstage = devices['tstage']
+        self.lock_in = devices['lock_in']
+        self.terminate = False
