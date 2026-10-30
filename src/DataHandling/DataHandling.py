@@ -330,8 +330,7 @@ class BufferWorker(QtCore.QObject):
                 except OSError as e:
                     print(f"Error occurred while setting xaxis attribute: {e}. Consider reducing the size of the xaxis array or using a different data type.")
                 hf.create_dataset("parameter", data=parameter_measured, compression="gzip", chunks=True, maxshape=(np.shape(parameter_measured)[0],None))
-                # Store parameter keys as a comma-separated string to avoid attribute size issues
-                hf["parameter"].attrs["parameter_keys"] = ','.join(list(parameter_queue.keys()))
+                hf["parameter"].attrs["parameter_keys"] = list(parameter_queue.keys())
             print('First buffer saved')
             self.firstbuffer = False
         else:
