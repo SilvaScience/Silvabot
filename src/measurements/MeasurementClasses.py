@@ -724,43 +724,41 @@ class CompressorMeasurement(QtCore.QThread):
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
 
-# Measurement of coordinate translation stage scan and UHF data acquisition (like plotter in LabOne) for a back and forth scan of the stage
-class THzAcquisition(QtCore.QThread):
-    # Define used signals
-    sendProgress = QtCore.pyqtSignal(float)
-    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
-    sendParameter = QtCore.pyqtSignal(str, float)
-    plotDataSignal = QtCore.pyqtSignal(np.ndarray, np.ndarray)    # Internal signal (To make sure Qt widgets is accessed from the GUI thread)
+# Class containing usefull functions for the different THz acquisition measurements (linear, pump-probe, etc.)
+class THzFunctionToolbox:
 
-    def __init__(self, devices, plot_widget, start_step_stop, scan_speed, continuous_checkbox, averaging):
-        super(THzAcquisition, self).__init__()
-
-        # Store parameters
+    @staticmethod
+    def BasicParameterStorage(self, devices, plot_widget, THz_start_step_stop, scan_speed, continuous_checkbox, averaging, Scan_type, Pump_probe_start_step_stop=None):
         self.tstage = devices['tstage']
         self.lock_in = devices['lock_in']
         self.scan_speed = scan_speed
         self.averageing_nb = averaging
         self.plot_widget = plot_widget
-        line_components = [float(x) for x in re.split(':', start_step_stop)]
-        self.initial_pos = line_components[0]
-        self.scan_resolution = line_components[1]
-        self.final_pos = line_components[2]
+        line_components = [float(x) for x in re.split(':', THz_start_step_stop)]
+        self.THz_initial_pos = line_components[0]
+        self.THz_scan_resolution = line_components[1]
+        self.THz_final_pos = line_components[2]
         self.THz_scan_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
+        self.scan_type = Scan_type
         if continuous_checkbox: # checked means continuous
-            self.burst_duration = (self.final_pos - self.initial_pos) / self.scan_speed
+            self.burst_duration = (self.THz_final_pos - self.THz_initial_pos) / self.scan_speed
             self.scan_type = 'Continuous'
             self.spec_length = int(self.burst_duration * 429.2 - 1)
         else:
             self.scan_type = 'Step'
             self.burst_duration = 0.1
-            self.spec_length = np.ceil((self.final_pos - self.initial_pos) / self.scan_resolution).astype(int)
+            self.spec_length = np.ceil((self.THz_final_pos - self.THz_initial_pos) / self.THz_scan_resolution).astype(int)
+        if Pump_probe_start_step_stop is not None:
+            line_components = [float(x) for x in re.split(':', Pump_probe_start_step_stop)]
+            self.PumpProbe_initial_pos = line_components[0]
+            self.PumpProbe_scan_resolution = line_components[1]
+            self.PumpProbe_final_pos = line_components[2]
+            self.PumpProbe_scan_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
 
-        # Connect the plot_data function to the plotData signal
-        self.plotDataSignal.connect(self.plot_data)
-
-
-    # Function to acquire data from the lock-in while the delay stage is moving
+    @staticmethod
     def Plotter_acquire(self, clockbase, sample_nodes, daq_module):
+        # Function to acquire data from the lock-in while the delay stage is moving
+
         self.is_running = True
         self.clockbase = clockbase
 
@@ -775,6 +773,8 @@ class THzAcquisition(QtCore.QThread):
                 progress = 100 * min(self.scan_number / self.averageing_nb, scan_frac + elapsed_time/(self.burst_duration * self.averageing_nb))
             if self.scan_type == 'Step':
                 progress = 100 * self.scan_number * (self.acquisition_number+1) / (self.spec_length * self.averageing_nb)
+            if self.scan_type == 'Pump-Probe':
+                progress = progress / len(self.PumpProbe_scan_array) + 100 * self.PumpProbe_scan_number / len(self.PumpProbe_scan_array)
             time.sleep(0.1)
 
             # Display scan progress
@@ -799,13 +799,14 @@ class THzAcquisition(QtCore.QThread):
             result = mean_input2 # - mean_input1  # - mean_1 is comented out because the presubstracted output of the balanced detector is used
         return result
 
+    @staticmethod
     def single_scan(self):
         # Initialize the scan
         print('Moving to initial position')
         self.sendParameter.emit('THz stage speed', 10)                         # Set speed to a fast value (10 mm/s) for moving to the initial position
-        self.sendParameter.emit('THz stage target position',self.initial_pos)  # Move the stage to the initial position
+        self.sendParameter.emit('THz stage target position', self.THz_initial_pos)  # Move the stage to the initial position
         current_position = self.tstage.parameter_dict['THz stage position']    # Get current position from parameter dict
-        while not current_position == self.initial_pos:                # Wait until initial position is reached
+        while not current_position == self.THz_initial_pos:                # Wait until initial position is reached
             time.sleep(0.1)
             current_position = self.tstage.parameter_dict['THz stage position']    # Get current position from parameter dict
         self.sendParameter.emit('THz stage speed', self.scan_speed)
@@ -815,12 +816,11 @@ class THzAcquisition(QtCore.QThread):
         clockbase, nodes, module = self.lock_in.DAQ_setup(self.burst_duration, self.spec_length)  # Configure UHF for burst acquisition with the defined burst duration and sampling rate
 
         if self.scan_type == 'Continuous':
-            self.sendParameter.emit('THz stage target position',self.final_pos)           # Move the stage to the final position
-            voltages = self.Plotter_acquire(clockbase, nodes, module) # Start UHF data acquisition during the scan
-            positions = np.linspace(self.initial_pos, self.final_pos, len(voltages)) # Create a list of positions associated with the voltages
+            self.sendParameter.emit('THz stage target position',self.THz_final_pos)           # Move the stage to the final position
+            voltages = THzFunctionToolbox.Plotter_acquire(self, clockbase, nodes, module) # Start UHF data acquisition during the scan
+            positions = np.linspace(self.THz_initial_pos, self.THz_final_pos, len(voltages)) # Create a list of positions associated with the voltages
 
         if self.scan_type == 'Step':
-
             # Initialize lists to store data
             positions = np.zeros(self.spec_length)
             voltages = np.zeros(self.spec_length)
@@ -831,27 +831,44 @@ class THzAcquisition(QtCore.QThread):
                 # consider placeing wait time/while loop to make sure stage has reached its position
                 time.sleep(self.lock_in.time_constant * 4)                           # Wait for the filter of the lock-in to settle
                 positions[i] = self.tstage.parameter_dict['THz stage position']     # Measure the exact position of the stage
-                voltages[i] = self.Plotter_acquire(clockbase, nodes, module) # Start UHF data acquisition during the scan
+                voltages[i] = THzFunctionToolbox.Plotter_acquire(self, clockbase, nodes, module) # Start UHF data acquisition during the scan
         return positions, voltages
-    
+
+# Measurement of coordinate translation stage scan and UHF data acquisition (like plotter in LabOne) for a back and forth scan of the stage
+class THzAcquisition(QtCore.QThread):
+    # Define used signals
+    sendProgress = QtCore.pyqtSignal(float)
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendParameter = QtCore.pyqtSignal(str, float)
+    plotDataSignal = QtCore.pyqtSignal(np.ndarray, np.ndarray)    # Internal signal (To make sure Qt widgets is accessed from the GUI thread)
+
+    def __init__(self, devices, plot_widget, start_step_stop, scan_speed, continuous_checkbox, averaging):
+        super(THzAcquisition, self).__init__()
+
+        # Store parameters
+        THzFunctionToolbox.BasicParameterStorage(self, devices, plot_widget, start_step_stop, scan_speed, continuous_checkbox, averaging, 'Linear')
+
+        # Connect the plot_linear_THz_data function to the plotData signal
+        self.plotDataSignal.connect(self.plot_linear_THz_data)
+
     def run(self):
         p_sets = []
         v_sets = []
         self.sendProgress.emit(0)
         for i in range(self.averageing_nb):
             self.scan_number = i + 1
-            positions, voltages = self.single_scan()
+            positions, voltages = THzFunctionToolbox.single_scan(self)
             p_sets.append(positions)
             v_sets.append(voltages)
         if self.averageing_nb == 1:
             self.plotDataSignal.emit(positions, voltages)
         else: 
-            t_mean =  np.mean(p_sets, axis=0, keepdims=True)
-            X_mean =  np.mean(v_sets, axis=0, keepdims=True)
+            t_mean = np.mean(p_sets, axis=0, keepdims=True)
+            X_mean = np.mean(v_sets, axis=0, keepdims=True)
             self.plotDataSignal.emit(t_mean[0], X_mean[0])
         self.sendProgress.emit(100)
 
-    def plot_data(self, pos, voltages):
+    def plot_linear_THz_data(self, pos, voltages):
         # Conversion of positions to time
         positions_m = pos * 1e-3  # Convert positions from mm to m
         absolute_time_delays = 2.0 * positions_m / 299792458 * 1e12 # Convert positions to time (ps) (factor of 2 accounts for round trip of light)
@@ -872,11 +889,129 @@ class THzAcquisition(QtCore.QThread):
         self.terminate = True
 
 class THzPumpProbeMeasurement(QtCore.QThread):
-    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)  # Final averaged image (e.g., A_opt)
+    # Define used signals
     sendProgress = QtCore.pyqtSignal(float)
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendParameter = QtCore.pyqtSignal(str, float)
+    plotDataSignal = QtCore.pyqtSignal(np.ndarray, np.ndarray, float)    # Internal signal (To make sure Qt widgets is accessed from the GUI thread)
 
-    def __init__(self, devices):
+    def __init__(self, devices, plot_widget, THz_start_step_stop, scan_speed, continuous_checkbox, averaging, Pump_probe_start_step_stop):
         super(THzPumpProbeMeasurement, self).__init__()
-        self.tstage = devices['tstage']
-        self.lock_in = devices['lock_in']
-        self.terminate = False
+
+        # Store parameters
+        THzFunctionToolbox.BasicParameterStorage(self, devices, plot_widget, THz_start_step_stop, scan_speed, continuous_checkbox, averaging, 'Pump-Probe', Pump_probe_start_step_stop)
+        
+        # Connect the plot_PumpProbe_THz_data function to the plotData signal
+        self.plotDataSignal.connect(self.plot_PumpProbe_THz_data)
+
+    def run(self):
+        self.sendProgress.emit(0)
+        self.sendParameter.emit('Pump-probe stage speed', 10)  # Set movement speed of the pump-probe stage to a fast value (10 mm/s)
+
+        positions_array = []
+        voltages_array = []
+
+        for pump_probe_index in range(len(self.PumpProbe_scan_array)):
+            # Position the pump-probe stage
+            pump_probe_position = float(self.PumpProbe_scan_array[pump_probe_index])
+            self.sendParameter.emit('Pump-probe stage target position', pump_probe_position) # Move the pump-probe stage to its ith position
+            time.sleep(0.5)                                                                           # Wait for the pump-probe stage to reach its target position
+
+            # Run the THz scan for the current pump-probe stage position
+            p_sets = []
+            v_sets = []
+            for average_index in range(self.averageing_nb):
+                self.scan_number = average_index + 1
+                positions, voltages = THzFunctionToolbox.single_scan(self)
+                p_sets.append(positions)
+                v_sets.append(voltages)
+            if self.averageing_nb == 1:
+                scan_positions = positions
+                scan_voltages = voltages
+            else: 
+                t_mean = np.mean(p_sets, axis=0, keepdims=True)
+                X_mean = np.mean(v_sets, axis=0, keepdims=True)
+                scan_positions = t_mean[0]
+                scan_voltages = X_mean[0]
+            positions_array.append(scan_positions)
+            voltages_array.append(scan_voltages)
+            self.plotDataSignal.emit(scan_positions, scan_voltages, pump_probe_position)
+        self.sendProgress.emit(100)
+
+    def plot_PumpProbe_THz_data(self, pos, voltages, pump_probe_position):
+        # Conversion of positions to time
+        positions_m = pos * 1e-3  # Convert positions from mm to m
+        absolute_time_delays = 2.0 * positions_m / 299792458 * 1e12 # Convert positions to time (ps) (factor of 2 accounts for round trip of light)
+        time_array = absolute_time_delays - absolute_time_delays[0] # Move the start of the array to 0
+
+        # Convert pump-probe stage positions to delays, assuming a round-trip optical path.
+        pump_probe_delays = (
+            (self.PumpProbe_scan_array - self.PumpProbe_scan_array[0])
+            * 2e-3 / 299792458 * 1e12
+        )
+        pump_probe_position_delay = (
+            (pump_probe_position - self.PumpProbe_scan_array[0])
+            * 2e-3 / 299792458 * 1e12
+        )
+        pump_probe_row = int(np.argmin(np.abs(pump_probe_delays - pump_probe_position_delay)))
+
+        # Keep image rows and columns aligned with increasing delay coordinates.
+        x_order = np.argsort(time_array)
+        x_delays = time_array[x_order]
+        y_order = np.argsort(pump_probe_delays)
+        y_delays = pump_probe_delays[y_order]
+        image_row = int(np.where(y_order == pump_probe_row)[0][0])
+
+        if not hasattr(self, 'pump_probe_image'):
+            import pyqtgraph as pg
+
+            self.pump_probe_image_data = np.full(
+                (len(y_delays), len(x_delays)), np.nan
+            )
+            self.pump_probe_image = pg.ImageItem(axisOrder='row-major')
+            self.plot_widget.clear()
+            self.plot_widget.addItem(self.pump_probe_image)
+            self.plot_widget.setLabel('bottom', 'THz delay (ps)')
+            self.plot_widget.setLabel('left', 'Pump-probe delay (ps)')
+
+        self.pump_probe_image_data[image_row, :] = voltages[x_order] * 1e6
+        finite_intensities = self.pump_probe_image_data[
+            np.isfinite(self.pump_probe_image_data)
+        ]
+        level_min = float(np.min(finite_intensities))
+        level_max = float(np.max(finite_intensities))
+        if level_min == level_max:
+            level_min -= 0.5
+            level_max += 0.5
+        self.pump_probe_image.setImage(
+            self.pump_probe_image_data,
+            autoLevels=False,
+            levels=(level_min, level_max),
+        )
+        self.pump_probe_image.setRect(QtCore.QRectF(
+            x_delays[0],
+            y_delays[0],
+            x_delays[-1] - x_delays[0],
+            y_delays[-1] - y_delays[0],
+        ))
+        if not hasattr(self, 'pump_probe_colorbar'):
+            self.pump_probe_colorbar = pg.ColorBarItem(
+                values=(level_min, level_max),
+                label='Intensity (µV)',
+            )
+            self.pump_probe_colorbar.setImageItem(
+                self.pump_probe_image,
+                insert_in=self.plot_widget.getPlotItem(),
+            )
+        else:
+            self.pump_probe_colorbar.setLevels(
+                (level_min, level_max),
+                update_items=False,
+            )
+
+        # Send the data to DataHandling for saving
+        time_attribute = np.array([0, time_array[-1], len(pos)]) # Create time attribute to be saved in the H5 file. This will prevent overflowing the H5 attribute while allowing to reconstruct the time array from the attribute when loading the data in mdsam
+        self.sendSpectrum.emit(time_attribute, voltages * 1e6)   # Send the data to DataHandling for saving
+
+    def stop(self):
+        self.terminate = True
