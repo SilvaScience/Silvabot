@@ -219,7 +219,7 @@ class MainInterface(QtWidgets.QMainWindow):
     
         
         # THz tab button connections
-        self.thz_acquisition.clicked.connect(self.thz_acquisition_measurement)
+        self.thz_acquisition.clicked.connect(self.thz_linear_measurement)
         self.thz_pump_probe_pushButton.clicked.connect(self.thz_pump_probe_measurement)
 
         # run some functions once to define default values
@@ -489,7 +489,8 @@ class MainInterface(QtWidgets.QMainWindow):
         # close Qt
         event.accept()
 
-    def thz_acquisition_measurement(self):
+    def thz_spec_length_calc(self):
+        # Calculate the number of points in the THz scan to send to dataHandling before starting THz measurements
         line_components = [float(x) for x in re.split(':', self.THz_lineEdit.text())]
         self.initial_pos = line_components[0]
         self.scan_resolution = line_components[1]
@@ -499,24 +500,17 @@ class MainInterface(QtWidgets.QMainWindow):
             self.spec_length = int(self.burst_duration * 429.2 - 1)
         else:
             self.spec_length = np.ceil((self.final_pos - self.initial_pos) / self.scan_resolution).astype(int)
-            
-        # Conducts a THz measurement using the translation stage and the lock in.
-        self.start_measurement('THzAcquisition',self.devices, self.thz_plot_widget, self.THz_lineEdit.text(), self.THzScanSpeed_doubleSpinBox.value(), self.ContinuousScan_CheckBox.isChecked(),
+
+    def thz_linear_measurement(self):
+        self.thz_spec_length_calc()
+        self.start_measurement('THzLinearMeasurement',self.devices, self.thz_plot_widget, self.THz_lineEdit.text(), 
+                               self.THzScanSpeed_doubleSpinBox.value(), self.ContinuousScan_CheckBox.isChecked(),
                                self.THzAveraging_spinBox.value(), speclength = self.spec_length)
 
     def thz_pump_probe_measurement(self):
-        line_components = [float(x) for x in re.split(':', self.THz_lineEdit.text())]
-        self.initial_pos = line_components[0]
-        self.scan_resolution = line_components[1]
-        self.final_pos = line_components[2]
-        if self.ContinuousScan_CheckBox.isChecked():
-            self.burst_duration = (self.final_pos - self.initial_pos) / self.THzScanSpeed_doubleSpinBox.value()
-            self.spec_length = int(self.burst_duration * 429.2 - 1)
-        else:
-            self.spec_length = np.ceil((self.final_pos - self.initial_pos) / self.scan_resolution).astype(int)
-            
-        # Conducts a THz measurement using the translation stage and the lock in.
-        self.start_measurement('THzPumpProbeMeasurement',self.devices, self.thz_plot_widget, self.THz_lineEdit.text(), self.THzScanSpeed_doubleSpinBox.value(), self.ContinuousScan_CheckBox.isChecked(),
+        self.thz_spec_length_calc()            
+        self.start_measurement('THzPumpProbeMeasurement',self.devices, self.thz_plot_widget, self.THz_lineEdit.text(), 
+                               self.THzScanSpeed_doubleSpinBox.value(), self.ContinuousScan_CheckBox.isChecked(),
                                 self.THzAveraging_spinBox.value(), self.PumpProbeTHz_LineEdit.text(), speclength = self.spec_length)
 
 
