@@ -751,7 +751,7 @@ class THzAcquisition(QtCore.QThread):
         if continuous_checkbox: # checked means continuous
             self.burst_duration = (self.final_pos - self.initial_pos) / self.scan_speed
             self.scan_type = 'Continuous'
-            self.spec_length = (self.burst_duration * 429.2).astype(int)
+            self.spec_length = int(self.burst_duration * 429.2 - 1)
         else:
             self.scan_type = 'Step'
             self.burst_duration = 0.1
@@ -814,7 +814,7 @@ class THzAcquisition(QtCore.QThread):
 
         # Scanning
         print('Starting position reached, starting scan')
-        clockbase, nodes, module = self.lock_in.DAQ_setup(self.burst_duration)  # Configure UHF for burst acquisition with the defined burst duration and sampling rate
+        clockbase, nodes, module = self.lock_in.DAQ_setup(self.burst_duration, self.spec_length)  # Configure UHF for burst acquisition with the defined burst duration and sampling rate
 
         if self.scan_type == 'Continuous':
             self.sendParameter.emit('target_position',self.final_pos)           # Move the stage to the final position

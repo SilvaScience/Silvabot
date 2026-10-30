@@ -250,32 +250,32 @@ class MainInterface(QtWidgets.QMainWindow):
                 self.DataHandling.speclength = speclength
             self.DataHandling.clear_data()
 
-        try:
-            cls = load_class(f"{'measurements.MeasurementClasses'}.{cls}")
+        #try:
+        cls = load_class(f"{'measurements.MeasurementClasses'}.{cls}")
 
-            # Save the inputs of the function in the H5 file
-            input_names = list(inspect.signature(cls).parameters)   # Gets the name of every input
-            self.DataHandling.set_measurement_metadata(cls.__name__, input_names, [repr(value) for value in args])  # Sends the information to datahandling
+        # Save the inputs of the function in the H5 file
+        input_names = list(inspect.signature(cls).parameters)   # Gets the name of every input
+        self.DataHandling.set_measurement_metadata(cls.__name__, input_names, [repr(value) for value in args])  # Sends the information to datahandling
 
-            self.measurement = cls(*args)
+        self.measurement = cls(*args)
 
-            # standard connections
-            if hasattr(self.measurement, "sendProgress"):
-                self.measurement.sendProgress.connect(self.set_progress)
-            if hasattr(self.measurement, "sendSpectrum"):
-                self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
-            if hasattr(self.measurement, "sendParameter"):
-                self.measurement.sendParameter.connect(self.change_parameter)
+        # standard connections
+        if hasattr(self.measurement, "sendProgress"):
+            self.measurement.sendProgress.connect(self.set_progress)
+        if hasattr(self.measurement, "sendSpectrum"):
+            self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
+        if hasattr(self.measurement, "sendParameter"):
+            self.measurement.sendParameter.connect(self.change_parameter)
 
-            # optional extra connections
-            if extra_connections:
-                for signal_name, slot in extra_connections.items():
-                    if hasattr(self.measurement, signal_name):
-                        getattr(self.measurement, signal_name).connect(slot)
-            self.measurement.start()
+        # optional extra connections
+        if extra_connections:
+            for signal_name, slot in extra_connections.items():
+                if hasattr(self.measurement, signal_name):
+                    getattr(self.measurement, signal_name).connect(slot)
+        self.measurement.start()
 
-        except Exception as e:
-            print(f'Measurement not started, Exception: {e}')
+        #except Exception as e:
+        #    print(f'Measurement not started, Exception: {e}')
 
     def create_parameter_array(self):
         # initialization function to store all parameters in one array
