@@ -623,6 +623,8 @@ class DelayStageMeasurement(QtCore.QThread):
             self.scan_axis = 't'
         elif t_axis_value ==4:
             self.scan_axis = 'target_position'
+        elif t_axis_value == 5:
+            self.scan_axis = 'TB_target_delay'
         print(f'Measure delay stage scan at axis {self.scan_axis} following delays:', self.delay_stage_scan_array)
         self.terminate = False
 

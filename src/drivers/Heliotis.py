@@ -71,6 +71,7 @@ class Heliotis(QtCore.QObject):
             self.grating_densities[i] = numbers[i*3 + 1]
             self.grating_blazes[i] = numbers[i * 3 + 2]
         self.center_wl = float(self.write_command('?NM')[0])
+        print("center wl", self.center_wl)
         self.num_gratings = 3
         self.grating_densities = [1, 1200, 600]
         self.grating_blazes =[1, 500, 500]
@@ -333,6 +334,8 @@ class Heliotis(QtCore.QObject):
         while not self.new_spectrum:
             time.sleep(0.05)
         print(time.strftime("%H:%M:%S", time.localtime(time.time())) + ' Spectrum acquired')
+        print(self.spectrum)
+        print(np.max(self.spectrum))
         return self.spectrum
 
     def write_command(self, cmd):
@@ -423,8 +426,9 @@ class CameraWorker:
                 self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev, self.ac_coupling = cmd["parameter_list"]
                 try:
                     self.cameraConfig(self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev,self.ac_coupling)
-                except:
+                except Exception as e:
                     print("Camera config error. Config not updated. Consider taking an acquisiton to reset connection with heliotis")
+                    print(e)
             if cmd["type"] == 'BG_FILENAME':
                 self.change_background(cmd["argument"])
 
@@ -442,13 +446,17 @@ class CameraWorker:
                 rawI, rawQ = self.safe_acquire()
                 print("Acquistion Duration:", time.time() - t0)
                 if self.correct_bg_checkbox:
-                    twoD_avgI = rawI - self.background_I
-                    twoD_avgQ = rawQ - self.background_Q
+                    rawI = rawI - self.background_I
+                    rawQ = rawQ - self.background_Q
                     print('External background correction done')
                 else:
-                    twoD_avgI = rawI - np.mean(rawI, axis=0)
-                    twoD_avgQ = rawQ - np.mean(rawQ, axis=0)
-                amp = np.sqrt((np.mean(twoD_avgI,axis=0)) ** 2 + (np.mean(twoD_avgQ,axis=0)) ** 2)
+                    pass
+                    #twoD_avgI = rawI - np.mean(rawI, axis=0)
+                    #twoD_avgQ = rawQ - np.mean(rawQ, axis=0)
+                #amp = np.sqrt((np.average(twoD_avgI,axis=0)) ** 2 + (np.average(twoD_avgQ,axis=0)) ** 2)
+                print(np.max(rawI), np.max(rawQ))
+                amp = np.sqrt(np.average(rawI,axis=0)**2 + np.average(rawQ,axis=0)**2)
+                print('Amplitude:', np.max(amp), np.min(amp))
                 if self.bad_acquisition:
                     print('Acquisition failed even after several attempts. Place background as replacement data')
                     amp = np.sqrt((self.background_I) ** 2 + (self.background_Q) ** 2)
@@ -593,12 +601,12 @@ class CameraWorker:
         NFrames = num_frames
 
         # Configuration
-        self.camera.remote_device.node_map.TriggerSelector.value = "RecordingStart"
-        self.camera.remote_device.node_map.TriggerMode.value = "On" # changed
-        self.camera.remote_device.node_map.TriggerSource.value = "FI3" # can be uncommented
         self.camera.remote_device.node_map.TriggerSelector.value = "FrameStart"
         self.camera.remote_device.node_map.TriggerMode.value = "On"
         self.camera.remote_device.node_map.TriggerSource.value = "Software" # "Software"
+        self.camera.remote_device.node_map.TriggerSelector.value = "RecordingStart"
+        self.camera.remote_device.node_map.TriggerMode.value = "On" # changed
+        self.camera.remote_device.node_map.TriggerSource.value = "FI2" # can be uncommented
 
         # LIA
 
@@ -616,10 +624,20 @@ class CameraWorker:
 
         # For external reference signal only
         self.camera.remote_device.node_map.LockInReferenceFrequencyScaler.value = "DivideBy4" # "Off" "DivideBy8" # 8 #"DivideBy2"  # or "Off", "DivideBy2" etc
-        self.camera.remote_device.node_map.LockInReferenceSourceSignal.value = "FI2"
+        self.camera.remote_device.node_map.LockInReferenceSourceSignal.value = "FI3"
+
+        # raw amp mode
+        #self.camera.remote_device.node_map.Scan3dExtractionMethod.value = "rawAmp" # "rawIQ"
+        #Scan3dExtractionMethod = rawAmp
 
         # Illumination
         self.camera.remote_device.node_map.LightControllerSource.value = 'Off'
+
+        # Live Outputs
+        self.camera.remote_device.node_map.LineSelector.value = "RTIO2"
+        self.camera.remote_device.node_map.LineSource.value = "LockInReference"
+        #camera.remote_device.node_map.LineSelector.value = "RTIO3"
+        #camera.remote_device.node_map.LineSource.value = "LockInReference"
 
     def selectDevice(self):
         """

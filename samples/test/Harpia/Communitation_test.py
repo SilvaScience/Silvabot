@@ -6,7 +6,8 @@ from lightcon.harpia import Harpia
 #serialNumber = "M24100"
 #base_adress = "http://localhost:20050/v1/"
 
-ip_address = "192.168.1.134"
+ip_address = "192.168.1.134" #:20050/v1/"
+
 
 #initialize connection to Harpia
 harpia = Harpia(ip_address)

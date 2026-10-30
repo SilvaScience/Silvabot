@@ -1,5 +1,8 @@
 """
+@author: Isabella Moreno
 Code to control Harpia's delay line and shutters
+
+Notes: Currently only works with lightcon v1.5.1, trying with 1.7 gave an error!
 """
 from lightcon.harpia import Harpia as HarpiaController
 import time
