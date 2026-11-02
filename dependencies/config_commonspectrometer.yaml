@@ -1,0 +1,45 @@
+devices:
+  cryostat:
+    enabled: true
+    driver: drivers.CryoPasqal.CryoPasqal
+    fallback: drivers.CryoDemo.CryoDemo
+  spectrometer:
+    enabled: true
+    driver: drivers.Spectrograph.Spectrograph
+    fallback: drivers.SpectrometerDemo_advanced.SpectrometerDemo
+    init_args:
+      camera:
+        driver: drivers.PixisCamera.PixisCamera
+        init_args:
+          hardware_params:
+            sensor_height: 256
+            roi_y0: 138
+            roi_height: 54
+      monochromator:
+        driver: drivers.SpectraPro.SpectraPro
+        fallback: drivers.SpectraPro2300iDemo.SpectraPro2300iDemo
+        init_args:
+          port: COM5
+      calibration: calibrations/pixis_sp2300i.yaml
+  orpheus:
+    enabled: false
+    driver: drivers.orpheus.Orpheus
+  powermeter:
+    enabled: false
+    driver: drivers.powermeter.ThorlabsPM100D
+    fallback: drivers.powermeter.ThorlabsPM100DDemo
+  arduino:
+    enabled: false
+    driver: drivers.arduino.Arduino
+    fallback: drivers.arduino.ArduinoDemo
+    init_args:
+      port: COM9
+  piezos:
+    enabled: false
+    driver: drivers.piezos.Piezos
+    init_args:
+      port: COM9
+  lakeshore:
+    enabled: false
+    driver: drivers.lakeshore.Lakeshore
+comment: "User: mattt\nSample: \nPower:\nWavelength:\nFreq: "
