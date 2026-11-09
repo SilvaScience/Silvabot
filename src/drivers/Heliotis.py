@@ -334,8 +334,8 @@ class Heliotis(QtCore.QObject):
         while not self.new_spectrum:
             time.sleep(0.05)
         print(time.strftime("%H:%M:%S", time.localtime(time.time())) + ' Spectrum acquired')
-        print(self.spectrum)
-        print(np.max(self.spectrum))
+        #print(self.spectrum)
+        #print(np.max(self.spectrum))
         return self.spectrum
 
     def write_command(self, cmd):
@@ -445,6 +445,7 @@ class CameraWorker:
                 t0 = time.time()
                 rawI, rawQ = self.safe_acquire()
                 print("Acquistion Duration:", time.time() - t0)
+                print(f'Max I {np.max(rawI)} Max Q {np.max(rawQ)} Min Q {np.min(rawQ)} Min I {np.min(rawI)}')
                 if self.correct_bg_checkbox:
                     rawI = rawI - self.background_I
                     rawQ = rawQ - self.background_Q
@@ -454,7 +455,7 @@ class CameraWorker:
                     #twoD_avgI = rawI - np.mean(rawI, axis=0)
                     #twoD_avgQ = rawQ - np.mean(rawQ, axis=0)
                 #amp = np.sqrt((np.average(twoD_avgI,axis=0)) ** 2 + (np.average(twoD_avgQ,axis=0)) ** 2)
-                print(np.max(rawI), np.max(rawQ))
+                print(f'Max I {np.max(rawI)} Max Q {np.max(rawQ)} Min Q {np.min(rawQ)} Min I {np.min(rawI)}')
                 amp = np.sqrt(np.average(rawI,axis=0)**2 + np.average(rawQ,axis=0)**2)
                 print('Amplitude:', np.max(amp), np.min(amp))
                 if self.bad_acquisition:
@@ -605,8 +606,14 @@ class CameraWorker:
         self.camera.remote_device.node_map.TriggerMode.value = "On"
         self.camera.remote_device.node_map.TriggerSource.value = "Software" # "Software"
         self.camera.remote_device.node_map.TriggerSelector.value = "RecordingStart"
-        self.camera.remote_device.node_map.TriggerMode.value = "On" # changed
-        self.camera.remote_device.node_map.TriggerSource.value = "FI2" # can be uncommented
+        self.camera.remote_device.node_map.TriggerMode.value = "Off" # changed
+        #self.camera.remote_device.node_map.TriggerSource.value = "FI2" # can be uncommented
+
+        # *********** Setting for frametriggering ******************
+
+        self.camera.remote_device.node_map.TriggerSelector.value = "LockInFrameStart"
+        self.camera.remote_device.node_map.TriggerMode.value = "On"
+        self.camera.remote_device.node_map.TriggerSource.value = "FI2"
 
         # LIA
 
@@ -625,6 +632,7 @@ class CameraWorker:
         # For external reference signal only
         self.camera.remote_device.node_map.LockInReferenceFrequencyScaler.value = "DivideBy4" # "Off" "DivideBy8" # 8 #"DivideBy2"  # or "Off", "DivideBy2" etc
         self.camera.remote_device.node_map.LockInReferenceSourceSignal.value = "FI3"
+        self.camera.remote_device.node_map.LockInReferenceTimeShift.value = 100
 
         # raw amp mode
         #self.camera.remote_device.node_map.Scan3dExtractionMethod.value = "rawAmp" # "rawIQ"

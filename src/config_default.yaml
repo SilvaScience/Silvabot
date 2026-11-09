@@ -35,7 +35,7 @@ devices:
     driver: drivers.PI863.PI863
     fallback: drivers.PI863Demo.PI863Demo
   Harpia:
-    enabled: false
+    enabled: true
     driver: drivers.Harpia.Harpia
   lock-in:
     enabled: true

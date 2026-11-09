@@ -54,9 +54,9 @@ class MFLI():
         print('Connection established with the Lock-In')
 
         # Configure the first demodulation parameters
-        self.device.demods[0].enable(True)                                         # Enable the demodulator
-        self.device.demods[0].order(self.parameter_dict['filter_order'])           # Set the filter order
-        self.device.demods[0].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
+        #self.device.demods[0].enable(True)                                         # Enable the demodulator
+        #self.device.demods[0].order(self.parameter_dict['filter_order'])           # Set the filter order
+        #self.device.demods[0].timeconstant(self.parameter_dict['time_constant'])   # Set the time constant
         print('Configuration of the Lock-In completed')
 
         # set up R fi-fo
@@ -71,10 +71,10 @@ class MFLI():
 
     def set_parameter(self,parameter,value):
         if parameter == 'filter_order':
-            self.update_filter_order(value)
+            #self.update_filter_order(value)
             self.filter_order = value
         if parameter == 'time_constant':
-            self.update_time_constant(value)
+            #self.update_time_constant(value)
             self.time_constant = value
     
     def update_filter_order(self, filter_order):
@@ -130,6 +130,7 @@ class UpdateWorker(QtCore.QThread):
             sample_count = min(len(x_values), len(y_values))
             r_values = np.sqrt(x_values[:sample_count] ** 2 + y_values[:sample_count] ** 2) # Demods R
             time_array = np.linspace(self.t0, time.time(), sample_count)
+            #print('Poll data, len ', sample_count)
             self.sendPoll.emit(time_array,r_values)
         print('Worker closes')
         return
