@@ -511,7 +511,7 @@ p, li { white-space: pre-wrap; }
             </property>
             <layout class="QVBoxLayout" name="thz_plot_layout">
              <item>
-              <widget class="QPushButton" name="thzFourierTransformpushButton">
+              <widget class="QPushButton" name="thz_FT_pushButton">
                <property name="text">
                 <string>Fourier transform the displayed data</string>
                </property>

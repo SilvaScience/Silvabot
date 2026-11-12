@@ -757,14 +757,15 @@ class THzFunctionToolbox:
         self.THz_final_pos = line_components[2]
         self.THz_scan_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
         self.measurement_type = measurement_type
+        self.scan_lenght = abs(self.THz_final_pos - self.THz_initial_pos)
         if continuous_checkbox: # checked means continuous
-            self.burst_duration = (self.THz_final_pos - self.THz_initial_pos) / self.scan_speed
+            self.burst_duration = self.scan_lenght / self.scan_speed
             self.scan_type = 'Continuous'
             self.spec_length = int(self.burst_duration * 429.2 - 1)
         else:
             self.scan_type = 'Step'
             self.burst_duration = 0.1
-            self.spec_length = np.ceil((self.THz_final_pos - self.THz_initial_pos) / self.THz_scan_resolution).astype(int)
+            self.spec_length = np.ceil(self.scan_lenght / self.THz_scan_resolution).astype(int)
         if Pump_probe_start_step_stop is not None:
             line_components = [float(x) for x in re.split(':', Pump_probe_start_step_stop)]
             self.PumpProbe_initial_pos = line_components[0]
@@ -816,14 +817,14 @@ class THzFunctionToolbox:
 
         if self.scan_type == 'Continuous':
             # Substract the data coming from sample_node[0] from the data coming from sample_node[1] (individual inputs of the lock-in/the balanced detector)
-            result = data_input2 - data_input1  # - data_input1 is comented out because the presubstracted output of the balanced detector is used
+            result = data_input2 - data_input1
         if self.scan_type == 'Step':
             # Avrage the data over the measurement window
             mean_input1 = np.mean(data_input1)
             mean_input2 = np.mean(data_input2)
 
             # Substract the data coming from sample_node[0] from the data coming from sample_node[1] (individual inputs of the lock-in/the balanced detector)
-            result = mean_input2 - mean_input1  # - mean_1 is comented out because the presubstracted output of the balanced detector is used
+            result = mean_input2 - mean_input1
         return result
 
     @staticmethod
@@ -872,7 +873,7 @@ class THzFunctionToolbox:
         return positions, voltages
 
     @staticmethod
-    def position_to_time(self, pos):
+    def position_to_time(self, pos, inv=False):
         """
         Purpose: Convert a position array in mm to a time array is ps
 
@@ -885,7 +886,10 @@ class THzFunctionToolbox:
         
         positions_m = pos * 1e-3                                    # Convert positions from mm to m
         absolute_time_delays = 2.0 * positions_m / 299792458 * 1e12 # Convert positions to time (ps) (factor of 2 accounts for round trip of light)
-        time_array = absolute_time_delays - absolute_time_delays[0] # Starts the time array at 0
+        if inv == False:
+            time_array = absolute_time_delays - absolute_time_delays[0] # Starts the time array at 0
+        else:
+            time_array = absolute_time_delays - absolute_time_delays[-1] # Starts the time array at 0
         return time_array
 
 # Class used to perform linear THz measurments
@@ -941,8 +945,8 @@ class THzLinearMeasurement(QtCore.QThread):
         """
         
         # Conversion of positions to time
-        time_array = THzFunctionToolbox.position_to_time(self, pos)
-        
+        time_array = THzFunctionToolbox.position_to_time(self, pos, inv = True)
+
         # Plot in the provided plot widget
         self.plot_widget.clear()
         self.plot_widget.plot(time_array, voltages * 1e6, pen='b', linewidth=0.5, label='Vertical')
@@ -1028,7 +1032,7 @@ class THzPumpProbeMeasurement(QtCore.QThread):
         """
         
         # Conversion of positions to time
-        THz_time_array = THzFunctionToolbox.position_to_time(self, pos)
+        THz_time_array = THzFunctionToolbox.position_to_time(self, pos, inv = True)
         pump_probe_delays = THzFunctionToolbox.position_to_time(self, self.PumpProbe_scan_array)
 
         # Initialization of the figure with a colorbar (the if is there so that it gets initialized only once in the begining)
@@ -1054,8 +1058,14 @@ class THzPumpProbeMeasurement(QtCore.QThread):
 
         # Creates and updates the color bar so its scale covers all the data present in the plot
         if not hasattr(self, 'pump_probe_colorbar'):
-            self.pump_probe_colorbar = pg.ColorBarItem(values=(level_min, level_max), label='Intensity (µV)')
-            self.pump_probe_colorbar.setImageItem(self.pump_probe_image, insert_in=self.plot_widget.getPlotItem())
+            self.pump_probe_colorbar = getattr(self.plot_widget, 'pump_probe_colorbar', None)
+            if self.pump_probe_colorbar is None:
+                self.pump_probe_colorbar = pg.ColorBarItem(values=(level_min, level_max), label='Intensity (µV)')
+                self.plot_widget.pump_probe_colorbar = self.pump_probe_colorbar
+                self.pump_probe_colorbar.setImageItem(self.pump_probe_image, insert_in=self.plot_widget.getPlotItem())
+            else:
+                self.pump_probe_colorbar.setImageItem(self.pump_probe_image)
+                self.pump_probe_colorbar.setLevels((level_min, level_max), update_items=False)
         else:
             self.pump_probe_colorbar.setLevels((level_min, level_max), update_items=False)
 
@@ -1065,3 +1075,103 @@ class THzPumpProbeMeasurement(QtCore.QThread):
 
     def stop(self):
         self.terminate = True
+
+class THzFT:
+    def __init__(self, plot_widget):
+        self.plot_widget = plot_widget
+        self.time_domain_data = None
+        self.pump_probe_time_domain_data = None
+
+    def calc_FFT(self, time_ps, signal, axis=-1):
+        dt = time_ps[1] - time_ps[0]  # Calculate the time step
+        n = signal.shape[axis]       # Get the number of samples
+        fft_result = np.fft.fft(signal, axis=axis)  # Calculate the Fourier transform
+        freq = np.fft.fftfreq(n, dt)  # Calculate the corresponding frequencies
+        freq_shifted = np.fft.fftshift(freq)  # Shift the zero frequency component to the center
+        fft_shifted = np.fft.fftshift(fft_result, axes=axis)  # Shift the Fourier transform result to match the shifted frequencies
+        amplitudes = np.abs(fft_shifted)  # Get the amplitude of the Fourier transform
+        return freq_shifted, amplitudes
+
+
+    def run(self):
+        plotted_data = self.plot_widget.listDataItems()
+        image_items = [item for item in self.plot_widget.getPlotItem().items if isinstance(item, pg.ImageItem)]
+        image = image_items[0] if image_items else None
+
+        if len(plotted_data) == 0 and not image_items:  # Check if there is any data in the plot widget
+            raise ValueError('Run a THz scan before calculating its Fourier transform.')
+        
+        elif len(plotted_data) == 1:  # Check if the plotted data is a result of a linear THz measurement (single scan)
+            if (self.plot_widget.getPlotItem().getAxis('bottom').labelText == 'Frequency (THz)'  # Check if the plot is already in the frequency domain
+                and self.time_domain_data is not None):
+                # Restore the time domain plot using the stored time domain data
+                time_ps, signal = self.time_domain_data
+                self.plot_widget.clear()
+                self.plot_widget.plot(time_ps, signal, pen='b', linewidth=0.5, label='Vertical')
+                self.plot_widget.setLabel('bottom', 'Time (ps)')
+                self.plot_widget.setLabel('left', 'Amplitude R (µV)')
+                self.plot_widget.setXRange(time_ps[0], time_ps[-1])
+                self.plot_widget.addLegend()
+                self.time_domain_data = None
+            
+            else: # Plot the frequncy domain data from the time domain data in the displayed plot
+                # Extract the data from the plot widget and format it for the Fourier transform
+                time_ps, signal = plotted_data[0].getData()   # Get the data from the plot widget
+                time_ps = np.asarray(time_ps, dtype=float)    # Convert the time array to a numpy array of floats
+                signal = np.asarray(signal, dtype=float)      # Convert the signal array to a numpy array of floats
+
+                # Calculate the Fourier transform of the signal
+                freq, amplitudes = self.calc_FFT(time_ps, signal)
+
+                # Plot the Fourier transform in the plot widget
+                self.time_domain_data = (time_ps.copy(), signal.copy())
+                self.plot_widget.clear()
+                self.plot_widget.plot(freq, amplitudes, pen='b', linewidth=0.5, label='Fourier amplitude')
+                self.plot_widget.setLabel('bottom', 'Frequency (THz)')
+                self.plot_widget.setLabel('left', 'Amplitude (µV)')
+                self.plot_widget.setXRange(0, 30)
+                self.plot_widget.addLegend()
+        
+        elif image is not None:  # Check if the plotted data is a pump-probe THz measurement
+            if self.plot_widget.getPlotItem().getAxis('bottom').labelText == 'Frequency (THz)':   # Check if the plot is already in the frequency domain
+                # Restore the time domain data
+                image_data, time_ps, pump_probe_delays = self.pump_probe_time_domain_data
+                self.pump_probe_time_domain_data = None
+                plot_data = image_data
+                x_axis = time_ps
+                bottom_label = 'THz delay (ps)'
+                colorbar_label = 'Intensity (µV)'
+            else:  # Convert the time domain data to the frequency domain
+                image_data = np.asarray(image.image, dtype=float)
+                first_point = image.mapToParent(QtCore.QPointF(0, 0))
+                last_time_point = image.mapToParent(QtCore.QPointF(image.width() - 1, 0))
+                last_delay_point = image.mapToParent(QtCore.QPointF(0, image.height() - 1))
+                time_ps = np.linspace(first_point.x(), last_time_point.x(), image_data.shape[1])
+                pump_probe_delays = np.linspace(first_point.y(), last_delay_point.y(), image_data.shape[0])
+                self.pump_probe_time_domain_data = (image_data.copy(), time_ps.copy(), pump_probe_delays.copy())
+                freq, amplitudes = self.calc_FFT(time_ps, image_data, axis=1)
+                plot_data = amplitudes
+                x_axis = freq
+                bottom_label = 'Frequency (THz)'
+                colorbar_label = 'Amplitude (µV)'
+
+            # Replace the plotted data with the Fourier transform of the data and update the plot widget
+            levels = (float(np.min(plot_data)), float(np.max(plot_data)))
+            pump_probe_fft_image = pg.ImageItem(axisOrder='row-major')
+            pump_probe_fft_image.setColorMap(pg.colormap.get('viridis'))
+            pump_probe_fft_image.setImage(plot_data, autoLevels=False, levels=levels)
+            self.plot_widget.clear()
+            self.plot_widget.addItem(pump_probe_fft_image)
+            self.plot_widget.setLabel('bottom', bottom_label)
+            self.plot_widget.setLabel('left', 'Pump-probe delay (ps)')
+            pump_probe_fft_image.setRect(QtCore.QRectF(x_axis[0], pump_probe_delays[0], x_axis[-1] - x_axis[0], 
+                                                       pump_probe_delays[-1] - pump_probe_delays[0]))
+            colorbar = getattr(self.plot_widget, 'pump_probe_colorbar', None)
+            if colorbar is None:
+                colorbar = pg.ColorBarItem(values=levels, label=colorbar_label)
+                self.plot_widget.pump_probe_colorbar = colorbar
+                colorbar.setImageItem(pump_probe_fft_image, insert_in=self.plot_widget.getPlotItem())
+            else:
+                colorbar.setImageItem(pump_probe_fft_image)
+                colorbar.setLevels(levels, update_items=False)
+                colorbar.getAxis('right').setLabel(colorbar_label)

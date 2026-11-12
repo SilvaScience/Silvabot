@@ -221,6 +221,7 @@ class MainInterface(QtWidgets.QMainWindow):
         # THz tab button connections
         self.thz_acquisition.clicked.connect(self.thz_linear_measurement)
         self.thz_pump_probe_pushButton.clicked.connect(self.thz_pump_probe_measurement)
+        self.thz_FT_pushButton.clicked.connect(self.thz_FT)
 
         # run some functions once to define default values
         self.change_filename()
@@ -495,11 +496,12 @@ class MainInterface(QtWidgets.QMainWindow):
         self.initial_pos = line_components[0]
         self.scan_resolution = line_components[1]
         self.final_pos = line_components[2]
+        self.scan_lenght = np.abs(self.final_pos - self.initial_pos)
         if self.ContinuousScan_CheckBox.isChecked():
-            self.burst_duration = (self.final_pos - self.initial_pos) / self.THzScanSpeed_doubleSpinBox.value()
+            self.burst_duration = self.scan_lenght / self.THzScanSpeed_doubleSpinBox.value()
             self.spec_length = int(self.burst_duration * 429.2 - 1)
         else:
-            self.spec_length = np.ceil((self.final_pos - self.initial_pos) / self.scan_resolution).astype(int)
+            self.spec_length = np.ceil(self.scan_lenght / self.scan_resolution).astype(int)
 
     def thz_linear_measurement(self):
         self.thz_spec_length_calc()
@@ -512,6 +514,18 @@ class MainInterface(QtWidgets.QMainWindow):
         self.start_measurement('THzPumpProbeMeasurement',self.devices, self.thz_plot_widget, self.THz_lineEdit.text(), 
                                self.THzScanSpeed_doubleSpinBox.value(), self.ContinuousScan_CheckBox.isChecked(),
                                 self.THzAveraging_spinBox.value(), self.PumpProbeTHz_LineEdit.text(), speclength = self.spec_length)
+
+    def thz_FT(self):
+        if self.measurement_busy:
+            print('Fourier transform not started, a measurement is in progress')
+            return
+
+        try:
+            if not hasattr(self, 'thz_ft'):
+                self.thz_ft = load_class('measurements.MeasurementClasses.THzFT')(self.thz_plot_widget)
+            self.thz_ft.run()
+        except ValueError as error:
+            QtWidgets.QMessageBox.warning(self, 'THz Fourier transform', str(error))
 
 
 class UpdateWorker(QtCore.QThread):
