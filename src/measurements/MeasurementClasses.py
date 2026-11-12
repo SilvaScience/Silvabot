@@ -816,14 +816,14 @@ class THzFunctionToolbox:
 
         if self.scan_type == 'Continuous':
             # Substract the data coming from sample_node[0] from the data coming from sample_node[1] (individual inputs of the lock-in/the balanced detector)
-            result = data_input2 # - data_input1  # - mean_1 is comented out because the presubstracted output of the balanced detector is used
+            result = data_input2 - data_input1  # - data_input1 is comented out because the presubstracted output of the balanced detector is used
         if self.scan_type == 'Step':
             # Avrage the data over the measurement window
             mean_input1 = np.mean(data_input1)
             mean_input2 = np.mean(data_input2)
 
             # Substract the data coming from sample_node[0] from the data coming from sample_node[1] (individual inputs of the lock-in/the balanced detector)
-            result = mean_input2 # - mean_input1  # - mean_1 is comented out because the presubstracted output of the balanced detector is used
+            result = mean_input2 - mean_input1  # - mean_1 is comented out because the presubstracted output of the balanced detector is used
         return result
 
     @staticmethod

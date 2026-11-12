@@ -41,14 +41,14 @@ class Lock_In():
             print('Connection established with the Lock-In')    
 
             # Configure the signal input 1
-            self.device.sigins[0].range(1.5)  # Set input range to 1.5 V
-            self.device.sigins[0].ac(False)   # Set the device to DC coupling
-            self.device.sigins[0].imp50(True) # Set the input impedance to 50 Ohm
+            self.device.sigins[0].range(1.5)   # Set input range to 1.5 V
+            self.device.sigins[0].ac(False)    # Set the device to DC coupling
+            self.device.sigins[0].imp50(False) # Set the input impedance to 1 Mega-Ohm
 
             # Configure the signal input 2
-            self.device.sigins[1].range(1.5)  # Set input range to 1.5 V
-            self.device.sigins[1].ac(False)   # Set the device to DC coupling
-            self.device.sigins[1].imp50(True) # Set the input impedance to 50 Ohm
+            self.device.sigins[1].range(1.5)   # Set input range to 1.5 V
+            self.device.sigins[1].ac(False)    # Set the device to DC coupling
+            self.device.sigins[1].imp50(False) # Set the input impedance to 1 Mega-Ohm
 
             # Configure the first demodulation
             self.device.demods[0].adcselect(0)                                         # Select the input channel to use
@@ -139,23 +139,6 @@ class Lock_In():
         self.device.demods[4].timeconstant(time_constant)
         print(f'Time constant set to {time_constant} s')
 
-        # Wait until at least one record is available
-        while self.scope_module.records() == 0:
-            time.sleep(0.01) 
-
-        data = self.scope_module.read()       # Read the scope data
-        self.device.scopes[0].enable(False)   # Disable the scope
-        self.scope_module.finish()            # Finish the scope acquisition
-        self.records = data[self.wave_node]   # Get the records from the wave node
-        self.record = self.records[-1][0]                    # Get the most recent record
-        self.wave = self.record["wave"][0, :]                # Extract the waveform data
-        self.totalsamples = self.record["totalsamples"]      # Extract the total number of samples
-        self.dt = self.record["dt"]                          # Extract the time step
-        self.timestamp = self.record["timestamp"]            # Extract the timestamp
-        self.triggertimestamp = self.record["triggertimestamp"]  # Extract the trigger timestamp
-        t_us = 1e6 * np.arange(-self.totalsamples, 0) * self.dt + (self.timestamp - self.triggertimestamp) / float(self.clockbase) # Create the time array
-        return t_us, self.wave
-
     def DAQ_setup(self, burst_duration, spec_length):
         self.is_running = False
         self.burst_duration = burst_duration   # Duration of each data burst in seconds
@@ -168,8 +151,7 @@ class Lock_In():
         daq_module.grid.mode(2)                  # Set grid mode
         daq_module.count(1)                      # Set the number of measured bursts to 1   
         daq_module.duration(self.burst_duration) # Set burst duration
-        # daq_module.grid.cols(self.device.demods[0].rate() * self.burst_duration) # Set number of columns in the grid based on burst duration and sampling rate
-        daq_module.grid.cols(spec_length)
+        daq_module.grid.cols(spec_length)        # Set number of columns in the grid based on burst duration and sampling rate
         for node in sample_nodes:
             daq_module.subscribe(node)           # Subscribe to the sample nodes
         return self.clockbase, sample_nodes, daq_module
