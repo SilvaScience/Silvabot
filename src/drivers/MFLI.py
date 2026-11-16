@@ -128,7 +128,7 @@ class UpdateWorker(QtCore.QThread):
             x_values = np.asarray(samples["x"]).ravel()
             y_values = np.asarray(samples["y"]).ravel()
             sample_count = min(len(x_values), len(y_values))
-            r_values = np.sqrt(x_values[:sample_count] ** 2 + y_values[:sample_count] ** 2) # Demods R
+            r_values = np.sqrt(x_values[:sample_count] ** 2 + y_values[:sample_count] ** 2)*1E9 # Demods R units in nV
             time_array = np.linspace(self.t0, time.time(), sample_count)
             #print('Poll data, len ', sample_count)
             self.sendPoll.emit(time_array,r_values)
