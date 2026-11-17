@@ -1,5 +1,6 @@
 # config file
 src/config.yaml
+src/config2.yaml
 
 # Editors
 .vscode/

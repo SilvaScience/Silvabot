@@ -1,0 +1,61 @@
+devices:
+  cryostat:
+    enabled: false
+    driver: drivers.Lakeshore.Lakeshore
+    fallback: drivers.CryoDemo.CryoDemo
+  spectrometer:
+    enabled: true
+    driver: drivers.Alize.Alize
+    fallback: drivers.SpectrometerDemo_advanced.SpectrometerDemo
+    init_args:
+      port: COM12
+  harpia:
+    enabled: false
+    driver: drivers.Harpia.Harpia
+    fallback: drivers.HarpiaDemo.HarpiaDemo
+  lock-in:
+    enabled: false
+    driver: drivers.MFLI.MFLI
+    fallback: drivers.Lock_InDemo.Lock_InDemo
+  orpheus:
+    enabled: false
+    driver: drivers.Orpheus.Orpheus
+  powermeter:
+    enabled: false
+    driver: drivers.ThorlabsPM100D.ThorlabsPM100D
+    fallback: drivers.ThorlabsPM100DDemo.ThorlabsPM100DDemo
+  arduino:
+    enabled: false
+    driver: drivers.Arduino.Arduino
+    fallback: drivers.Arduino.Arduino
+    init_args:
+      port: COM13
+  arduino_motor:
+    enabled: false
+    driver: drivers.ArduinoMotor.ArduinoMotor
+    fallback: drivers.ArduinoDemo.ArduinoDemo
+    init_args:
+      port: COM15
+  bigfoot:
+    enabled: false
+    driver: drivers.Bigfoot.Bigfoot
+  piezos:
+    enabled: false
+    driver: drivers.Piezos.Piezos
+    init_args:
+      port: COM9
+  lakeshore:
+    enabled: false
+    driver: drivers.Lakeshore.Lakeshore
+comment: 'User: DT
+
+
+  nicer spot
+
+  '
+session_parameters:
+  spectrometer:
+    int_time: 200.0
+    avg_scan: 1
+    center_wl: 920.0
+    grating: 1.0
