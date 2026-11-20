@@ -6,7 +6,7 @@ src/config2.yaml
 .vscode/
 .idea/
 
-# Vagrant
+# Vagrant2
 .vagrant/
 
 # Mac/OSX
