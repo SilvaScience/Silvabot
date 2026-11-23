@@ -35,6 +35,15 @@ class MainInterface(QtWidgets.QMainWindow):
         self.project_folder = Path(__file__).parent.resolve()
         uic.loadUi(self.project_folder / 'GUI/main_GUI.ui', self)
 
+        # identify tabs for breakout windows
+        self.tab_widget = self.findChild(QtWidgets.QTabWidget, "tabWidget")
+        self._tab_metadata = {}
+        self._floating_windows = {}
+
+        tab_bar = self.tab_widget.tabBar()
+        tab_bar.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        tab_bar.customContextMenuRequested.connect(self._show_tab_menu)
+
         self.setWindowTitle('Silvabot')
         self.devices = defaultdict(dict)
 
@@ -424,6 +433,56 @@ class MainInterface(QtWidgets.QMainWindow):
         except:
             print('Lecture of T series failed')
 
+    def _show_tab_menu(self, position):
+        # Create tab menau for detach option
+        tab_bar = self.tab_widget.tabBar()
+        index = tab_bar.tabAt(position)
+        if index < 0:
+            return
+
+        menu = QtWidgets.QMenu(self)
+        detach_action = menu.addAction("Move to new window")
+        if menu.exec_(tab_bar.mapToGlobal(position)) == detach_action:
+            self._detach_tab(index)
+
+    def _detach_tab(self, index):
+        # detach tab into a new window
+        page = self.tab_widget.widget(index)
+        title = self.tab_widget.tabText(index)
+        icon = self.tab_widget.tabIcon(index)
+        tooltip = self.tab_widget.tabToolTip(index)
+
+        self._tab_metadata[page] = {
+            "index": index,
+            "title": title,
+            "icon": icon,
+            "tooltip": tooltip,
+        }
+
+        self.tab_widget.removeTab(index)
+        page.setParent(None)  # Detach it from the tab widget's internal stack.
+
+        window = DetachedTabWindow(title, page, self._restore_tab)
+        window.setStyleSheet(self.styleSheet())
+        self._floating_windows[page] = window
+        window.resize(800, 600)
+        page.show()
+        window.show()
+
+    def _restore_tab(self, page):
+        # restore tab to main frame if detached tab is clsed
+        metadata = self._tab_metadata.pop(page, None)
+        if metadata is None:
+            return
+
+        index = min(metadata["index"], self.tab_widget.count())
+        index = self.tab_widget.insertTab(
+            index, page, metadata["icon"], metadata["title"]
+        )
+        self.tab_widget.setTabToolTip(index, metadata["tooltip"])
+        self.tab_widget.setCurrentWidget(page)
+        self._floating_windows.pop(page, None)
+
     ##### Measurements #####
     def acquire_measurement(self):
         # Single measurement
@@ -552,8 +611,24 @@ class UpdateWorker(QtCore.QThread):
                 for param in self.devices[devices].parameter_dict.keys():
                     if param in self.read_only:
                         self.updated_param[param] = self.devices[devices].parameter_dict[param]
-                self.new_parameter.emit(self.updated_param)
+            self.new_parameter.emit(self.updated_param)
             time.sleep(self.update_interval)
+
+
+class DetachedTabWindow(QtWidgets.QMainWindow):
+    # Class to initiate a detached tab
+
+    def __init__(self, title, page, restore_callback):
+        super().__init__()
+        self.setWindowTitle(title)
+        self.setCentralWidget(page)
+        self._restore_callback = restore_callback
+
+    def closeEvent(self, event):
+        page = self.takeCentralWidget()
+        if page is not None:
+            self._restore_callback(page)
+        event.accept()
 
 # Execute app
 if __name__ == "__main__":

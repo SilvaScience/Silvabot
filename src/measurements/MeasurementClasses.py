@@ -661,7 +661,7 @@ class ChirpMeasurement(QtCore.QThread):
         self.spec = []  # preallocate spec array
         line_components = [float(x) for x in re.split(':', chirp_scan_lineEdit)]
         self.scmp_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
-        self.avg_value = avg_value
+        self.avg_value = int(avg_value)
         print('Measure chirp scan with following SCMP positions:', self.scmp_array)
         self.terminate = False
 
@@ -700,7 +700,7 @@ class CompressorMeasurement(QtCore.QThread):
         self.spec = []  # preallocate spec array
         line_components = [float(x) for x in re.split(':', compr_scan_lineEdit)]
         self.compr_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
-        self.avg_value = avg_value
+        self.avg_value = int(avg_value)
         print('Measure chirp scan with following compressor positions:', self.compr_array)
         self.terminate = False
 

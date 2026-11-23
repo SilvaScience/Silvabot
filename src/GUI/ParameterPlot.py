@@ -117,7 +117,7 @@ class ParameterPlot(QtWidgets.QMainWindow):
 
     def save_parameter(self):
         save_parameter_filename = QtWidgets.QFileDialog.getSaveFileName(self, 'Select parameter save name',
-                                                                        filter='*.txt')
+                                                                        filter='*')
         self.send_parameter_filename.emit(save_parameter_filename[0])
 
 
