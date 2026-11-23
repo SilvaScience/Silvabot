@@ -428,6 +428,7 @@ class SpectrometerPlot(QtWidgets.QMainWindow):
         return binned_spec/(2 * (binning - 1) + 1)
 
     @QtCore.pyqtSlot(np.ndarray, np.ndarray)
+    # check if this is still used anywhere
     def set_data_preview(self, wls, spec):
         if not self.first_plot:
             self.graphWidget.removeItem(self.preview_plot)

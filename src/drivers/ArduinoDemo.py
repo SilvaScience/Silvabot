@@ -37,6 +37,11 @@ class ArduinoDemo(QtCore.QThread):
         self.parameter_display_dict['filter_wheel_3']['max'] = 360
         self.parameter_display_dict['filter_wheel_3']['read'] = False
 
+        self.parameter_display_dict['laser_diode']['val'] = 0
+        self.parameter_display_dict['laser_diode']['unit'] = ' '
+        self.parameter_display_dict['laser_diode']['max'] = 300
+        self.parameter_display_dict['laser_diode']['read'] = False
+
         # defining waitTime
         self.WaitTime = 0.1
 
@@ -44,7 +49,10 @@ class ArduinoDemo(QtCore.QThread):
         if parameter == 'filter_wheel_1':
             self.parameter_dict['filter_wheel_1'] = value
         elif parameter == 'filter_wheel_2':
-            self.parameter_dict['filter_wheel_1'] = value
+            self.parameter_dict['filter_wheel_2'] = value
 
         elif parameter == 'filter_wheel_3':
-            self.parameter_dict['filter_wheel_1'] = value
+            self.parameter_dict['filter_wheel_3'] = value
+
+        elif parameter == 'laser_diode':
+            self.parameter_dict['laser_diode'] = value

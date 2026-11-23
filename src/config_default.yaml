@@ -5,7 +5,7 @@ devices:
     fallback: drivers.CryoDemo.CryoDemo
   spectrometer:
     enabled: true
-    driver: drivers.ThorlabsCCS200.ThorlabsCCS200 # Options: .Heliotis, .Pixis, .OceanSpectrometer,
+    driver: drivers.SpectrometerDemo_advanced.SpectrometerDemo # Options: .Heliotis, .Pixis, .OceanSpectrometer,
     fallback: drivers.SpectrometerDemo_advanced.SpectrometerDemo
     init_args:
       port: 'COM10'
@@ -18,8 +18,8 @@ devices:
     fallback: drivers.powermeter.ThorlabsPM100DDemo
   arduino:
     enabled: false
-    driver: drivers.arduino.Arduino
-    fallback: drivers.arduino.ArduinoDemo
+    driver: drivers.Arduino.Arduino
+    fallback: drivers.ArduinoDemo.ArduinoDemo
     init_args:
       port: COM14
   piezos:
@@ -30,6 +30,16 @@ devices:
   lakeshore:
     enabled: false
     driver: drivers.lakeshore.Lakeshore
+  tstage:
+    enabled: false
+    driver: drivers.PI863.PI863
+    fallback: drivers.PI863Demo.PI863Demo
+  Harpia:
+    enabled: true
+    driver: drivers.Harpia.Harpia
+  lock-in:
+    enabled: true
+    driver: drivers.MFLI.MFLI
 comment: 'User: DT
 
   Sample:

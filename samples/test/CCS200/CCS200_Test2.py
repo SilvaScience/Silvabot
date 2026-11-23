@@ -18,6 +18,7 @@ class CCSXXX:
         self.rsrc_name = rsrc_name.encode('utf-8')
         self.ccs_handle = ctypes.c_int(0)
 
+
     def connect(self):
         # connect to the device using DLL's init function'
         self._device = lib.tlccs_init(self.rsrc_name, 1, 1, ctypes.byref(self.ccs_handle))

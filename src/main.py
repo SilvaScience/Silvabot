@@ -1,5 +1,6 @@
 import yaml
 import importlib
+import inspect
 import sys
 import time
 import numpy as np
@@ -10,6 +11,7 @@ from PyQt5 import QtCore, QtWidgets, uic
 from functools import partial
 from GUI.ParameterPlot import ParameterPlot
 from GUI.SpectrometerPlot import SpectrometerPlot
+from GUI.LockInPlot import LockInPlot
 from DataHandling.DataHandling import DataHandling
 
 
@@ -32,6 +34,15 @@ class MainInterface(QtWidgets.QMainWindow):
 
         self.project_folder = Path(__file__).parent.resolve()
         uic.loadUi(self.project_folder / 'GUI/main_GUI.ui', self)
+
+        # identify tabs for breakout windows
+        self.tab_widget = self.findChild(QtWidgets.QTabWidget, "tabWidget")
+        self._tab_metadata = {}
+        self._floating_windows = {}
+
+        tab_bar = self.tab_widget.tabBar()
+        tab_bar.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        tab_bar.customContextMenuRequested.connect(self._show_tab_menu)
 
         self.setWindowTitle('Silvabot')
         self.devices = defaultdict(dict)
@@ -113,7 +124,33 @@ class MainInterface(QtWidgets.QMainWindow):
         vbox.addWidget(self.ParameterPlot)
         self.parameter_tab.setLayout(vbox)
 
-        """ This initializes the parameter tree. It is constructed based on the device dict,
+        # add Lock In tab if MFLI exists
+        print(self.devices.keys())
+        if "lock-in" in self.devices.keys():
+            self.LockIn_tab =QtWidgets.QWidget()
+            self.tabWidget.addTab(self.LockIn_tab, "MFLI")
+            vbox = QtWidgets.QVBoxLayout()
+            self.LockInPlot = LockInPlot()
+            vbox.addWidget(self.LockInPlot)
+            self.LockIn_tab.setLayout(vbox)
+            self.LockInPlot.view_demod_button.clicked.connect(self.view_demod_measurement)
+
+
+
+
+
+        # Initialize the THz tab with plot widget
+        import pyqtgraph as pg
+        self.thz_plot_widget = pg.PlotWidget(title="THz Plot")
+        self.thz_plot_widget.setLabel('left', 'Intensity')
+        self.thz_plot_widget.setLabel('bottom', 'Frequency')
+        thz_plot_layout = self.thz_plot_group.layout()
+        if thz_plot_layout is None:
+            thz_plot_layout = QtWidgets.QVBoxLayout()
+            self.thz_plot_group.setLayout(thz_plot_layout)
+        thz_plot_layout.addWidget(self.thz_plot_widget)
+
+        """ This initializes the parameter tree. It is constructed based on the device dict, 
         that includes parameter information of each device """
         self.parameters_treeWidget.setColumnCount(2)
         self.parameters_treeWidget.setHeaderLabels(["Name", "Value"])
@@ -202,7 +239,11 @@ class MainInterface(QtWidgets.QMainWindow):
         self.Powerseries_run_pushButton.clicked.connect(self.Powerseries_measurement)
         self.chirp_scan_run_pushButton.clicked.connect(self.chirp_scan_measurement)
         self.compressor_scan_run_pushButton.clicked.connect(self.compressor_scan_measurement)
-        self.BF_scan_run_pushButton.clicked.connect(self.BF_measurement)
+        self.delay_stage_scan_run_pushButton.clicked.connect(self.delay_stage_measurement)
+        self.ECPL_scan_run_pushButton.clicked.connect(self.ECPL_measurement)
+        
+        # THz tab button connections
+        self.thz_acquisition.clicked.connect(self.thz_acquisition_measurement)
 
         # run some functions once to define default values
         self.change_filename()
@@ -217,7 +258,7 @@ class MainInterface(QtWidgets.QMainWindow):
 
     # Generic replacement to start any measurement defined in MeasurementClasses through a GUI button 
     # initialized in the "measurements" section below
-    def start_measurement(self, cls, *args, extra_connections=None):
+    def start_measurement(self, cls, *args, extra_connections=None,speclength = None):
         """
         Starts a measurement, clears DataHandling and connects signals to slots
         - cls: Name of class stored in MeasurementClasses (str)
@@ -230,10 +271,17 @@ class MainInterface(QtWidgets.QMainWindow):
             return
         else:
             self.measurement_busy = True
+            if speclength: # needed for some specific measurements, such as THz
+                self.DataHandling.speclength = speclength
             self.DataHandling.clear_data()
 
         try:
             cls = load_class(f"{'measurements.MeasurementClasses'}.{cls}")
+
+            # Save the inputs of the function in the H5 file
+            input_names = list(inspect.signature(cls).parameters)   # Gets the name of every input
+            self.DataHandling.set_measurement_metadata(cls.__name__, input_names, [repr(value) for value in args])  # Sends the information to datahandling
+
             self.measurement = cls(*args)
 
             # standard connections
@@ -243,6 +291,10 @@ class MainInterface(QtWidgets.QMainWindow):
                 self.measurement.sendSpectrum.connect(self.DataHandling.concatenate_data)
             if hasattr(self.measurement, "sendParameter"):
                 self.measurement.sendParameter.connect(self.change_parameter)
+            if hasattr(self.measurement, "sendPoll"):
+                #self.measurement.sendPoll.connect(self.LockInPlot.set_data)
+                self.measurement.sendPoll.connect(self.DataHandling.concatenate_poll_data)
+                self.DataHandling.sendPoll.connect(self.LockInPlot.set_data)
 
             # optional extra connections
             if extra_connections:
@@ -381,6 +433,56 @@ class MainInterface(QtWidgets.QMainWindow):
         except:
             print('Lecture of T series failed')
 
+    def _show_tab_menu(self, position):
+        # Create tab menau for detach option
+        tab_bar = self.tab_widget.tabBar()
+        index = tab_bar.tabAt(position)
+        if index < 0:
+            return
+
+        menu = QtWidgets.QMenu(self)
+        detach_action = menu.addAction("Move to new window")
+        if menu.exec_(tab_bar.mapToGlobal(position)) == detach_action:
+            self._detach_tab(index)
+
+    def _detach_tab(self, index):
+        # detach tab into a new window
+        page = self.tab_widget.widget(index)
+        title = self.tab_widget.tabText(index)
+        icon = self.tab_widget.tabIcon(index)
+        tooltip = self.tab_widget.tabToolTip(index)
+
+        self._tab_metadata[page] = {
+            "index": index,
+            "title": title,
+            "icon": icon,
+            "tooltip": tooltip,
+        }
+
+        self.tab_widget.removeTab(index)
+        page.setParent(None)  # Detach it from the tab widget's internal stack.
+
+        window = DetachedTabWindow(title, page, self._restore_tab)
+        window.setStyleSheet(self.styleSheet())
+        self._floating_windows[page] = window
+        window.resize(800, 600)
+        page.show()
+        window.show()
+
+    def _restore_tab(self, page):
+        # restore tab to main frame if detached tab is clsed
+        metadata = self._tab_metadata.pop(page, None)
+        if metadata is None:
+            return
+
+        index = min(metadata["index"], self.tab_widget.count())
+        index = self.tab_widget.insertTab(
+            index, page, metadata["icon"], metadata["title"]
+        )
+        self.tab_widget.setTabToolTip(index, metadata["tooltip"])
+        self.tab_widget.setCurrentWidget(page)
+        self._floating_windows.pop(page, None)
+
     ##### Measurements #####
     def acquire_measurement(self):
         # Single measurement
@@ -402,10 +504,10 @@ class MainInterface(QtWidgets.QMainWindow):
             self.bg_scans_spinBox.value(), self.filename, self.comments_textEdit.toPlainText(),
             extra_connections={"sendSave": self.DataHandling.save_data})
 
-    def BF_measurement(self):
-        # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
-        self.start_measurement('BFMeasurement', self.devices, self.BF_scan_lineEdit.text(),
-                               self.BF_axis_spinBox.value())
+    def delay_stage_measurement(self):
+        # performs 2D scan by moving the any selected translation stage
+        self.start_measurement('DelayStageMeasurement', self.devices, self.delay_stage_scan_lineEdit.text(),
+                               self.delay_stage_axis_spinBox.value())
 
     def chirp_scan_measurement(self):
         # performs 2D scan by moving the tau stage and acquiring a heliotis image (A_opt) for each tau
@@ -429,13 +531,23 @@ class MainInterface(QtWidgets.QMainWindow):
             self.Tseries_ref_power_doubleSpinBox.value(), self.Tseries_int_time_WL_doubleSpinBox.value(),
             self.Tseries_int_time_orpheus_doubleSpinBox.value(), self.Tseries_spectra_avg_spinBox.value(),
             self.Tseries_power_dep_checkBox.isChecked(), self.Tseries_filter_pos_lineEdit.text(),
-            self.Tseries_int_time_lineEdit.text())
+            self.Tseries_int_time_lineEdit.text(),self.Tseries_sequence_checkBox.isChecked(),self.Tseries_sequence_lineEdit.text())
 
     def Powerseries_measurement(self):
         # take power dependent measurements as defined in automation GUI section
         self.start_measurement('PowerSeriesMeasurement',self.devices, self.parameter,
             self.Powerseries_filter_selection_spinBox.value(), self.Tseries_spectra_avg_spinBox.value(),
             self.Tseries_filter_pos_lineEdit.text())
+
+    def view_demod_measurement(self):
+        # Continuous measurement
+        self.start_measurement('ViewDemodMeasurement', self.devices, self.parameter)
+
+    def ECPL_measurement(self):
+        # performs 2D scan by moving the any selected translation stage
+        self.start_measurement('ECPLMeasurement', self.devices, self.ECPL_scan_lineEdit.text(),
+                               self.ECPL_wait_time_spinBox.value())
+
 
     ### stopping functions ###
     def stop_measurement(self):
@@ -464,6 +576,21 @@ class MainInterface(QtWidgets.QMainWindow):
         # close Qt
         event.accept()
 
+    def thz_acquisition_measurement(self):
+        line_components = [float(x) for x in re.split(':', self.THz_lineEdit.text())]
+        self.initial_pos = line_components[0]
+        self.scan_resolution = line_components[1]
+        self.final_pos = line_components[2]
+        if self.ContinuousScan_CheckBox.isChecked():
+            self.burst_duration = (self.final_pos - self.initial_pos) / self.THzScanSpeed_doubleSpinBox.value()
+            self.spec_length = int(self.burst_duration * 429.2 - 1)
+        else:
+            self.spec_length = np.ceil((self.final_pos - self.initial_pos) / self.scan_resolution).astype(int)
+            
+        # Conducts a THz measurement using the translation stage and the lock in.
+        self.start_measurement('THzAcquisition',self.devices, self.thz_plot_widget, self.THz_lineEdit.text(), self.THzScanSpeed_doubleSpinBox.value(), self.ContinuousScan_CheckBox.isChecked(),
+                               self.THzAveraging_spinBox.value(), speclength = self.spec_length)
+
 
 class UpdateWorker(QtCore.QThread):
 
@@ -486,6 +613,22 @@ class UpdateWorker(QtCore.QThread):
                         self.updated_param[param] = self.devices[devices].parameter_dict[param]
             self.new_parameter.emit(self.updated_param)
             time.sleep(self.update_interval)
+
+
+class DetachedTabWindow(QtWidgets.QMainWindow):
+    # Class to initiate a detached tab
+
+    def __init__(self, title, page, restore_callback):
+        super().__init__()
+        self.setWindowTitle(title)
+        self.setCentralWidget(page)
+        self._restore_callback = restore_callback
+
+    def closeEvent(self, event):
+        page = self.takeCentralWidget()
+        if page is not None:
+            self._restore_callback(page)
+        event.accept()
 
 # Execute app
 if __name__ == "__main__":

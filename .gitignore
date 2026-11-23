@@ -1,11 +1,12 @@
 # config file
 src/config.yaml
+src/config2.yaml
 
 # Editors
 .vscode/
 .idea/
 
-# Vagrant
+# Vagrant2
 .vagrant/
 
 # Mac/OSX
@@ -129,3 +130,7 @@ dmypy.json
 
 # User specific files 
 main2.py
+
+# Local Mac development requirements
+requirements_copymac.txt
+

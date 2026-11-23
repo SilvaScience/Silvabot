@@ -11,8 +11,7 @@ from PyQt5 import QtCore
 import numpy as np
 import h5py
 import os
-from jki_python_bridge_for_labview import labview as lv
-
+# from jki_python_bridge_for_labview import labview as lv
 
 # Measurement to acquire one spectrum
 class AcquireMeasurement(QtCore.QThread):
@@ -287,7 +286,7 @@ class TSeriesMeasurement(QtCore.QThread):
     sendParameter = QtCore.pyqtSignal(str, float)
 
     def __init__(self, devices, parameter, T_series, T_stab_time, two_sources, ref_power, int_time_WL, int_time_orpheus,
-                 spectra_avg, power_dep, filter_pos, int_times):
+                 spectra_avg, power_dep, filter_pos, int_times,sequence_check,sequence_text):
         super(TSeriesMeasurement, self).__init__()
         self.spectrometer = devices['spectrometer']
         self.cryostat = devices['cryostat']
@@ -313,6 +312,11 @@ class TSeriesMeasurement(QtCore.QThread):
                 self.int_times = np.append(self.int_times, int(s))
         except ValueError:
             print('WARNING: Assigning filter pos did not work')
+        try:
+            self.sequence = re.split(',', sequence_text)
+        except ValueError:
+            print('WARNING: Splitting sequence line text did not work')
+        self.sequence_check = sequence_check
 
     def run(self):
         print(time.strftime('%H:%M:%S') + ' Run T Series Measurement')
@@ -343,88 +347,134 @@ class TSeriesMeasurement(QtCore.QThread):
 
                 # measure
                 if not self.terminate:
-                    if not self.two_sources: # case of one single source
-                        if hasattr(self.spectrometer, 'shutter'):
-                            self.spectrometer.start_acquisition()
-                        for m in range(self.spectra_avg): # take several spectra for each acquistion
-                            self.spec = np.array(self.spectrometer.get_intensities())
-                            self.sendSpectrum.emit(self.wls, self.spec)
-                            print(time.strftime('%H:%M:%S') + ' Spectrum acquired')
-                        if hasattr(self.spectrometer, 'shutter'):
-                            self.spectrometer.stop_acquisition()
-
-                        progress = n / len(self.T_series) * 100
-                        self.sendProgress.emit(progress)
-
-                    else: # case of two sources (Orpheus and WL)
-                        if not self.power_dep: # power INdependent case
-                            self.sendParameter.emit('int_time', self.int_time_orpheus)
-                            self.sendParameter.emit('shutter', 100)  # open Orpheus shutter
-                            time.sleep(2)
-                            for m in range(self.spectra_avg):
+                    if self.sequence_check:
+                        for s in self.sequence:
+                            if s =='a':
                                 if hasattr(self.spectrometer, 'shutter'):
                                     self.spectrometer.start_acquisition()
-                                self.spec = np.array(self.spectrometer.get_intensities())
-                                self.sendSpectrum.emit(self.wls, self.spec)
+                                for m in range(self.spectra_avg):  # take several spectra for each acquistion
+                                    self.spec = np.array(self.spectrometer.get_intensities())
+                                    self.sendSpectrum.emit(self.wls, self.spec)
+                                    print(time.strftime('%H:%M:%S') + ' Spectrum acquired')
                                 if hasattr(self.spectrometer, 'shutter'):
                                     self.spectrometer.stop_acquisition()
-                                print(time.strftime('%H:%M:%S') + ' PL Spectrum acquired')
-
-                            self.sendParameter.emit('int_time', self.int_time_WL)
-                            self.sendParameter.emit('shutter', 0)  # close Orpheus shutter
-                            time.sleep(2)
-                        else: # power dependent case, currently NOT IMPLEMENTED (filter wheel missing)
-                            for k in range(len(self.int_times)):
-                                if not self.terminate:
-                                    #self.sendParameter.emit('int_time', self.int_times[k])
-                                    # set intensity filter
-                                    #self.sendParameter.emit('filter_wheel', self.filter_ard_pos[k])
-                                    #self.sendParameter.emit('filter_pos', self.filter_thor_pos[k])
-                                    # trigger spectrometer to settle to new int time
-                                    if hasattr(self.spectrometer, 'shutter'):
-                                        self.spectrometer.start_acquisition()
-                                    if not self.int_time_orpheus == self.int_times[k]:
-                                        print(time.strftime('%H:%M:%S') + ' Int time changed, trigger spectrometer and '
-                                                                          'wait to stabilize changes')
-                                        self.spectrometer.get_intensities()
-                                        time.sleep(2)
-                                    self.int_time_orpheus = self.int_times[k]
-                                    waittime = 1 + self.int_times[k] / 1000
-                                    if waittime < 2:
-                                        waittime = 2
-                                    time.sleep(waittime)
-                                    #self.sendParameter.emit('shutter1', 100)  # open Orpheus shutter
-                                    #time.sleep(2)
-                                    for m in range(self.spectra_avg):
-                                        self.spec = np.array(self.spectrometer.get_intensities())
-                                        self.sendSpectrum.emit(self.wls, self.spec)
-                                        print(time.strftime('%H:%M:%S') + ' PL Spectrum acquired')
-                                    #self.sendParameter.emit('shutter1', 0)  # close Orpheus shutter
-                                    #time.sleep(2)
-                                    if hasattr(self.spectrometer, 'shutter'):
-                                        self.spectrometer.stop_acquisition()
-                            self.sendParameter.emit('int_time', self.int_time_WL)
-
-                        # take WL measurements
-                        self.sendParameter.emit('filter_wheel_1', 0)  # open WL shutter
-                        time.sleep(2)
-                        self.sendParameter.emit('shutter', 0)  # close Orpheus shutter again
-
-                        if hasattr(self.spectrometer, 'shutter'):
-                            self.spectrometer.start_acquisition()
-                        for m in range(self.spectra_avg): # take several WL measurements
-                            self.spec = np.array(self.spectrometer.get_intensities())
-                            self.sendSpectrum.emit(self.wls, self.spec)
-                            print(time.strftime('%H:%M:%S') + ' WL Spectrum acquired')
-                        if hasattr(self.spectrometer, 'shutter'):
-                            self.spectrometer.stop_acquisition()
+                            elif s[0:3] == 'int':
+                                try:
+                                    value = float(s[4:])
+                                    self.sendParameter.emit('int_time', value)
+                                    print(time.strftime('%H:%M:%S') + f' Integration time set to {value}')
+                                    time.sleep(3)
+                                except ValueError:
+                                    print(f'WARNING, unexpected {s} argument')
+                            elif s[0] == 'f':
+                                filter_number = s[1]
+                                try:
+                                    value = float(s[3:])
+                                    filter_string = 'filter_wheel_' + filter_number
+                                    self.sendParameter.emit(filter_string, value)
+                                    print(time.strftime('%H:%M:%S') + f' {filter_string} set to {value}')
+                                    time.sleep(7)
+                                except ValueError:
+                                    print(f'WARNING, unexpected {s} argument')
+                            elif s[0] == 'l':
+                                try:
+                                    value = float(s[1:])
+                                    self.sendParameter.emit('laser_diode', value)
+                                    print(time.strftime('%H:%M:%S') + f' Laser diode set to {value}')
+                                    time.sleep(3)
+                                except ValueError:
+                                    print(f'WARNING, unexpected {s} argument')
+                            else:
+                                print(f'Unknown sequence string: {s}')
                         progress = n / len(self.T_series) * 100
                         self.sendProgress.emit(progress)
-                        self.sendParameter.emit('filter_wheel_1', 100)  # close WL shutter
-                        time.sleep(2)
                         if self.terminate:
                             self.sendProgress.emit(100)
 
+                    else:
+                        if not self.two_sources: # case of one single source
+                            if hasattr(self.spectrometer, 'shutter'):
+                                self.spectrometer.start_acquisition()
+                            for m in range(self.spectra_avg): # take several spectra for each acquistion
+                                self.spec = np.array(self.spectrometer.get_intensities())
+                                self.sendSpectrum.emit(self.wls, self.spec)
+                                print(time.strftime('%H:%M:%S') + ' Spectrum acquired')
+                            if hasattr(self.spectrometer, 'shutter'):
+                                self.spectrometer.stop_acquisition()
+
+                            progress = n / len(self.T_series) * 100
+                            self.sendProgress.emit(progress)
+
+                        else: # case of two sources (Orpheus and WL)
+                            if not self.power_dep: # power INdependent case
+                                self.sendParameter.emit('int_time', self.int_time_orpheus)
+                                self.sendParameter.emit('shutter', 100)  # open Orpheus shutter
+                                time.sleep(2)
+                                for m in range(self.spectra_avg):
+                                    if hasattr(self.spectrometer, 'shutter'):
+                                        self.spectrometer.start_acquisition()
+                                    self.spec = np.array(self.spectrometer.get_intensities())
+                                    self.sendSpectrum.emit(self.wls, self.spec)
+                                    if hasattr(self.spectrometer, 'shutter'):
+                                        self.spectrometer.stop_acquisition()
+                                    print(time.strftime('%H:%M:%S') + ' PL Spectrum acquired')
+
+                                self.sendParameter.emit('int_time', self.int_time_WL)
+                                self.sendParameter.emit('shutter', 0)  # close Orpheus shutter
+                                time.sleep(2)
+                            else: # power dependent case, currently NOT IMPLEMENTED (filter wheel missing)
+                                for k in range(len(self.int_times)):
+                                    if not self.terminate:
+                                        #self.sendParameter.emit('int_time', self.int_times[k])
+                                        # set intensity filter
+                                        #self.sendParameter.emit('filter_wheel', self.filter_ard_pos[k])
+                                        #self.sendParameter.emit('filter_pos', self.filter_thor_pos[k])
+                                        # trigger spectrometer to settle to new int time
+                                        if hasattr(self.spectrometer, 'shutter'):
+                                            self.spectrometer.start_acquisition()
+                                        if not self.int_time_orpheus == self.int_times[k]:
+                                            print(time.strftime('%H:%M:%S') + ' Int time changed, trigger spectrometer and '
+                                                                              'wait to stabilize changes')
+                                            self.spectrometer.get_intensities()
+                                            time.sleep(2)
+                                        self.int_time_orpheus = self.int_times[k]
+                                        waittime = 1 + self.int_times[k] / 1000
+                                        if waittime < 2:
+                                            waittime = 2
+                                        time.sleep(waittime)
+                                        #self.sendParameter.emit('shutter1', 100)  # open Orpheus shutter
+                                        #time.sleep(2)
+                                        for m in range(self.spectra_avg):
+                                            self.spec = np.array(self.spectrometer.get_intensities())
+                                            self.sendSpectrum.emit(self.wls, self.spec)
+                                            print(time.strftime('%H:%M:%S') + ' PL Spectrum acquired')
+                                        #self.sendParameter.emit('shutter1', 0)  # close Orpheus shutter
+                                        #time.sleep(2)
+                                        if hasattr(self.spectrometer, 'shutter'):
+                                            self.spectrometer.stop_acquisition()
+                                self.sendParameter.emit('int_time', self.int_time_WL)
+
+                            # take WL measurements
+                            self.sendParameter.emit('filter_wheel_1', 0)  # open WL shutter
+                            time.sleep(2)
+                            self.sendParameter.emit('shutter', 0)  # close Orpheus shutter again
+
+                            if hasattr(self.spectrometer, 'shutter'):
+                                self.spectrometer.start_acquisition()
+                            for m in range(self.spectra_avg): # take several WL measurements
+                                self.spec = np.array(self.spectrometer.get_intensities())
+                                self.sendSpectrum.emit(self.wls, self.spec)
+                                print(time.strftime('%H:%M:%S') + ' WL Spectrum acquired')
+                            if hasattr(self.spectrometer, 'shutter'):
+                                self.spectrometer.stop_acquisition()
+                            progress = n / len(self.T_series) * 100
+                            self.sendProgress.emit(progress)
+                            self.sendParameter.emit('filter_wheel_1', 100)  # close WL shutter
+                            time.sleep(2)
+                            if self.terminate:
+                                self.sendProgress.emit(100)
+
+        self.sendProgress.emit(100)
         print(time.strftime('%H:%M:%S') + ' Finished')
         return
 
@@ -448,7 +498,7 @@ class AcquireSpectrum(QtCore.QThread):
         self.start_wl = start_wl
         self.end_wl = stop_wl
         self.nb_of_spectra = int(np.ceil((self.end_wl - self.start_wl) / 50) + 1)       # Overestimates the number of individual spectra needed to cover the desired wl range (the 50 comes from the fact that 50 nm is around 200 points and the from each spectra 200 points are kept for the stitching / the + 1 ensures that the full wl range is included in the measurement)
-        self.spec_length = (self.spectrometer.spec_length[0], 200 * self.nb_of_spectra) # Definition of the spec_length of the stitched spectrum that will be sent to DataHandling (200 is the number of points for each individual spectra that is kept when stitching them together)
+        self.speclength = (self.spectrometer.spec_length[0], 200 * self.nb_of_spectra)  # Definition of the spec_length of the stitched spectrum that will be sent to DataHandling (200 is the number of points for each individual spectra that is kept when stitching them together)
 
     def run(self):
         print(self.spectrometer.parameter_dict['start_wl'])
@@ -552,34 +602,37 @@ class PowerSeriesMeasurement(QtCore.QThread):
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
 
-class BFMeasurement(QtCore.QThread):
+class DelayStageMeasurement(QtCore.QThread):
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)  # Final averaged image (e.g., A_opt)
     sendProgress = QtCore.pyqtSignal(float)
     sendSave = QtCore.pyqtSignal(str, str)
     sendParameter = QtCore.pyqtSignal(str, float)
 
-    def __init__(self, devices, BF_scan_lineEdit,t_axis_value):
-        super(BFMeasurement, self).__init__()
+    def __init__(self, devices, delay_stage_scan_lineEdit,t_axis_value):
+        super(DelayStageMeasurement, self).__init__()
         self.spectrometer = devices['spectrometer']
-        self.Bigfoot = devices['bigfoot']
         self.wls = []  # preallocate wls array
         self.spec = []  # preallocate spec array
-        line_components = [float(x) for x in re.split(':', BF_scan_lineEdit)]
-        self.BF_scan_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
+        line_components = [float(x) for x in re.split(':', delay_stage_scan_lineEdit)]
+        self.delay_stage_scan_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
         if t_axis_value ==1:
             self.scan_axis = 'tau'
         elif t_axis_value ==2:
             self.scan_axis = 'T_pop'
         elif t_axis_value ==3:
             self.scan_axis = 't'
-        print(f'Measure BF scan at axis {self.scan_axis} following delays:', self.BF_scan_array)
+        elif t_axis_value ==4:
+            self.scan_axis = 'target_position'
+        elif t_axis_value == 5:
+            self.scan_axis = 'TB_target_delay'
+        print(f'Measure delay stage scan at axis {self.scan_axis} following delays:', self.delay_stage_scan_array)
         self.terminate = False
 
     def run(self):
         self.wls = np.array(self.spectrometer.get_wavelength())
-        for i,t_value in enumerate(self.BF_scan_array):
+        for i,t_value in enumerate(self.delay_stage_scan_array):
             if not self.terminate:  # check whether stopping measurement is called
-                self.sendProgress.emit(i/len(self.BF_scan_array)*100)
+                self.sendProgress.emit(i/len(self.delay_stage_scan_array)*100)
                 self.sendParameter.emit(self.scan_axis, t_value)
                 #time.sleep(0.5) # no feedback on when SCMP is set.
                 self.spec = np.array(self.spectrometer.get_intensities())
@@ -593,7 +646,6 @@ class BFMeasurement(QtCore.QThread):
     def stop(self):
         self.terminate = True
         print(time.strftime('%H:%M:%S') + ' Request Stop')
-
 
 class ChirpMeasurement(QtCore.QThread):
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)  # Final averaged image (e.g., A_opt)
@@ -609,7 +661,7 @@ class ChirpMeasurement(QtCore.QThread):
         self.spec = []  # preallocate spec array
         line_components = [float(x) for x in re.split(':', chirp_scan_lineEdit)]
         self.scmp_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
-        self.avg_value = avg_value
+        self.avg_value = int(avg_value)
         print('Measure chirp scan with following SCMP positions:', self.scmp_array)
         self.terminate = False
 
@@ -648,7 +700,7 @@ class CompressorMeasurement(QtCore.QThread):
         self.spec = []  # preallocate spec array
         line_components = [float(x) for x in re.split(':', compr_scan_lineEdit)]
         self.compr_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
-        self.avg_value = avg_value
+        self.avg_value = int(avg_value)
         print('Measure chirp scan with following compressor positions:', self.compr_array)
         self.terminate = False
 
@@ -664,6 +716,217 @@ class CompressorMeasurement(QtCore.QThread):
                     self.spec = np.array(self.spectrometer.get_intensities())
                     self.sendSpectrum.emit(self.wls, self.spec)
                     print(time.strftime('%H:%M:%S') + f' Spectrum acquired for compressor= {compr_value} um')
+
+        self.sendProgress.emit(100)
+        print(time.strftime('%H:%M:%S') + ' Finished')
+        return
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+# Measurement of coordinate translation stage scan and UHF data acquisition (like plotter in LabOne) for a back and forth scan of the stage
+class THzAcquisition(QtCore.QThread):
+    # Define used signals
+    # sendTargetPosition = QtCore.pyqtSignal(float, int)
+    # sendSpeed = QtCore.pyqtSignal(float, int)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendParameter = QtCore.pyqtSignal(str, float)
+    plotDataSignal = QtCore.pyqtSignal(np.ndarray, np.ndarray)    # Internal signal (To make sure Qt widgets is accessed from the GUI thread)
+
+    def __init__(self, devices, plot_widget, start_step_stop, scan_speed, continuous_checkbox, averaging):
+        super(THzAcquisition, self).__init__()
+
+        # Store parameters
+        self.tstage = devices['tstage']
+        self.lock_in = devices['lock_in']
+        self.scan_speed = scan_speed
+        self.averageing_nb = averaging
+        self.plot_widget = plot_widget
+        line_components = [float(x) for x in re.split(':', start_step_stop)]
+        self.initial_pos = line_components[0]
+        self.scan_resolution = line_components[1]
+        self.final_pos = line_components[2]
+        self.THz_scan_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
+        if continuous_checkbox: # checked means continuous
+            self.burst_duration = (self.final_pos - self.initial_pos) / self.scan_speed
+            self.scan_type = 'Continuous'
+            self.spec_length = (self.burst_duration * 429.2).astype(int)
+        else:
+            self.scan_type = 'Step'
+            self.burst_duration = 0.1
+            self.spec_length = np.ceil((self.final_pos - self.initial_pos) / self.scan_resolution).astype(int)
+
+        # Connect the plot_data function to the plotData signal
+        self.plotDataSignal.connect(self.plot_data)
+
+
+    # Function to acquire data from the lock-in while the delay stage is moving
+    def Plotter_acquire(self, clockbase, sample_nodes, daq_module):
+        self.is_running = True
+        self.clockbase = clockbase
+
+        daq_module.execute()
+        start_time = time.time()
+
+        while not daq_module.raw_module.finished():
+            # Calculate scan progress
+            if self.scan_type == 'Continuous':
+                elapsed_time = time.time() - start_time
+                scan_frac = (self.scan_number - 1) / self.averageing_nb
+                progress = 100 * min(self.scan_number / self.averageing_nb, scan_frac + elapsed_time/(self.burst_duration * self.averageing_nb))
+            if self.scan_type == 'Step':
+                progress = 100 * self.scan_number * (self.acquisition_number+1) / (self.spec_length * self.averageing_nb)
+            time.sleep(0.1)
+
+            # Display scan progress
+            self.sendProgress.emit(progress)
+            
+        # Read results and plot them
+        data_sets = daq_module.read(raw=False, clk_rate=self.clockbase)    
+
+        # Extract DAQResult objects (taking the first element [0] of the list)
+        data_input1 = data_sets[sample_nodes[0]][0].value[0]
+        data_input2 = data_sets[sample_nodes[1]][0].value[0]
+
+        if self.scan_type == 'Continuous':
+            # Substract the data coming from sample_node[0] from the data coming from sample_node[1] (individual inputs of the lock-in/the balanced detector)
+            result = data_input2 # - data_input1  # - mean_1 is comented out because the presubstracted output of the balanced detector is used
+        if self.scan_type == 'Step':
+            # Avrage the data over the measurement window
+            mean_input1 = np.mean(data_input1)
+            mean_input2 = np.mean(data_input2)
+
+            # Substract the data coming from sample_node[0] from the data coming from sample_node[1] (individual inputs of the lock-in/the balanced detector)
+            result = mean_input2 # - mean_input1  # - mean_1 is comented out because the presubstracted output of the balanced detector is used
+        return result
+
+    def single_scan(self):
+        # Initialize the scan
+        print('Moving to initial position')
+        self.sendParameter.emit('speed', 10)                         # Set speed to a fast value (10 mm/s) for moving to the initial position
+        self.sendParameter.emit('target_position',self.initial_pos)  # Move the stage to the initial position
+        current_position = self.tstage.parameter_dict['position']    # Get current position from parameter dict
+        while not current_position == self.initial_pos:                # Wait until initial position is reached
+            time.sleep(0.1)
+            current_position = self.tstage.parameter_dict['position']
+        self.sendParameter.emit('speed', self.scan_speed)
+
+        # Scanning
+        print('Starting position reached, starting scan')
+        clockbase, nodes, module = self.lock_in.DAQ_setup(self.burst_duration)  # Configure UHF for burst acquisition with the defined burst duration and sampling rate
+
+        if self.scan_type == 'Continuous':
+            self.sendParameter.emit('target_position',self.final_pos)           # Move the stage to the final position
+            voltages = self.Plotter_acquire(clockbase, nodes, module) # Start UHF data acquisition during the scan
+            positions = np.linspace(self.initial_pos, self.final_pos, len(voltages)) # Create a list of positions associated with the voltages
+
+        if self.scan_type == 'Step':
+
+            # Initialize lists to store data
+            positions = np.zeros(self.spec_length)
+            voltages = np.zeros(self.spec_length)
+            
+            for i in range(self.spec_length):
+                self.acquisition_number = i
+                self.sendParameter.emit('target_position',self.THz_scan_array[i])    # Move the stage to ith target position
+                # consider placeing wait time/while loop to make sure stage has reached its position
+                time.sleep(self.lock_in.time_constant * 4)                           # Wait for the filter of the lock-in to settle
+                positions[i] = self.tstage.parameter_dict['position']     # Measure the exact position of the stage
+                voltages[i] = self.Plotter_acquire(clockbase, nodes, module) # Start UHF data acquisition during the scan
+        return positions, voltages
+    
+    def run(self):
+        p_sets = []
+        v_sets = []
+        self.sendProgress.emit(0)
+        for i in range(self.averageing_nb):
+            self.scan_number = i + 1
+            positions, voltages = self.single_scan()
+            p_sets.append(positions)
+            v_sets.append(voltages)
+        if self.averageing_nb == 1:
+            self.plotDataSignal.emit(positions, voltages)
+        else: 
+            t_mean =  np.mean(p_sets, axis=0, keepdims=True)
+            X_mean =  np.mean(v_sets, axis=0, keepdims=True)
+            self.plotDataSignal.emit(t_mean[0], X_mean[0])
+        self.sendProgress.emit(100)
+
+    def plot_data(self, pos, voltages):
+        # Conversion of positions to time
+        positions_m = pos * 1e-3  # Convert positions from mm to m
+        absolute_time_delays = 2.0 * positions_m / 299792458 * 1e12 # Convert positions to time (ps) (factor of 2 accounts for round trip of light)
+        time_array = absolute_time_delays - absolute_time_delays[0] # Move the start of the array to 0
+        
+        # Plot in the provided plot widget
+        self.plot_widget.clear()
+        self.plot_widget.plot(time_array, voltages * 1e6, pen='b', linewidth=0.5, label='Vertical')
+        self.plot_widget.setLabel('bottom', 'Time (ps)')
+        self.plot_widget.setLabel('left', 'Amplitude R (µV)')
+        self.plot_widget.addLegend()
+
+        # Send the data to DataHandling for saving
+        time_attribute = np.array([0, time_array[-1], len(pos)]) # Create time attribute to be saved in the H5 file. This will prevent overflowing the H5 attribute while allowing to reconstruct the time array from the attribute when loading the data in mdsam
+        self.sendSpectrum.emit(time_attribute, voltages * 1e6)   # Send the data to DataHandling for saving
+
+    def stop(self):
+        self.terminate = True
+
+# Measurement to continuously view spectra
+class ViewDemodMeasurement(QtCore.QThread):
+    # set used signal types, destination is set in main script
+    sendPoll = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendClear = QtCore.pyqtSignal()
+
+    def __init__(self, devices, parameter):
+        super(ViewDemodMeasurement, self).__init__()
+        self.lock_in = devices['lock-in']
+        self.wls = []  # preallocate wls array
+        self.spec = []  # preallocate spec array
+        self.terminate = False
+
+    def run(self):
+        while not self.terminate:  # check whether stopping measurement is called
+            t = time.time()
+            self.sendProgress.emit(50)
+            self.t_history, self.r_history = self.lock_in.get_demodulator_values()
+            self.sendPoll.emit(self.t_history, self.r_history)
+            time.sleep(0.1)
+        # Finish measurement when loop is terminated
+        print(time.strftime('%H:%M:%S') + ' Finished')
+        self.sendProgress.emit(100)
+
+    def stop(self):
+        self.terminate = True
+        print(time.strftime('%H:%M:%S') + ' Request Stop')
+
+class ECPLMeasurement(QtCore.QThread):
+    sendPoll = QtCore.pyqtSignal(np.ndarray, np.ndarray)
+    sendProgress = QtCore.pyqtSignal(float)
+    sendParameter = QtCore.pyqtSignal(str, float)
+
+    def __init__(self, devices, ECPL_scan_lineEdit, ECPL_wait_time):
+        super(ECPLMeasurement, self).__init__()
+        self.lock_in = devices['lock-in']
+        self.wait_time = ECPL_wait_time
+        line_components = [float(x) for x in re.split(':', ECPL_scan_lineEdit)]
+        self.delay_stage_scan_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
+        print(f'Measure ECPL scan following delays:', self.delay_stage_scan_array)
+        self.terminate = False
+
+    def run(self):
+        for i,t_value in enumerate(self.delay_stage_scan_array):
+            if not self.terminate:  # check whether stopping measurement is called
+                self.sendProgress.emit(i/len(self.delay_stage_scan_array)*100)
+                self.sendParameter.emit('TB_target_delay', t_value)
+                self.t_history, self.r_history = self.lock_in.get_demodulator_values()
+                self.sendPoll.emit(self.t_history, self.r_history)
+                time.sleep(self.wait_time)
+                #time.sleep(0.5) # no feedback on when SCMP is set.
+                print(time.strftime('%H:%M:%S') + f' Move to next delay: {t_value} ps')
 
         self.sendProgress.emit(100)
         print(time.strftime('%H:%M:%S') + ' Finished')
