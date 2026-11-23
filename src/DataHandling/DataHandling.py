@@ -65,8 +65,8 @@ class DataHandling(QtCore.QThread):
         self.parameter_matrix_full = False
         self.data_in_flash = 0
         self.firstbuffer = True
-        self.temp_filename = os.path.join(os.path.expanduser("~"),"Silvabot_temp","temp.h5")
-        #self.temp_filename = r"C:\TEMP\temp.h5"
+        #self.temp_filename = os.path.join(os.path.expanduser("~"),"Silvabot_temp","temp.h5")
+        self.temp_filename = r"C:\TEMP\temp.h5"
         self.filename = 'test'
         self.measurement_name = None
 
