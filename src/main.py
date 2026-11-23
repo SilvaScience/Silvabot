@@ -391,6 +391,7 @@ class MainInterface(QtWidgets.QMainWindow):
             print('Lecture of T series failed')
 
     def _show_tab_menu(self, position):
+        # Create tab menau for detach option
         tab_bar = self.tab_widget.tabBar()
         index = tab_bar.tabAt(position)
         if index < 0:
@@ -402,6 +403,7 @@ class MainInterface(QtWidgets.QMainWindow):
             self._detach_tab(index)
 
     def _detach_tab(self, index):
+        # detach tab into a new window
         page = self.tab_widget.widget(index)
         title = self.tab_widget.tabText(index)
         icon = self.tab_widget.tabIcon(index)
@@ -425,6 +427,7 @@ class MainInterface(QtWidgets.QMainWindow):
         window.show()
 
     def _restore_tab(self, page):
+        # restore tab to main frame if detached tab is clsed
         metadata = self._tab_metadata.pop(page, None)
         if metadata is None:
             return
@@ -545,6 +548,8 @@ class UpdateWorker(QtCore.QThread):
 
 
 class DetachedTabWindow(QtWidgets.QMainWindow):
+    # Class to initiate a detached tab
+
     def __init__(self, title, page, restore_callback):
         super().__init__()
         self.setWindowTitle(title)
