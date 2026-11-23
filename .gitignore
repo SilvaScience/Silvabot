@@ -130,3 +130,7 @@ dmypy.json
 
 # User specific files 
 main2.py
+
+# Local Mac development requirements
+requirements_copymac.txt
+
