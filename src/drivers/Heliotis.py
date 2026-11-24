@@ -14,6 +14,9 @@ to the worker.
 
 This driver has device_setting_function implemented, allowing to interact directly from the GUI to the driver.
 
+A background can be acquired if take_avg is set to 100. By default, it uses the last acquired background for measurements.
+Background can also be loaded from raw file.
+
 TO DO
 
 - Background correct button is currently hardcorded and changes its status upon toggle. Should be synced to actual GUI status of button.
@@ -78,11 +81,11 @@ class Heliotis(QtCore.QObject):
 
         #initial heliotis settings
         self.num_frames = 100
-        self.take_average = False
+        self.take_bg = False
         self.sensitivity = 1
-        self.N_Periods = 100 #95
-        self.ref_freq =  1000 # 29790  # # 71531.2#26662#53325
-        self.freq_dev = 5  # 29790  # # 71531.2#26662#53325
+        self.N_Periods = 100
+        self.ref_freq =  1000
+        self.freq_dev = 5
         self.ac_coupling = 0
         self.timeout = 30
 
@@ -104,10 +107,10 @@ class Heliotis(QtCore.QObject):
         self.parameter_display_dict['grating']['unit'] = ' grat'
         self.parameter_display_dict['grating']['max'] = 3
         self.parameter_display_dict['grating']['read'] = False
-        self.parameter_display_dict['take_average']['val'] = 0
-        self.parameter_display_dict['take_average']['unit'] = ' per'
-        self.parameter_display_dict['take_average']['max'] = 100 # 100 is heliotis max
-        self.parameter_display_dict['take_average']['read'] = False
+        self.parameter_display_dict['take_bg']['val'] = 0
+        self.parameter_display_dict['take_bg']['unit'] = ' per'
+        self.parameter_display_dict['take_bg']['max'] = 100 # 100 is heliotis max
+        self.parameter_display_dict['take_bg']['read'] = False
         self.parameter_display_dict['sensitivity']['val'] = self.sensitivity
         self.parameter_display_dict['sensitivity']['unit'] = ' '
         self.parameter_display_dict['sensitivity']['max'] = 1
@@ -151,21 +154,25 @@ class Heliotis(QtCore.QObject):
             daemon=True
         )
         self.worker.start()
+        # set camera config with initial parameters
         self.cmd_q.put({
             "type": "PARAMETERS",
             "parameter_list": [self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev,self.ac_coupling],
         })
+        self.cmd_q.put({"type": "TIMEOUT", "argument": self.timeout})
 
         # Timer to check whether new spectrum is available for get_intensities
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.check_results)
         self.timer.start(200)
         self.correct_bg_checkbox = False
+        self.save_raw_checkbox = False
         self.ref_filename = None
 
         self.device_setting_function = dict()
         self.device_setting_function['load_bg'] = ('Action',self.load_bg)
         self.device_setting_function['correct_bg'] = ('Checkbox', self.correct_bg_checkbox_toggle)
+        self.device_setting_function['save_raw'] = ('Checkbox', self.save_raw_checkbox_toggle)
 
     def correct_bg_checkbox_toggle(self, checked):
         if self.correct_bg_checkbox:
@@ -183,6 +190,16 @@ class Heliotis(QtCore.QObject):
         self.cmd_q.put({
             "type": "BG_FILENAME",
             "argument": self.ref_filename
+        })
+
+    def save_raw_checkbox_toggle(self):
+        if self.save_raw_checkbox:
+            self.save_raw_checkbox = False
+        else:
+            self.save_raw_checkbox = True
+        self.cmd_q.put({
+            "type": "SAVE_RAW_CHECKED",
+            "argument": self.save_raw_checkbox
         })
 
     def set_parameter(self, parameter, value):
@@ -205,12 +222,12 @@ class Heliotis(QtCore.QObject):
                 "type": "PARAMETERS",
                 "parameter_list": [self.num_frames,self.sensitivity,self.N_Periods,self.ref_freq, self.freq_dev,self.ac_coupling]
             })
-        elif parameter == 'take_average':
-            self.parameter_dict['take_average'] = value
+        elif parameter == 'take_bg':
+            self.parameter_dict['take_bg'] = value
             if value == 100:
-                self.take_average = True
+                self.take_bg = True
             else:
-                self.take_average = False
+                self.take_bg = False
         elif parameter == 'sensitivity':
             self.parameter_dict['sensitivity'] = value
             self.sensitivity = value
@@ -330,7 +347,7 @@ class Heliotis(QtCore.QObject):
         #    "Current thread:", QtCore.QThread.currentThread(), int(QtCore.QThread.currentThreadId())
         #)
         self.new_spectrum = False
-        self.cmd_q.put({"type": "ACQUIRE","take_average": self.take_average,"wavelength": self.wavelength,"save": True,"folder": r"D:\DATA\BIGFOOT"})
+        self.cmd_q.put({"type": "ACQUIRE","take_bg": self.take_bg,"wavelength": self.wavelength,"save": True,"folder": r"D:\DATA\BIGFOOT"})
         while not self.new_spectrum:
             time.sleep(0.05)
         print(time.strftime("%H:%M:%S", time.localtime(time.time())) + ' Spectrum acquired')
@@ -380,19 +397,11 @@ class CameraWorker:
         self.processing = False
         self.acquiring = False
         self.correct_bg_checkbox = False
+        self.save_raw_spectrum = False
         self.background_I = np.zeros((542,512))
         self.background_Q = np.zeros((542,512))
 
-        #initial heliotis settings
-        self.num_frames = 100
-        self.take_average = False
-        self.sensitivity = 1
-        self.N_Periods = 100 #95
-        self.ref_freq =  1000 # 29790  # # 71531.2#26662#53325
-        self.freq_dev = 5
-        self.ac_coupling = 0
-        self.timeout = 30
-
+        # command queue to communicate with driver
         self.cmd_q = command_queue
         self.res_q = result_queue
         self.running = True
@@ -407,8 +416,6 @@ class CameraWorker:
         self.h.add_file(ctiFile)
         self.camera = self.selectDevice()
 
-        # configure camera
-        self.cameraConfig(self.num_frames, self.sensitivity, self.N_Periods, self.ref_freq, self.freq_dev, self.ac_coupling)
 
     def run(self):
         print(time.strftime("%H_%M_%S", time.localtime(time.time())) + ' Heliotis worker started')
@@ -434,28 +441,29 @@ class CameraWorker:
 
             if cmd["type"] == 'BG_CHECKED':
                 self.correct_bg_checkbox = cmd["argument"]
+            if cmd["type"] == 'SAVE_RAW_CHECKED':
+                self.save_raw_spectrum = cmd["argument"]
 
             if cmd["type"] == 'TIMEOUT' :
                 self.timeout = cmd["argument"]
 
             if cmd["type"] == "ACQUIRE":
-                take_avg = cmd["take_average"]
+                take_avg = cmd["take_bg"]
                 wavelength = cmd["wavelength"]
                 print(time.strftime("%H:%M:%S", time.localtime(time.time())) + ' Acquire started')
                 t0 = time.time()
                 rawI, rawQ = self.safe_acquire()
                 print("Acquistion Duration:", time.time() - t0)
-                print(f'Max I {np.max(rawI)} Max Q {np.max(rawQ)} Min Q {np.min(rawQ)} Min I {np.min(rawI)}')
+                extrema = [np.max(rawI),np.max(rawQ),np.min(rawQ),np.min(rawI)]
+                print(f'Max I {extrema[0]} Max Q {extrema[1]} Min Q {extrema[2]} Min I {extrema[3]}')
+                if any(v > 1000 for v in extrema):
+                    print("WARNING, at least one pixel is saturating")
                 if self.correct_bg_checkbox:
                     rawI = rawI - self.background_I
                     rawQ = rawQ - self.background_Q
                     print('External background correction done')
                 else:
                     pass
-                    #twoD_avgI = rawI - np.mean(rawI, axis=0)
-                    #twoD_avgQ = rawQ - np.mean(rawQ, axis=0)
-                #amp = np.sqrt((np.average(twoD_avgI,axis=0)) ** 2 + (np.average(twoD_avgQ,axis=0)) ** 2)
-                print(f'Max I {np.max(rawI)} Max Q {np.max(rawQ)} Min Q {np.min(rawQ)} Min I {np.min(rawI)}')
                 amp = np.sqrt(np.average(rawI,axis=0)**2 + np.average(rawQ,axis=0)**2)
                 print('Amplitude:', np.max(amp), np.min(amp))
                 if self.bad_acquisition:
@@ -465,29 +473,28 @@ class CameraWorker:
                 timestamp = time.strftime("%H_%M_%S", ty_res)
                 datestamp = time.strftime("20%y-%m-%d", ty_res)
                 folder = os.path.join(r"D:\DATA\BIGFOOT", datestamp)
-                os.makedirs(folder, exist_ok=True)
-                folder_raw = os.path.join(folder, 'raw')
-                os.makedirs(folder_raw, exist_ok=True)
-                save_every_spectrum = True
+                if self.save_raw_spectrum:
+                    os.makedirs(folder, exist_ok=True)
+                    folder_raw = os.path.join(folder, 'raw')
+                    os.makedirs(folder_raw, exist_ok=True)
                 if take_avg:
-                    filename = os.path.join(folder_raw, "avg_data" + timestamp + '.h5')
-                    if save_every_spectrum:
+                    self.background_I = np.mean(rawI, axis=0)
+                    self.background_Q = np.mean(rawQ, axis=0)
+                    print(time.strftime("%H:%M:%S", time.localtime(time.time())) + " Background data acquired")
+                    if self.save_raw_spectrum:
+                        filename = os.path.join(folder_raw, "background_data" + timestamp + '.h5')
                         with h5py.File(filename, 'w') as f:
                             f.create_dataset('averaged_rawI', data=np.mean(rawI, axis=0))
                             f.create_dataset('averaged_rawQ', data=np.mean(rawQ, axis=0))
                             f['averaged_rawI'].attrs["xaxis"] = wavelength
-                    #print(time.strftime("%H:%M:%S", time.localtime(time.time())) + " Average data acquired")
                 else:
-                    filename = os.path.join(folder_raw, "raw_data" + timestamp + '.h5')
-                    if save_every_spectrum:
+                    if self.save_raw_spectrum:
+                        filename = os.path.join(folder_raw, "raw_data" + timestamp + '.h5')
                         with h5py.File(filename, 'w') as f:
                             f.create_dataset('rawI', data=rawI)
                             f.create_dataset('rawQ', data=rawQ)
                             f['rawI'].attrs["xaxis"] = wavelength
-                    #print(timestamp.replace('_',':') + " Raw data acquired")
 
-                # send back result
-                #spectrum = np.mean(amp, axis=0)
                 self.res_q.put(amp)
 
     def change_background(self,filename):
@@ -540,19 +547,13 @@ class CameraWorker:
             self.bad_acquisition = True
             data = (self.background_I, self.background_Q)
         else:
-            #result = result.get()
-            #if isinstance(result, Exception):
-            #    raise result
             data = result.get("data")
             self.camera.stop()
 
-
-        #with self.camera.fetch(timeout=10000) as buffer:
-        #    data = np.array([img.data % 2 ** 15 // 4 for img in buffer.payload.components]).reshape(outputShape)
-        #self.camera.stop()
         return data
 
     def grab_frame(self,result):
+        # grabs frame from camera and returns data in output shape
         outputShape = self.getOutputShape()
         try:
             with self.camera.fetch(timeout=10000) as buffer:
@@ -560,9 +561,7 @@ class CameraWorker:
                     img.data % 2 ** 15 // 4
                     for img in buffer.payload.components
                 ]).reshape(outputShape)
-            #q.put(data)
         except Exception as e:
-            #q.put(e)
             print(e)
 
     def getOutputShape(self):
@@ -583,43 +582,32 @@ class CameraWorker:
         \param camera harvesters camera object
         """
         # Experiment Parameters
-        # Sensor sensitivity in %/100, 0.5 for C4-S40, 0.2 for C4-S40U, 0.05 for C4-S41U and 0.25 for C4M
-        sensitivity = sensitivity # 0.5
-        # Number of intergration periods
-        NPeriods = Nperiods #49
-        # Background suppression on/off switch, 'AC' or 'DC'
+        sensitivity = sensitivity
+        NPeriods = Nperiods
         if ac_coupling == 100:
-            coupling = 'AC'  # DC before
+            coupling = 'AC'
         else:
-            coupling = 'DC' # DC before
-        # Reference frequency in Hz
-        refFrequency = ref_freq # 44700.    #3150.    #real : 29796.0  framerate = refFrequency / NPeriods
-        # Source of reference signal, 'Internal' or 'External'
-        refSource = 'External' # 'External'
-        # Expected frequency deviation of external reference input in %
-        #expFrequencyDev = 1
-        # Number of frames to be recorded
+            coupling = 'DC'
+        refFrequency = ref_freq
         NFrames = num_frames
 
         # Configuration
         self.camera.remote_device.node_map.TriggerSelector.value = "FrameStart"
         self.camera.remote_device.node_map.TriggerMode.value = "On"
-        self.camera.remote_device.node_map.TriggerSource.value = "Software" # "Software"
+        self.camera.remote_device.node_map.TriggerSource.value = "Software"
         self.camera.remote_device.node_map.TriggerSelector.value = "RecordingStart"
-        self.camera.remote_device.node_map.TriggerMode.value = "Off" # changed
-        #self.camera.remote_device.node_map.TriggerSource.value = "FI2" # can be uncommented
+        self.camera.remote_device.node_map.TriggerMode.value = "Off"
 
-        # *********** Setting for frametriggering ******************
-
+        # *********** Setting for frametriggering (available from Firmware >c67577d1(1.12.1) ******************
         self.camera.remote_device.node_map.TriggerSelector.value = "LockInFrameStart"
         self.camera.remote_device.node_map.TriggerMode.value = "On"
         self.camera.remote_device.node_map.TriggerSource.value = "FI2"
 
         # LIA
-
         self.camera.remote_device.node_map.DeviceOperationMode.value = "LockInCam"
         self.camera.remote_device.node_map.Scan3dExtractionMethod.value = "rawIQ"
-
+        self.camera.remote_device.node_map.LockInReferenceSourceType.value = 'External'
+        # Measurement parameters
         self.camera.remote_device.node_map.LockInSensitivity.value = sensitivity
         self.camera.remote_device.node_map.LockInTargetTimeConstantNPeriods.value = NPeriods
         self.camera.remote_device.node_map.LockInCoupling.value = coupling
@@ -627,25 +615,17 @@ class CameraWorker:
         self.camera.remote_device.node_map.LockInTargetReferenceFrequency.value = refFrequency
         self.camera.remote_device.node_map.AcquisitionBurstFrameCount.value = NFrames
 
-        self.camera.remote_device.node_map.LockInReferenceSourceType.value = refSource
-
-        # For external reference signal only
-        self.camera.remote_device.node_map.LockInReferenceFrequencyScaler.value = "DivideBy4" # "Off" "DivideBy8" # 8 #"DivideBy2"  # or "Off", "DivideBy2" etc
+        # External reference config
+        self.camera.remote_device.node_map.LockInReferenceFrequencyScaler.value = "DivideBy4"
         self.camera.remote_device.node_map.LockInReferenceSourceSignal.value = "FI3"
         self.camera.remote_device.node_map.LockInReferenceTimeShift.value = 100
-
-        # raw amp mode
-        #self.camera.remote_device.node_map.Scan3dExtractionMethod.value = "rawAmp" # "rawIQ"
-        #Scan3dExtractionMethod = rawAmp
 
         # Illumination
         self.camera.remote_device.node_map.LightControllerSource.value = 'Off'
 
-        # Live Outputs
+        # Live Outputs (to monitor LockIn phase with external Oscilloscope)
         self.camera.remote_device.node_map.LineSelector.value = "RTIO2"
         self.camera.remote_device.node_map.LineSource.value = "LockInReference"
-        #camera.remote_device.node_map.LineSelector.value = "RTIO3"
-        #camera.remote_device.node_map.LineSource.value = "LockInReference"
 
     def selectDevice(self):
         """
@@ -659,8 +639,6 @@ class CameraWorker:
         self.h.update()
         NDevices = len(self.h.device_info_list)
         print("{} device(s) detected on the Network:\n".format(NDevices))
-        #for i, dev in enumerate(self.h.device_info_list):
-        #    print("{}) {} ({})".format(i + 1, dev.id_, dev.serial_number))
 
         if NDevices == 1:
             selectionInt = 1
@@ -677,8 +655,9 @@ class CameraWorker:
             if ((selectionInt <= 0) or (selectionInt > NDevices)):
                 exit('No device selected - exit script')
 
+        # to be used if more than one camera is on the network
         deviceID = self.h.device_info_list[selectionInt - 1].id_
-        #print('selected device:', deviceID, '\n')
+        print('selected device:', deviceID, '\n')
         return self.h.create(selectionInt - 1)
 
     def reconnect_heliotis(self):
