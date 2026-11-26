@@ -33,7 +33,7 @@ class Lock_In():
         self.parameter_dict = {}
         for key in self.parameter_display_dict.keys():
             self.parameter_dict[key] = self.parameter_display_dict[key]['val']
-
+        self.time_constant = self.parameter_dict['time_constant']
         # Connect to the appropriate lock-in device
         if lock_in_type == 'UHF':
             self.session = Session("localhost")                     # Create a session with the Data Server

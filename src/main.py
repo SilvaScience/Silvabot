@@ -494,7 +494,7 @@ class MainInterface(QtWidgets.QMainWindow):
         # Calculate the number of points in the THz scan to send to dataHandling before starting THz measurements
         line_components = [float(x) for x in re.split(':', self.THz_lineEdit.text())]
         self.initial_pos = line_components[0]
-        self.scan_resolution = line_components[1]
+        self.scan_resolution = abs(line_components[1])
         self.final_pos = line_components[2]
         self.scan_lenght = np.abs(self.final_pos - self.initial_pos)
         if self.ContinuousScan_CheckBox.isChecked():

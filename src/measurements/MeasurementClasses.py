@@ -753,9 +753,11 @@ class THzFunctionToolbox:
         self.plot_widget = plot_widget
         line_components = [float(x) for x in re.split(':', THz_start_step_stop)]
         self.THz_initial_pos = line_components[0]
-        self.THz_scan_resolution = line_components[1]
+        self.THz_scan_resolution = abs(line_components[1])
         self.THz_final_pos = line_components[2]
-        self.THz_scan_array =  np.arange(line_components[0], line_components[2] + line_components[1], line_components[1])
+        scan_direction = -1 if self.THz_final_pos < self.THz_initial_pos else 1
+        scan_step = scan_direction * self.THz_scan_resolution
+        self.THz_scan_array = np.arange(self.THz_initial_pos, self.THz_final_pos + scan_step, scan_step)
         self.measurement_type = measurement_type
         self.scan_lenght = abs(self.THz_final_pos - self.THz_initial_pos)
         if continuous_checkbox: # checked means continuous
@@ -766,6 +768,7 @@ class THzFunctionToolbox:
             self.scan_type = 'Step'
             self.burst_duration = 0.1
             self.spec_length = np.ceil(self.scan_lenght / self.THz_scan_resolution).astype(int)
+            self.THz_scan_array = self.THz_scan_array[:self.spec_length]
         if Pump_probe_start_step_stop is not None:
             line_components = [float(x) for x in re.split(':', Pump_probe_start_step_stop)]
             self.PumpProbe_initial_pos = line_components[0]
@@ -792,7 +795,6 @@ class THzFunctionToolbox:
 
         daq_module.execute()
         start_time = time.time()
-
         while not daq_module.raw_module.finished():
             # Calculate scan progress
             if self.scan_type == 'Continuous':
@@ -809,7 +811,7 @@ class THzFunctionToolbox:
             self.sendProgress.emit(progress)
             
         # Read results and plot them
-        data_sets = daq_module.read(raw=False, clk_rate=self.clockbase)    
+        data_sets = daq_module.read(raw=False, clk_rate=self.clockbase)
 
         # Extract DAQResult objects (taking the first element [0] of the list)
         data_input1 = data_sets[sample_nodes[0]][0].value[0]
@@ -867,9 +869,13 @@ class THzFunctionToolbox:
                 self.acquisition_number = i
                 self.sendParameter.emit('THz stage target position',self.THz_scan_array[i])    # Move the stage to ith target position
                 # consider placeing wait time/while loop to make sure stage has reached its position
-                time.sleep(self.lock_in.time_constant * 4)                           # Wait for the filter of the lock-in to settle
+                time.sleep(self.lock_in.time_constant * 3)                           # Wait for the filter of the lock-in to settle
                 positions[i] = self.tstage.parameter_dict['THz stage position']     # Measure the exact position of the stage
                 voltages[i] = THzFunctionToolbox.Plotter_acquire(self, clockbase, nodes, module) # Start UHF data acquisition during the scan
+                if self.measurement_type == 'Linear':
+                    self.plotDataSignal.emit(positions[:i + 1].copy(), voltages[:i + 1].copy(), False)
+                elif self.measurement_type == 'Pump-Probe':
+                    self.plotDataSignal.emit(positions[:i + 1].copy(), voltages[:i + 1].copy(), self.PumpProbe_scan_number, False)
         return positions, voltages
 
     @staticmethod
@@ -898,7 +904,7 @@ class THzLinearMeasurement(QtCore.QThread):
     sendProgress = QtCore.pyqtSignal(float)
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     sendParameter = QtCore.pyqtSignal(str, float)
-    plotDataSignal = QtCore.pyqtSignal(np.ndarray, np.ndarray)    # Internal signal (To make sure Qt widgets is accessed from the GUI thread)
+    plotDataSignal = QtCore.pyqtSignal(np.ndarray, np.ndarray, bool)    # Internal signal (To make sure Qt widgets is accessed from the GUI thread)
 
     def __init__(self, devices, plot_widget, start_step_stop, scan_speed, continuous_checkbox, averaging):
         super(THzLinearMeasurement, self).__init__()
@@ -926,37 +932,42 @@ class THzLinearMeasurement(QtCore.QThread):
             p_sets.append(positions)
             v_sets.append(voltages)
         if self.averageing_nb == 1:  # If no averaging, emit the data
-            self.plotDataSignal.emit(positions, voltages)
+            self.plotDataSignal.emit(positions, voltages, True)
         else:   # If there is averaging, calculate the averages and emit the result
             t_mean = np.mean(p_sets, axis=0, keepdims=True)
             X_mean = np.mean(v_sets, axis=0, keepdims=True)
-            self.plotDataSignal.emit(t_mean[0], X_mean[0])
+            self.plotDataSignal.emit(t_mean[0], X_mean[0], True)
         self.sendProgress.emit(100)
 
-    def plot_linear_THz_data(self, pos, voltages):
+    def plot_linear_THz_data(self, pos, voltages, save_data):
         """
         Purpose: Plot the result of the linear THz measurement
         
         Inputs:
             - pos: Array of the positions over which the scan took place
             - voltages: Voltage measured during the scan
+            - save_data: Whether to send the result to DataHandling for saving
 
         Output: There is no actual output (data is plotted and sent to dataHandling for saving)
         """
         
         # Conversion of positions to time
         time_array = THzFunctionToolbox.position_to_time(self, pos, inv = True)
+        if len(time_array) > 1 and time_array[0] > time_array[-1]:
+            time_array = time_array[::-1]
 
         # Plot in the provided plot widget
+        print(np.argmax(voltages))
         self.plot_widget.clear()
         self.plot_widget.plot(time_array, voltages * 1e6, pen='b', linewidth=0.5, label='Vertical')
         self.plot_widget.setLabel('bottom', 'Time (ps)')
         self.plot_widget.setLabel('left', 'Amplitude R (µV)')
         self.plot_widget.addLegend()
 
-        # Send the data to DataHandling for saving
-        time_attribute = np.array([0, time_array[-1], len(pos)]) # Create time attribute to be saved in the H5 file. This will prevent overflowing the H5 attribute while allowing to reconstruct the time array from the attribute when loading the data in mdsam
-        self.sendSpectrum.emit(time_attribute, voltages * 1e6)   # Send the data to DataHandling for saving
+        if save_data:
+            # Send the final data to DataHandling for saving
+            time_attribute = np.array([0, time_array[-1], len(pos)]) # Create time attribute to be saved in the H5 file. This will prevent overflowing the H5 attribute while allowing to reconstruct the time array from the attribute when loading the data in mdsam
+            self.sendSpectrum.emit(time_attribute, voltages * 1e6)
 
     def stop(self):
         self.terminate = True
@@ -967,7 +978,7 @@ class THzPumpProbeMeasurement(QtCore.QThread):
     sendProgress = QtCore.pyqtSignal(float)
     sendSpectrum = QtCore.pyqtSignal(np.ndarray, np.ndarray)
     sendParameter = QtCore.pyqtSignal(str, float)
-    plotDataSignal = QtCore.pyqtSignal(np.ndarray, np.ndarray, int)    # Internal signal (To make sure Qt widgets is accessed from the GUI thread)
+    plotDataSignal = QtCore.pyqtSignal(np.ndarray, np.ndarray, int, bool)    # Internal signal (To make sure Qt widgets is accessed from the GUI thread)
 
     def __init__(self, devices, plot_widget, THz_start_step_stop, scan_speed, continuous_checkbox, averaging, Pump_probe_start_step_stop):
         super(THzPumpProbeMeasurement, self).__init__()
@@ -1010,16 +1021,16 @@ class THzPumpProbeMeasurement(QtCore.QThread):
             if self.averageing_nb == 1:  # If there is no averaging, append the position and voltage arrays with the obtained positions and voltages from single_scan
                 positions_array.append(positions)
                 voltages_array.append(voltages)
-                self.plotDataSignal.emit(positions, voltages, pump_probe_index)
+                self.plotDataSignal.emit(positions, voltages, pump_probe_index, True)
             else:   # If there is averaging, append the position and voltage arrays with an average of the obtained positions and voltages from the multiple single_scan taken
                 t_mean = np.mean(p_sets, axis=0, keepdims=True)
                 X_mean = np.mean(v_sets, axis=0, keepdims=True)
                 positions_array.append(t_mean[0])
                 voltages_array.append(X_mean[0])
-                self.plotDataSignal.emit(t_mean[0], X_mean[0], pump_probe_index)
+                self.plotDataSignal.emit(t_mean[0], X_mean[0], pump_probe_index, True)
         self.sendProgress.emit(100) # Send 100% progress when the scan is completed
 
-    def plot_PumpProbe_THz_data(self, pos, voltages, pump_probe_index):
+    def plot_PumpProbe_THz_data(self, pos, voltages, pump_probe_index, save_data):
         """
         Purpose: Plot the result of the pump-probe THz measurement
         
@@ -1027,17 +1038,22 @@ class THzPumpProbeMeasurement(QtCore.QThread):
             - pos: Array of the positions over which the scan took place
             - voltages: Voltage measured during the scan
             - pump_probe_index: Zero-based index of the current pump-probe scan position
+            - save_data: Whether to send the completed scan to DataHandling for saving
 
         Output: There is no actual output (data is plotted and sent to dataHandling for saving)
         """
         
-        # Conversion of positions to time
-        THz_time_array = THzFunctionToolbox.position_to_time(self, pos, inv = True)
+        # Use the full scan range for the image even while the current row is incomplete.
+        if self.scan_type == 'Step':
+            full_scan_positions = self.THz_scan_array
+        else:
+            full_scan_positions = np.linspace(self.THz_initial_pos, self.THz_final_pos, self.spec_length)
+        THz_time_array = THzFunctionToolbox.position_to_time(self, full_scan_positions, inv=True)
         pump_probe_delays = THzFunctionToolbox.position_to_time(self, self.PumpProbe_scan_array)
 
         # Initialization of the figure with a colorbar (the if is there so that it gets initialized only once in the begining)
         if not hasattr(self, 'pump_probe_image'):
-            self.pump_probe_image_data = np.full((len(pump_probe_delays), len(THz_time_array)), np.nan)
+            self.pump_probe_image_data = np.full((len(pump_probe_delays), len(full_scan_positions)), np.nan)
             self.pump_probe_image = pg.ImageItem(axisOrder='row-major')
             self.pump_probe_image.setColorMap(pg.colormap.get('viridis'))
             self.plot_widget.clear()
@@ -1046,7 +1062,7 @@ class THzPumpProbeMeasurement(QtCore.QThread):
             self.plot_widget.setLabel('left', 'Pump-probe delay (ps)')
 
         # Update the plot with the new data
-        self.pump_probe_image_data[pump_probe_index, :] = voltages * 1e6               # Store the voltages in the new row corresponding to the current pump-probe delay
+        self.pump_probe_image_data[pump_probe_index, :len(voltages)] = voltages * 1e6               # Store the voltages in the new row corresponding to the current pump-probe delay
         finite_intensities = self.pump_probe_image_data[np.isfinite(self.pump_probe_image_data)] # Skips over the sections of the plot that haven't been measured yet that have NaN values
         level_min = float(np.min(finite_intensities))   # Sets the minimum level to scale the intensity
         level_max = float(np.max(finite_intensities))   # Sets the maximum level to scale the intensity
@@ -1069,9 +1085,10 @@ class THzPumpProbeMeasurement(QtCore.QThread):
         else:
             self.pump_probe_colorbar.setLevels((level_min, level_max), update_items=False)
 
-        # Send the data to DataHandling for saving
-        time_attribute = np.array([0, THz_time_array[-1], len(pos)]) # Create time attribute to be saved in the H5 file. This will prevent overflowing the H5 attribute while allowing to reconstruct the time array from the attribute when loading the data in mdsam
-        self.sendSpectrum.emit(time_attribute, voltages * 1e6)   # Send the data to DataHandling for saving
+        if save_data:
+            # Send the completed data to DataHandling for saving
+            time_attribute = np.array([0, THz_time_array[-1], len(pos)]) # Create time attribute to be saved in the H5 file. This will prevent overflowing the H5 attribute while allowing to reconstruct the time array from the attribute when loading the data in mdsam
+            self.sendSpectrum.emit(time_attribute, voltages * 1e6)
 
     def stop(self):
         self.terminate = True
@@ -1107,6 +1124,7 @@ class THzFT:
                 # Restore the time domain plot using the stored time domain data
                 time_ps, signal = self.time_domain_data
                 self.plot_widget.clear()
+                self.plot_widget.setLogMode(x=False, y=False)
                 self.plot_widget.plot(time_ps, signal, pen='b', linewidth=0.5, label='Vertical')
                 self.plot_widget.setLabel('bottom', 'Time (ps)')
                 self.plot_widget.setLabel('left', 'Amplitude R (µV)')
@@ -1126,6 +1144,7 @@ class THzFT:
                 # Plot the Fourier transform in the plot widget
                 self.time_domain_data = (time_ps.copy(), signal.copy())
                 self.plot_widget.clear()
+                self.plot_widget.setLogMode(x=False, y=True)
                 self.plot_widget.plot(freq, amplitudes, pen='b', linewidth=0.5, label='Fourier amplitude')
                 self.plot_widget.setLabel('bottom', 'Frequency (THz)')
                 self.plot_widget.setLabel('left', 'Amplitude (µV)')
@@ -1161,6 +1180,7 @@ class THzFT:
             pump_probe_fft_image.setColorMap(pg.colormap.get('viridis'))
             pump_probe_fft_image.setImage(plot_data, autoLevels=False, levels=levels)
             self.plot_widget.clear()
+            self.plot_widget.setLogMode(x=False, y=False)
             self.plot_widget.addItem(pump_probe_fft_image)
             self.plot_widget.setLabel('bottom', bottom_label)
             self.plot_widget.setLabel('left', 'Pump-probe delay (ps)')
