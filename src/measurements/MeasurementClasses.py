@@ -1043,17 +1043,19 @@ class THzPumpProbeMeasurement(QtCore.QThread):
         Output: There is no actual output (data is plotted and sent to dataHandling for saving)
         """
         
-        # Use the full scan range for the image even while the current row is incomplete.
+        # Create an array containing all the positions of the THz delay line
         if self.scan_type == 'Step':
-            full_scan_positions = self.THz_scan_array
+            THz_scan_positions = self.THz_scan_array
         else:
-            full_scan_positions = np.linspace(self.THz_initial_pos, self.THz_final_pos, self.spec_length)
-        THz_time_array = THzFunctionToolbox.position_to_time(self, full_scan_positions, inv=True)
+            THz_scan_positions = np.linspace(self.THz_initial_pos, self.THz_final_pos, self.spec_length)
+
+        # Convert the positions of the delay lines to time arrays
+        THz_time_array = THzFunctionToolbox.position_to_time(self, THz_scan_positions, inv=True)
         pump_probe_delays = THzFunctionToolbox.position_to_time(self, self.PumpProbe_scan_array)
 
         # Initialization of the figure with a colorbar (the if is there so that it gets initialized only once in the begining)
         if not hasattr(self, 'pump_probe_image'):
-            self.pump_probe_image_data = np.full((len(pump_probe_delays), len(full_scan_positions)), np.nan)
+            self.pump_probe_image_data = np.full((len(pump_probe_delays), len(THz_scan_positions)), np.nan)
             self.pump_probe_image = pg.ImageItem(axisOrder='row-major')
             self.pump_probe_image.setColorMap(pg.colormap.get('viridis'))
             self.plot_widget.clear()
