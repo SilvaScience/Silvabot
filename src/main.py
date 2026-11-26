@@ -125,7 +125,7 @@ class MainInterface(QtWidgets.QMainWindow):
         self.parameter_tab.setLayout(vbox)
 
         # add Lock In tab if MFLI exists
-        print(self.devices.keys())
+        # print(self.devices.keys())
         if "lock-in" in self.devices.keys():
             self.LockIn_tab =QtWidgets.QWidget()
             self.tabWidget.addTab(self.LockIn_tab, "MFLI")

@@ -958,7 +958,6 @@ class THzLinearMeasurement(QtCore.QThread):
             time_array = time_array[::-1]
 
         # Plot in the provided plot widget
-        print(np.argmax(voltages))
         self.plot_widget.clear()
         self.plot_widget.plot(time_array, voltages * 1e6, pen='b', linewidth=0.5, label='Vertical')
         self.plot_widget.setLabel('bottom', 'Time (ps)')
